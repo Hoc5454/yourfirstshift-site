@@ -664,6 +664,10 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
 #rbPage .ym-over a{font-family:'Barlow',Arial,sans-serif;font-size:13px;font-weight:700;color:#047857;}
 </style>
 
+<style id="yfs-file-retry">
+/* file-reader-retry: after Free is used the Upgrade CTA is always orange + tappable, whatever the upload zone shows */
+#runBtn.yfs-upgrade-cta,#runBtn.yfs-upgrade-cta.disabled{background:#F59E0B;color:#1C1917;border-color:#F59E0B;cursor:pointer;opacity:1;}
+</style>
 </head>
 <body>
 
@@ -2883,6 +2887,55 @@ function restore(){try{
 if(typeof renderTool==='function'){const _r=renderTool;renderTool=function(){const out=_r.apply(this,arguments);restore();return out;};}
 /* first paint after load */
 try{restore();}catch(_){}
+})();
+</script>
+
+<script>
+// ─── file-reader-retry: Android pauses the browser on app switch and kills the in-flight file read.
+// Keep the selected file; when the user comes back (visibilitychange / pageshow / focus) retry the read ONCE.
+// If the retry fails, show the existing friendly error + paste fallback. Reading never touches yfs_usage (no free run burned).
+// Also: after Free is used, the run-slot CTA stays "Upgrade to continue →" (orange, opens checkout) even when the upload zone shows an error.
+(function(){
+const S={file:null,retried:false,hid:false,ok:false,pending:false,reading:false,out:0,stallT:null};
+const FINAL=/too large|HEIC|scanned|empty|extract text|file type|Unknown file|\(4\d\d\)/i;
+function away(){return document.visibilityState==='hidden';}
+function retry(){S.pending=false;clearTimeout(S.stallT);if(!S.file)return;S.retried=true;try{processFile(S.file);}catch(_){}}
+if(typeof processFile==='function'){const _p=processFile;processFile=function(file){
+  if(file){if(file!==S.file){S.file=file;S.retried=false;}S.hid=away();S.ok=false;S.pending=false;S.reading=true;S.out++;}
+  return _p.apply(this,arguments);};}
+function settle(){S.reading=false;S.out=Math.max(0,S.out-1);}
+if(typeof showFileSuccess==='function'){const _s=showFileSuccess;showFileSuccess=function(){settle();S.ok=true;S.pending=false;clearTimeout(S.stallT);return _s.apply(this,arguments);};}
+if(typeof showFileWordFallback==='function'){const _w=showFileWordFallback;showFileWordFallback=function(){settle();return _w.apply(this,arguments);};}
+if(typeof showFileError==='function'){const _e=showFileError;showFileError=function(filename,message){
+  settle();
+  if(S.ok)return;                       /* late failure of an older read after a good one: ignore */
+  if(S.out>0){S.reading=true;return;}   /* another read of the same file is still running: let it finish */
+  const transient=!FINAL.test(String(message||''));
+  if(S.file&&!S.retried&&transient&&(S.hid||away())){
+    S.reading=true;                     /* keep "Reading your document…" on screen; no error flash */
+    if(away())S.pending=true; else setTimeout(retry,350);
+    return;}
+  return _e.apply(this,arguments);};}
+function back(){if(away())return;
+  if(S.pending){S.pending=false;setTimeout(retry,350);return;}
+  /* read went quiet while we were away (no answer at all): give it a few seconds, then retry once */
+  if(S.reading&&S.hid&&!S.retried&&!S.stallT){S.stallT=setTimeout(function(){S.stallT=null;if(S.reading&&!S.ok&&!S.retried&&!away())retry();},6000);}
+  try{updateRunBtn();}catch(_){}}
+document.addEventListener('visibilitychange',function(){if(away()){if(S.reading)S.hid=true;}else back();});
+window.addEventListener('pageshow',back);window.addEventListener('focus',back);
+
+/* Upgrade CTA after Free: always orange + checkout (non-builder tools; builder keeps its own Unlock Pro CTA) */
+function cta(){try{const btn=document.getElementById('runBtn');if(!btn||typeof isPro==='undefined'||isPro)return;
+  if(!(usageCount>=FREE_LIMIT)||TOOLS[activeTool].hasBuilder)return;
+  if(btn.querySelector&&btn.querySelector('.loading-text'))return;
+  btn.className='run-btn ready yfs-upgrade-cta';btn.textContent='Upgrade to continue →';btn.disabled=false;
+  btn.onclick=function(){yfsOpenCheckout();};
+  const h=document.getElementById('yfsGateHint');if(h){h.textContent='';h.style.display='none';}}catch(_){}}
+if(typeof updateRunBtn==='function'){const _u=updateRunBtn;updateRunBtn=function(){const r=_u.apply(this,arguments);cta();return r;};}
+['showFileSuccess','showFileError','showFileWordFallback'].forEach(function(n){try{const f=eval(n);if(typeof f!=='function')return;
+  const w=function(){const r=f.apply(this,arguments);cta();return r;};
+  if(n==='showFileSuccess')showFileSuccess=w;else if(n==='showFileError')showFileError=w;else showFileWordFallback=w;}catch(_){}});
+window.yfsFileRetryState=S;
 })();
 </script>
 

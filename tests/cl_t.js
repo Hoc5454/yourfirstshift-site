@@ -3,7 +3,7 @@ const LETTER=`# Cover Letter — Marcus Reed\n\n---\n\nMarcus Reed\nPort St. Luc
 const OTHER=`Dear Hiring Manager,\n\nI ran final grade on three subdivisions last year with a motor grader and dozer, and kept every crew on schedule.\n\nAt Caloosa Site Development I supervise crews.\n\nThanks,\nJeffery`;
 (async()=>{const b=await chromium.launch();
  for(const [nm,out] of [['marcus',LETTER],['plain',OTHER]]){const ctx=await b.newContext({viewport:{width:390,height:844}});const p=await ctx.newPage();p.on('pageerror',e=>console.log('PAGEERR',e.message));
-  await ctx.route('**/*',r=>{const u=r.request().url();if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync('../p6/app.html'),contentType:'text/html'});
+  await ctx.route('**/*',r=>{const u=r.request().url();if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync(process.argv[2]||'../app.html'),contentType:'text/html'});
    if(u.endsWith('workers.dev')||u.endsWith('workers.dev/'))return r.fulfill({body:JSON.stringify({content:[{text:out}]}),contentType:'application/json'});return r.fulfill({body:'{}',contentType:'application/json'});});
   await p.addInitScript(r=>{localStorage.setItem('yfs_resume',r);},fs.readFileSync('raw_resume.txt','utf8'));
   await p.goto('http://yfs.local/app.html');await p.waitForTimeout(400);
