@@ -1,0 +1,2 @@
+{ "name": "yfs-tests", "private": true,
+  "dependencies": { "html2pdf.js": "^0.10.1", "jspdf": "^2.5.1" } }

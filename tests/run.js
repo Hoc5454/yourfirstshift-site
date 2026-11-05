@@ -1,0 +1,26 @@
+const { chromium } = require('playwright');
+const fs=require('fs'),path=require('path');
+const [,,html,look,out]=process.argv;
+(async()=>{
+ const b=await chromium.launch();const ctx=await b.newContext({acceptDownloads:true,viewport:{width:390,height:844}});
+ const p=await ctx.newPage();
+ p.on('pageerror',e=>console.log('PAGEERR',e.message));
+ await ctx.route('**/*',r=>{const u=r.request().url();
+  if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync(html),contentType:'text/html'});
+  if(u.includes('html2pdf.bundle'))return r.fulfill({body:fs.readFileSync('node_modules/html2pdf.js/dist/html2pdf.bundle.min.js'),contentType:'application/javascript'});
+  if(u.includes('jspdf.umd'))return r.fulfill({body:fs.readFileSync('node_modules/jspdf/dist/jspdf.umd.min.js'),contentType:'application/javascript'});
+  if(u.includes('fonts.g'))return r.fulfill({body:'',contentType:'text/css'});
+  return r.fulfill({body:'{}',contentType:'application/json'});});
+ await p.addInitScript(()=>{localStorage.setItem('yfs_pro','1');});
+ await p.goto('http://yfs.local/app.html');await p.waitForTimeout(800);
+ const md=fs.readFileSync(process.env.MD||'sample.md','utf8').replace('FILLER','');
+ await p.evaluate(([md,look])=>{isPro=true;selectedStyle=look;const box=document.getElementById('outputBox');box.style.display='block';
+   box.dataset.full=md;box.dataset.md=md;yfsModernPaint(box,md,true,'');try{yfsExportLabels()}catch(e){}},[md,look]);
+ await p.waitForTimeout(300);
+ const isR=await p.evaluate(()=>document.querySelector('#outputBox .rb-page')?1:0);console.log('page?',isR);
+ let [d]=await Promise.all([p.waitForEvent('download',{timeout:30000}),p.evaluate(()=>yfsExportPdf())]);
+ await d.saveAs(out+'_styled.pdf');
+ [d]=await Promise.all([p.waitForEvent('download',{timeout:30000}),p.evaluate(()=>yfsExportDocx())]);
+ await d.saveAs(out+'.docx');
+ await p.screenshot({path:out+'_screen.png',fullPage:false});
+ await b.close();})();

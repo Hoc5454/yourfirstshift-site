@@ -1,0 +1,13 @@
+const { chromium } = require('playwright');const fs=require('fs');
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:390,height:844}});const p=await ctx.newPage();
+ p.on('pageerror',e=>console.log('PAGEERR',e.message));
+ await ctx.route('**/*',r=>{const u=r.request().url();if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync('../p5/app.html'),contentType:'text/html'});if(u.includes('fonts.g'))return r.abort();return r.fulfill({body:'{}',contentType:'application/json'});});
+ await p.addInitScript(()=>{localStorage.setItem('yfs_tl_style','Bold Trades');});
+ await p.goto('http://yfs.local/app.html');await p.waitForTimeout(500);
+ const md=fs.readFileSync('sample2.md','utf8').replace('FILLER','');
+ await p.evaluate(md=>{yfsOpenTool(0);sessionStorage.setItem('yfs_last_src',md);showResult(yfsRedactFree(md),true);},md);await p.waitForTimeout(300);
+ console.log('tool0 tease?',await p.evaluate(()=>!!document.getElementById('yfsTease')));
+ let y=await p.evaluate(()=>document.getElementById('outputSection').getBoundingClientRect().top+scrollY);await p.evaluate(y=>scrollTo(0,y-70),y);await p.screenshot({path:'o/U0.png'});
+ await p.evaluate(()=>{yfsOpenTool(5);const v={name:'Jeffery Johnson',target:'Site Foreman',location:'Lehigh Acres, FL',phone:'239-321-4129',email:'j@x.com',experience:'Site Foreman | Caloosa Site Development | 2024 – Present\n• Runs day-to-day site work\n• Trains crews',skills:'Motor grader, Dozer, OSHA 10',education:'High School Diploma — Riverdale HS, 2018'};Object.entries(v).forEach(([k,x])=>{const el=document.getElementById('b_'+k);if(el)el.value=x;});rbSummary='Site foreman with 5 years in civil construction.';rbRender();});
+ await p.waitForTimeout(300);y=await p.evaluate(()=>document.getElementById('rbPage').getBoundingClientRect().top+scrollY);await p.evaluate(y=>scrollTo(0,y-120),y);await p.screenshot({path:'o/U5.png'});
+ await b.close();})();

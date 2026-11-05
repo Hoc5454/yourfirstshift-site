@@ -1,0 +1,13 @@
+const { chromium } = require('playwright');const fs=require('fs');
+(async()=>{const b=await chromium.launch();const p=await (await b.newContext({viewport:{width:390,height:844}})).newPage();
+ p.on('pageerror',e=>console.log('PAGEERR',e.message));
+ await p.route('**/*',r=>{const u=r.request().url();if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync('../p4/app.html'),contentType:'text/html'});return r.fulfill({body:'{}',contentType:'application/json'});});
+ await p.addInitScript(()=>localStorage.setItem('yfs_pro','1'));
+ await p.goto('http://yfs.local/app.html');await p.waitForTimeout(400);
+ await p.evaluate(()=>{yfsOpenTool(5);document.getElementById('b_name').value='A B';document.getElementById('b_experience').value='Foreman | Acme | 2020 – Present\n• Did a thing';rbRender();});
+ const before=await p.evaluate(()=>document.querySelector('#rbPage [data-f="experience"]').innerHTML.slice(0,60));
+ await p.click('#rbPage [data-f="experience"] li');await p.waitForTimeout(80);await p.keyboard.press('End');await p.keyboard.type(' well');
+ const mid=await p.evaluate(()=>document.getElementById('b_experience').value);
+ await p.evaluate(()=>document.activeElement.blur());await p.waitForTimeout(400);
+ const after=await p.evaluate(()=>[document.getElementById('b_experience').value,document.querySelector('#rbPage [data-f="experience"]').className]);
+ console.log(before,'\nMID:',JSON.stringify(mid),'\nAFTER:',JSON.stringify(after));await b.close();})();
