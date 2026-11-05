@@ -2,6 +2,7 @@
 Base: main / LIVE tip 53e249d2 · sha256 b83e9d4095f2efc5a8d59abfd3daf5b1d7143462ce89d32a667004bc2db11bd0 · 260854 B (verified, matches ticket)
 Return: app.html · sha256 7dc7461f53c4564ae02bdc15651d88b96aefc74089a72e48ad1d434fd9376600 · 265045 bytes · Scope: app.html only
 Branch: claude/file-reader-retry · PR: https://github.com/Hoc5454/yourfirstshift-site/pull/1
+Screenshot (390x844, Free used + file error, Upgrade CTA orange): docs/returns/file-reader-retry-390x844.png on the branch
 **DO NOT MERGE until Liz PASS + Shift ships + Hunter phone PASS.**
 
 ## Summary (plain English)
