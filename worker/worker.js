@@ -2035,6 +2035,8 @@ async function verifyProToken(env, token) {
   if (!safeEq(sig, expect)) return null;
   let p; try { p = JSON.parse(new TextDecoder().decode(b64uDecode(body))); } catch { return null; }
   if (!p.exp || p.exp < Math.floor(Date.now() / 1000)) return null;
+  // Org-code Pro (B2B): code must still exist, not ended, and this device's seat must still exist.
+  if (p.org) { if (!(await yfsOrgTokenOk(env, p))) return null; return p; }
   // Revocation: subscription state from webhook (missing record => trust token until exp)
   if (p.sub && env.YFS_KV) {
     const rec = await env.YFS_KV.get('sub:' + p.sub, 'json');
@@ -2200,7 +2202,7 @@ async function handleProStatus(request, env, origin) {
 
 
 // ---- Anonymous funnel counters (no PII: no email, no IP, no ids stored) ----
-const YFS_METRICS=['visit','free_run','pay_tap'];
+const YFS_METRICS=['visit','free_run','pay_tap','org_redeem'];
 async function handleMetrics(request, env, path, origin){
   const H={'Cache-Control':'no-store'};
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
@@ -2251,7 +2253,123 @@ async function handleProCheckout(request, env, origin) {
 }
 
 // ---- Router hook (insert point C) ----
+// ════════════════════════════════════════════════════════════════════════════
+// B2B org codes (PR #5 org-codes + PR #6 org-report). Added by Claude.
+// KV keys (no personal data):
+//   org:<CODE>                        {"org","seat_limit","ends"(unix s),"plan","issued"}  ← Shift creates
+//   orgcount:<CODE>                   "<seats redeemed>"
+//   orgseat:<CODE>:<device>           "<first redeem unix s>"   (delete to free a seat)
+//   orgact:<CODE>:<YYYY-MM>:<device>  "1"  (TTL 400d)  → active seats per month
+//   orgm:<CODE>:<YYYY-MM>:run:<tool>  "<count>"         → Pro runs per tool per month
+// Org tokens use the same signer as Stripe Pro: {org, did, iat, exp:ends, src:'org'}, no `sub`
+// (so /api/pro/status and Stripe revocation never touch them).
+// Secrets: uses PRO_SIGNING_SECRET (existing). Report route needs ADMIN_KEY (new; wrangler secret put).
+// ════════════════════════════════════════════════════════════════════════════
+const ORG_TOOLS = ['translator', 'ats', 'outreach', 'cover', 'interview', 'builder', 'other'];
+const ORG_RL_PER_HOUR = 10;
+function yfsOrgCode(c) { c = String(c || '').toUpperCase().replace(/\s+/g, '').replace(/[–—_]/g, '-').trim();
+  return (c.length >= 6 && c.length <= 24 && /^[A-Z0-9]{2,8}(-[A-Z0-9]{2,8}){1,3}$/.test(c)) ? c : ''; }
+function yfsOrgDevice(d) { d = String(d || ''); return /^[a-f0-9]{32}$/.test(d) ? d : ''; }
+function yfsMonth(d = new Date()) { return d.toISOString().slice(0, 7); }
+function yfsOrgEnds(rec) { const e = Number(rec && rec.ends) || 0; return e > 1e12 ? Math.floor(e / 1000) : e; }
+async function yfsOrgTokenOk(env, p) {
+  if (!env.YFS_KV) return false;
+  const code = yfsOrgCode(p.org), dev = yfsOrgDevice(p.did);
+  if (!code || !dev) return false;
+  const rec = await env.YFS_KV.get('org:' + code, 'json');
+  if (!rec || rec.disabled) return false;
+  if (yfsOrgEnds(rec) <= Math.floor(Date.now() / 1000)) return false;     // ended (or ended early by Shift)
+  return !!(await env.YFS_KV.get('orgseat:' + code + ':' + dev));        // seat freed by Shift → off
+}
+async function yfsOrgRateLimit(request) {
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const hour = Math.floor(Date.now() / 3600000);
+  const key = new Request(`https://rl.internal/org:${ip}:${hour}`); const cache = caches.default;
+  const hit = await cache.match(key); const n = hit ? parseInt(await hit.text(), 10) || 0 : 0;
+  if (n >= ORG_RL_PER_HOUR) return false;
+  await cache.put(key, new Response(String(n + 1), { headers: { 'Cache-Control': 'max-age=3600' } }));
+  return true;
+}
+async function kvInc(env, key, opts) { const n = (parseInt(await env.YFS_KV.get(key) || '0', 10) || 0) + 1; await env.YFS_KV.put(key, String(n), opts); return n; }
+
+// ---- POST /api/org/redeem {code, device} ----
+async function handleOrgRedeem(request, env, origin) {
+  if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
+  if (!env.YFS_KV || !env.PRO_SIGNING_SECRET) return j({ error: 'unavailable' }, 503, origin);
+  if (!(await yfsOrgRateLimit(request))) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
+  let b = {}; try { b = await request.json(); } catch {}
+  const code = yfsOrgCode(b.code), dev = yfsOrgDevice(b.device);
+  if (!dev) return j({ error: 'bad_device' }, 400, origin);
+  if (!code) return j({ error: 'invalid' }, 404, origin);
+  const rec = await env.YFS_KV.get('org:' + code, 'json');
+  if (!rec || rec.disabled) return j({ error: 'invalid' }, 404, origin);
+  const now = Math.floor(Date.now() / 1000), ends = yfsOrgEnds(rec);
+  if (!ends || ends <= now) return j({ error: 'expired', ends }, 410, origin);
+  const limit = Math.max(0, parseInt(rec.seat_limit, 10) || 0);
+  const seatKey = 'orgseat:' + code + ':' + dev;
+  let used = parseInt(await env.YFS_KV.get('orgcount:' + code) || '0', 10) || 0;
+  if (!(await env.YFS_KV.get(seatKey))) {                       // new device → needs a free seat
+    if (used >= limit) return j({ error: 'full', seat_limit: limit }, 409, origin);
+    await env.YFS_KV.put(seatKey, String(now));
+    used = await kvInc(env, 'orgcount:' + code);                // KV not atomic: fine at pilot size
+  }
+  const token = await signProToken(env, { org: code, did: dev, iat: now, exp: ends, src: 'org' });
+  return j({ ok: true, token, org: String(rec.org || '').slice(0, 80), ends, seats_used: used, seat_limit: limit }, 200, origin);
+}
+
+// ---- POST /api/metrics/org_event  (text/plain JSON {t, k:'open'|'run', tool}) ----
+async function handleOrgEvent(request, env, origin) {
+  const H = { 'Cache-Control': 'no-store' };
+  const done = () => new Response(null, { status: 204, headers: { ...cors(origin), ...H } });
+  if (!env.YFS_KV || !requestOriginAllowed(request)) return done();
+  let b = {}; try { b = JSON.parse(await request.text()); } catch { return done(); }
+  const p = await verifyProToken(env, String(b.t || ''));      // same check as the AI route; rejects expired/freed
+  if (!p || !p.org) return done();                             // not an org token → ignore
+  const code = yfsOrgCode(p.org), dev = yfsOrgDevice(p.did), mon = yfsMonth();
+  if (b.k !== 'open' && b.k !== 'run') return done();
+  await env.YFS_KV.put(`orgact:${code}:${mon}:${dev}`, '1', { expirationTtl: 400 * 86400 });
+  if (b.k === 'run') {
+    const tool = ORG_TOOLS.includes(b.tool) ? b.tool : 'other';
+    await kvInc(env, `orgm:${code}:${mon}:run:${tool}`, { expirationTtl: 800 * 86400 });
+  }
+  return done();
+}
+
+// ---- GET /api/admin/org-report?code=&month=YYYY-MM  (Authorization: Bearer <ADMIN_KEY>) ----
+async function handleOrgReport(request, env, url, origin) {
+  const H = { 'Cache-Control': 'no-store' };
+  if (!env.ADMIN_KEY) return j({ error: 'admin not configured' }, 503, origin, H);
+  const auth = request.headers.get('Authorization') || '';
+  if (!safeEq(auth, 'Bearer ' + env.ADMIN_KEY)) return j({ error: 'unauthorized' }, 401, origin, H);
+  const code = yfsOrgCode(url.searchParams.get('code'));
+  const mon = String(url.searchParams.get('month') || yfsMonth());
+  if (!code || !/^\d{4}-(0[1-9]|1[0-2])$/.test(mon)) return j({ error: 'bad_request' }, 400, origin, H);
+  const rec = await env.YFS_KV.get('org:' + code, 'json');
+  if (!rec) return j({ error: 'invalid' }, 404, origin, H);
+  const runs = {}; let total = 0;
+  for (const t of ORG_TOOLS) { const n = parseInt(await env.YFS_KV.get(`orgm:${code}:${mon}:run:${t}`) || '0', 10) || 0; runs[t] = n; total += n; }
+  let active = 0, cursor;
+  do { const pg = await env.YFS_KV.list({ prefix: `orgact:${code}:${mon}:`, cursor }); active += pg.keys.length; cursor = pg.list_complete ? undefined : pg.cursor; } while (cursor);
+  const [y, mo] = mon.split('-').map(Number);
+  return j({ code, org: rec.org || '', plan: rec.plan || '',
+    period: { start: `${mon}-01`, end: new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10) },
+    seat_limit: parseInt(rec.seat_limit, 10) || 0,
+    seats_redeemed: parseInt(await env.YFS_KV.get('orgcount:' + code) || '0', 10) || 0,
+    active_seats: active, runs, runs_total: total, free_runs: null,
+    generated_at: new Date().toISOString() }, 200, origin, H);
+}
+
+async function routeOrg(request, env, path, origin) {
+  const opt = () => new Response(null, { status: 204, headers: cors(origin) });
+  if (path === '/api/org/redeem') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleOrgRedeem(request, env, origin); }
+  if (path === '/api/metrics/org_event') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleOrgEvent(request, env, origin); }
+  if (path === '/api/admin/org-report') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'GET') return handleOrgReport(request, env, new URL(request.url), origin); }
+  return null;
+}
+
 async function routePro(request, env, path, origin) {
+  const orgRes = await routeOrg(request, env, path, origin);
+  if (orgRes) return orgRes;
   if (path === '/api/metrics' || path.startsWith('/api/metrics/')) return handleMetrics(request, env, path, origin);
   if (path === '/api/stripe/webhook' && request.method === 'POST') return handleYfsProStripeWebhook(request, env);
   if (path === '/api/pro/restore') {
