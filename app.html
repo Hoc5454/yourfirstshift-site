@@ -695,6 +695,14 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
   };
 })();
 </script>
+<script id="yfs-org-exp">/* org-codes: end org-code Pro on this device at the plan end date (runs before isPro is read). Server also refuses the token after the end date. */
+(function(){try{var raw=localStorage.getItem('yfs_org');if(!raw)return;var o=JSON.parse(raw)||{};
+  var mine=!!o.tok&&localStorage.getItem('yfs_pro_token')===o.tok;
+  if(!mine){localStorage.removeItem('yfs_org');return;} /* Pro now comes from Stripe/restore, or was already dropped */
+  if(!(o.ends>0)||Date.now()>=o.ends){localStorage.removeItem('yfs_pro');localStorage.removeItem('yfs_pro_token');localStorage.removeItem('yfs_org');
+    localStorage.setItem('yfs_org_ended',JSON.stringify({org:o.org||'',ends:o.ends||0}));}
+}catch(_){}})();
+</script>
 </head>
 <body>
 
@@ -2966,5 +2974,94 @@ window.yfsFileRetryState=S;
 })();
 </script>
 
+<div id="yfsOrgModal" class="yfs-rm" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="yfsOrgTitle">
+  <div class="yfs-rm-box">
+    <div id="yfsOrgTitle" class="yfs-rm-title">Enter your program code</div>
+    <div class="yfs-rm-sub">Got a code from your school, union or job program? Enter it to turn on Pro on this device until your program’s end date.</div>
+    <form onsubmit="return yfsOrgRedeem(event)">
+      <input id="yfsOrgCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" placeholder="YFS-XXXX-XXXX" aria-label="Program code">
+      <button id="yfsOrgGo" type="submit" class="yfs-rm-go">Unlock Pro</button>
+    </form>
+    <div id="yfsOrgMsg" class="yfs-rm-msg" aria-live="polite"></div>
+    <button type="button" class="yfs-rm-x" onclick="yfsCloseOrg()">Close</button>
+  </div>
+</div>
+<style id="yfs-org">
+#yfsOrgCode{text-transform:uppercase;letter-spacing:.04em}
+.yfs-org-link{display:block;width:100%;min-height:44px;margin-top:6px;background:none;border:0;color:#1D4ED8;font-size:14px;font-weight:700;text-decoration:underline;cursor:pointer}
+.yfs-org-note{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9998;width:calc(100% - 32px);max-width:420px;background:#FFFFFF;border:1.5px solid #CBD5E1;border-radius:14px;padding:14px 16px;color:#0F172A;box-shadow:0 12px 36px rgba(15,23,42,.22);font-size:14px;line-height:1.4}
+.yfs-org-note button{margin-top:10px;min-height:44px;width:100%;border-radius:10px;border:1.5px solid #047857;background:#047857;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+</style>
+<script>/* org-codes: one code per organization → Pro on this device until the plan end date, seat-limited. The Worker decides valid / expired / full; nothing secret lives in this file. */
+(function(){
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){return null;}}
+function fmt(ms){try{return new Date(ms).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});}catch(_){return '';}}
+function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+window.yfsOrgNorm=function(s){return String(s||'').toUpperCase().replace(/[\s_‐-―]+/g,'-').replace(/[^A-Z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'');};
+function okShape(c){return c.length>=6&&c.length<=24&&/^[A-Z0-9]{2,8}(-[A-Z0-9]{2,8}){1,3}$/.test(c);}
+function did(){var d=ls('yfs_did');if(!d||!/^[a-f0-9]{32}$/.test(d)){var a=new Uint8Array(16);(window.crypto||window.msCrypto).getRandomValues(a);d=Array.prototype.map.call(a,function(x){return ('0'+x.toString(16)).slice(-2);}).join('');ls('yfs_did',d);}return d;}
+window.yfsOrgInfo=function(){try{var o=JSON.parse(ls('yfs_org')||'null');if(o&&o.tok&&ls('yfs_pro_token')===o.tok&&o.ends>Date.now())return o;}catch(_){}return null;};
+function msg(t,cls){var m=document.getElementById('yfsOrgMsg');if(m){m.className='yfs-rm-msg'+(cls?' '+cls:'');m.textContent=t;}}
+window.yfsOpenOrg=function(code){try{yfsCloseSheets&&yfsCloseSheets();}catch(_){}try{yfsCloseRestore&&yfsCloseRestore();}catch(_){}
+  var m=document.getElementById('yfsOrgModal');if(!m)return;m.style.display='flex';msg('');
+  var i=document.getElementById('yfsOrgCode');if(code)i.value=yfsOrgNorm(code);
+  var o=yfsOrgInfo();if(o)msg('✓ Pro is on through '+fmt(o.ends)+(o.org?' — courtesy of '+o.org:'')+'.','ok');
+  setTimeout(function(){try{i.focus();}catch(_){}},50);};
+window.yfsCloseOrg=function(){var m=document.getElementById('yfsOrgModal');if(m)m.style.display='none';};
+window.yfsOrgRedeem=async function(ev){if(ev&&ev.preventDefault)ev.preventDefault();
+  var i=document.getElementById('yfsOrgCode'),go=document.getElementById('yfsOrgGo');var code=yfsOrgNorm(i.value);i.value=code;
+  if(!code){msg('Enter the code from your program.','err');return false;}
+  if(!okShape(code)){msg('That doesn’t look like a program code. It looks like YFS-XXXX-XXXX — check for typos.','err');return false;}
+  var cur=yfsOrgInfo();
+  if(ls('yfs_pro')==='1'&&!cur){msg('You already have Pro on this device — no code needed.','ok');return false;}
+  go.disabled=true;go.textContent='Checking…';msg('');
+  try{var r=await fetch(YFS_API+'/api/org/redeem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code,device:did()})});
+    var d=await r.json().catch(function(){return {};});
+    var endsMs=(d&&d.ends>0)?(d.ends<1e12?d.ends*1000:d.ends):0;
+    if(r.ok&&d.token&&endsMs>Date.now()){
+      ls('yfs_pro_token',d.token);ls('yfs_pro','1');isPro=true;ls('yfs_org_ended',null);
+      ls('yfs_org',JSON.stringify({org:String(d.org||'').slice(0,80),ends:endsMs,hint:code.slice(-3),tok:d.token}));
+      msg('✓ Pro is on for this device through '+fmt(endsMs)+(d.org?' — courtesy of '+String(d.org).slice(0,80):'')+'.','ok');
+      try{yfsMetric('org_redeem');}catch(_){}
+      try{updateUsagePill();}catch(_){}try{renderTool();}catch(_){}
+      setTimeout(yfsCloseOrg,1800);
+    }else if(d&&d.error==='expired'){msg('That code ended'+(endsMs?' on '+fmt(endsMs):'')+'. Ask your program coordinator about a new one.','err');}
+    else if(d&&d.error==='full'){msg('All '+(d.seat_limit>0?d.seat_limit+' ':'')+'seats for that code are taken. Ask your program coordinator.','err');}
+    else if(d&&d.error==='invalid'){msg('That code isn’t valid. Check it with your program coordinator.','err');}
+    else if(r.status===429){msg('Too many tries — please wait a bit and try again.','err');}
+    else{msg('Couldn’t check the code right now — please try again. Nothing changed.','err');}
+  }catch(e){msg('Network error — please try again. Nothing changed.','err');}
+  go.disabled=false;go.textContent='Unlock Pro';return false;};
+
+/* entry points: Account sheet, Plans sheet, Restore modal */
+try{var rs=document.getElementById('yaRestore');if(rs&&!document.getElementById('yaOrg')){var b=document.createElement('button');b.type='button';b.className='ya-btn';b.id='yaOrg';b.innerHTML='Have a code from your school or program? <span aria-hidden="true">›</span>';b.onclick=function(){yfsOpenOrg();};rs.parentNode.insertBefore(b,rs.nextSibling);}}catch(_){}
+try{var pf=document.querySelector('#yfsPlans .ys-foot');if(pf&&!document.getElementById('ypOrgLink')){var l=document.createElement('button');l.type='button';l.id='ypOrgLink';l.className='yfs-org-link';l.textContent='Have a program code? Enter it here';l.onclick=function(){yfsOpenOrg();};pf.appendChild(l);}}catch(_){}
+try{var rf=document.querySelector('#yfsRestoreModal .yfs-rm-box');if(rf&&!document.getElementById('yfsRmOrg')){var x=document.createElement('button');x.type='button';x.id='yfsRmOrg';x.className='yfs-org-link';x.textContent='Have a code from your school or program instead?';x.onclick=function(){yfsOpenOrg();};rf.insertBefore(x,rf.querySelector('.yfs-rm-x'));}}catch(_){}
+
+/* UI: org Pro has no Stripe subscription → no Manage/Cancel; Account shows who and until when */
+function orgUI(){var o=yfsOrgInfo(),pro=ls('yfs_pro')==='1';
+  var msb=document.getElementById('manageSubBtn');if(msb&&o)msb.style.display='none';
+  var yo=document.getElementById('yaOrg');if(yo)yo.style.display=pro?'none':'flex';
+  var lk=document.getElementById('ypOrgLink');if(lk)lk.style.display=pro?'none':'block';}
+if(typeof updateUsagePill==='function'){var _up=updateUsagePill;updateUsagePill=function(){var r=_up.apply(this,arguments);try{orgUI();}catch(_){}return r;};}
+if(typeof window.yfsOpenAccount==='function'){var _oa=window.yfsOpenAccount;window.yfsOpenAccount=function(){var r=_oa.apply(this,arguments);try{var o=yfsOrgInfo();
+  if(o){document.getElementById('yaPlan').textContent='Pro'+(o.org?' — via '+o.org:' — program code');document.getElementById('yaPlanS').textContent='Your program’s access runs through '+fmt(o.ends)+'. No charge to you.';document.getElementById('yaManage').style.display='none';}
+  orgUI();}catch(_){}return r;};}
+
+/* plain "ended" notice once, after the plan end date */
+function endedNote(){var e=null;try{e=JSON.parse(ls('yfs_org_ended')||'null');}catch(_){}if(!e||document.getElementById('yfsOrgEnded'))return;
+  var n=document.createElement('div');n.id='yfsOrgEnded';n.className='yfs-org-note';n.setAttribute('role','status');
+  n.innerHTML='<b>Your program’s Pro access ended'+(e.ends?' on '+esc(fmt(e.ends)):'')+'.</b> '+(e.org?esc(e.org)+'’s code is no longer active. ':'')+'You’re on the Free plan now — your saved resumes are still here.<button type="button">OK</button>';
+  n.querySelector('button').onclick=function(){ls('yfs_org_ended',null);n.remove();};document.body.appendChild(n);}
+/* end date reached while the app is open */
+function recheck(){try{var raw=ls('yfs_org');if(!raw)return;var o=JSON.parse(raw)||{};if(o.tok&&ls('yfs_pro_token')===o.tok&&!(o.ends>Date.now())){ls('yfs_pro',null);ls('yfs_pro_token',null);ls('yfs_org',null);ls('yfs_org_ended',JSON.stringify({org:o.org||'',ends:o.ends||0}));isPro=false;try{updateUsagePill();renderTool();}catch(_){}endedNote();}}catch(_){}}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')recheck();});setInterval(recheck,60000);
+
+/* deep link: ?org=CODE (or ?code=CODE) opens the code box pre-filled; the user taps Unlock (no silent seat use) */
+try{var q=new URLSearchParams(location.search);var dc=q.get('org')||q.get('code');if(dc!==null){q.delete('org');q.delete('code');history.replaceState(history.state,'',location.pathname+(q.toString()?'?'+q:'')+location.hash);
+  if(dc)setTimeout(function(){yfsOpenOrg(dc);},400);}}catch(_){}
+try{orgUI();}catch(_){}setTimeout(endedNote,500);
+})();
+</script>
 </body>
 </html>
