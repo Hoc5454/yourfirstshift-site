@@ -778,6 +778,22 @@ body.yfs-co-busy #ypCta,body.yfs-co-busy #runBtn,body.yfs-co-busy #yfsPdfCta,bod
 .yfs-pack-note .yfs-pn-row button{margin-top:0}
 .yfs-pack-note .yfs-pn-row button.ghost{background:#fff;color:#0F172A;border-color:#CBD5E1}
 </style>
+<style id="yfs-polish">
+/* polish sweep (Claude): footer links never break mid-phrase */
+.footer-links{flex-wrap:wrap;justify-content:center;gap:2px 18px}
+.footer-links a{white-space:nowrap}
+/* vault cards: 2x2 action grid with full-size buttons */
+.vx-acts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.vx-acts button{min-height:44px;white-space:nowrap;font-size:12px;border-radius:8px}
+/* tool tabs: soft fade on the right says "swipe for more" (removed at the end) */
+.tabs{-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}
+.tabs.at-end{-webkit-mask-image:none;mask-image:none}
+@media (max-width:600px){
+  /* result actions fill the row evenly (no lone "Clear" button) */
+  .action-row .action-btn{flex:1 1 auto;min-height:44px}
+}
+.rb-cert-chip,.style-opt,#rbDlBtn,.rb-print-btn{min-height:44px}
+</style>
 </head>
 <body>
 
@@ -2124,7 +2140,7 @@ function yfsVaultThumb(e){const ln=String(e.text||'').split('\n').map(x=>x.trim(
   return '<div class="rb-page '+rbTplClass(e.look||selectedStyle)+'"><div class="rb-head"><div class="rb-name">'+yfsEsc(nm.slice(0,60))+'</div>'+(tg?'<div class="rb-target">'+yfsEsc(tg.slice(0,80))+'</div>':'')+(ct?'<div class="rb-contact">'+yfsEsc(ct.slice(0,120))+'</div>':'')+'</div>'+body+'</div>';}
 function yfsVaultRender(){const g=document.getElementById('vxGrid');if(!g)return;const a=yfsVaultList(),act=yfsVaultActive();
   if(!a.length){g.innerHTML='<div class="vx-empty">No resumes saved yet. Name one, upload or paste it below, then Save.</div>';return;}
-  g.innerHTML=a.slice().sort((x,y)=>(y.ts||0)-(x.ts||0)).map(e=>'<div class="vx-card'+(e.id===act?' on':'')+'" data-id="'+e.id+'"><div class="vx-thumb">'+(e.id===act?'<span class="vx-badge">✓ ACTIVE</span>':'')+yfsVaultThumb(e)+'</div><div class="vx-meta"><div class="vx-t">'+yfsEsc(e.name)+'</div><div class="vx-d">'+yfsEsc((e.look||'')+' · '+new Date(e.ts||Date.now()).toLocaleDateString())+'</div><div class="vx-acts"><button class="vx-use" data-a="use">'+(e.id===act?'In use':'Use')+'</button><button data-a="edit">Edit</button><button data-a="ren">Rename</button><button data-a="del">🗑</button></div></div></div>').join('');
+  g.innerHTML=a.slice().sort((x,y)=>(y.ts||0)-(x.ts||0)).map(e=>'<div class="vx-card'+(e.id===act?' on':'')+'" data-id="'+e.id+'"><div class="vx-thumb">'+(e.id===act?'<span class="vx-badge">✓ ACTIVE</span>':'')+yfsVaultThumb(e)+'</div><div class="vx-meta"><div class="vx-t">'+yfsEsc(e.name)+'</div><div class="vx-d">'+yfsEsc((e.look||'')+' · '+new Date(e.ts||Date.now()).toLocaleDateString())+'</div><div class="vx-acts"><button class="vx-use" data-a="use">'+(e.id===act?'In use':'Use')+'</button><button data-a="edit">Edit</button><button data-a="ren">Rename</button><button data-a="del" aria-label="Delete this resume" title="Delete">🗑</button></div></div></div>').join('');
   g.querySelectorAll('.vx-card').forEach(c=>c.onclick=function(ev){const b=ev.target.closest('button');const id=c.dataset.id;const a2=b?b.dataset.a:'use';
     if(a2==='del'){if(confirm('Delete this saved resume from this device?'))yfsVaultDel(id);return;}
     if(a2==='ren'){const e=yfsVaultList().find(x=>x.id===id);const n=prompt('Rename resume',e?e.name:'');if(n&&n.trim()){const l=yfsVaultList();l.forEach(x=>{if(x.id===id)x.name=n.trim().slice(0,80);});yfsVaultSet(l);yfsVaultRender();updateVaultUI();}return;}
@@ -3320,5 +3336,7 @@ function go(){try{packUI();}catch(_){}endedNote();setTimeout(function(){try{wind
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
 })();
 </script>
+<script id="yfs-polish-js">(function(){function f(){var t=document.querySelector('.tabs');if(!t)return;var e=t.scrollLeft+t.clientWidth>=t.scrollWidth-4;t.classList.toggle('at-end',e);}
+var t=document.querySelector('.tabs');if(t){t.addEventListener('scroll',f,{passive:true});window.addEventListener('resize',f);setTimeout(f,300);}})();</script>
 </body>
 </html>
