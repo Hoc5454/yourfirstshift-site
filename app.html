@@ -3201,5 +3201,51 @@ try{if(sessionStorage.getItem('yfs_ty_pending')==='1'){if(document.readyState===
 })();
 </script>
 
+<script id="yfs-pro-refresh">
+/* pro-refresh: Pro passes expire after 35 days while the subscription keeps going. Renew quietly (Worker re-checks Stripe)
+   on load when <7 days left, right before an AI call if already expired, and once after a 402. Stripe tokens only; org codes end with their program. */
+(function(){
+var API=(typeof YFS_API!=='undefined')?YFS_API:'https://yourfirstshift.culpepperhunter.workers.dev';
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;}
+function claims(t){try{var b=String(t).split('.')[0].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(decodeURIComponent(escape(atob(b))));}catch(_){return null;}}
+function stripeTok(){var t=ls('yfs_pro_token'),c=t&&claims(t);return (c&&c.sub&&!c.org)?{t:t,c:c}:null;}
+var _f=window.fetch;if(typeof _f!=='function')return;var busy=null;
+function refresh(force){
+  var k=stripeTok();if(!k)return Promise.resolve(false);
+  var left=(+k.c.exp||0)-Date.now()/1000;
+  if(!force&&left>7*86400)return Promise.resolve(false);
+  if(!force&&Date.now()-(+ls('yfs_pro_refresh_at')||0)<12*3600e3)return Promise.resolve(false);
+  if(busy)return busy;
+  ls('yfs_pro_refresh_at',String(Date.now()));
+  busy=_f.call(window,API+'/api/pro/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:k.t})})
+    .then(function(r){return r.json().catch(function(){return {};}).then(function(d){
+      if(r.ok&&d&&d.token&&ls('yfs_pro_token')===k.t){ls('yfs_pro_token',d.token);ls('yfs_pro','1');
+        try{isPro=true;}catch(_){}try{updateUsagePill();}catch(_){}return true;}
+      return false;});})
+    .catch(function(){return false;})
+    .then(function(v){busy=null;return v;});
+  return busy;
+}
+window.yfsProRefresh=refresh;
+function isAi(u,init){return typeof u==='string'&&(u===API||u===API+'/'||u===API+'/api/claude')&&!!init&&String(init.method||'').toUpperCase()==='POST';}
+function hasTok(h){try{if(!h)return false;if(typeof h.get==='function')return !!h.get('X-YFS-Pro');for(var n in h)if(n.toLowerCase()==='x-yfs-pro')return true;}catch(_){}return false;}
+function withTok(init){var t=ls('yfs_pro_token');if(!t||!hasTok(init.headers))return init;var h;
+  if(init.headers&&typeof init.headers.set==='function'){h=new Headers(init.headers);h.set('X-YFS-Pro',t);}
+  else{h={};for(var n in init.headers)if(n.toLowerCase()!=='x-yfs-pro')h[n]=init.headers[n];h['X-YFS-Pro']=t;}
+  return Object.assign({},init,{headers:h});}
+window.fetch=function(u,init){
+  if(!isAi(u,init)||!hasTok(init.headers)||!stripeTok())return _f.apply(this,arguments);
+  var self=this,k=stripeTok();
+  var pre=((+k.c.exp||0)-Date.now()/1000<60)?refresh(true):Promise.resolve(false);
+  return pre.then(function(){return _f.call(self,u,withTok(init));}).then(function(r){
+    if(!r||r.status!==402||!stripeTok())return r;
+    return refresh(true).then(function(ok){return ok?_f.call(self,u,withTok(init)):r;});
+  });
+};
+function onLoad(){setTimeout(function(){refresh(false);},800);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onLoad);else onLoad();
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refresh(false);});
+})();
+</script>
 </body>
 </html>
