@@ -695,6 +695,34 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
   };
 })();
 </script>
+<style id="yfs-heard">
+.yfs-ty{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9998;width:calc(100% - 32px);max-width:420px;background:#FFFFFF;border:1.5px solid #10B981;border-radius:14px;padding:16px 16px 14px;color:#0F172A;box-shadow:0 12px 36px rgba(15,23,42,.22);font-size:14px;line-height:1.4}
+.yfs-ty-x{position:absolute;top:6px;right:6px;min-width:44px;min-height:44px;background:none;border:0;color:#475569;font-size:20px;cursor:pointer}
+.yfs-ty-h{font-size:18px;font-weight:900;margin:0 36px 4px 0;color:#047857}
+.yfs-ty-s{color:#475569;margin-bottom:12px}
+.yfs-ty label{display:block;font-weight:700;margin-bottom:6px}
+.yfs-ty label span{font-weight:400;color:#475569}
+.yfs-ty input{width:100%;box-sizing:border-box;min-height:44px;padding:10px 12px;border:1.5px solid #CBD5E1;border-radius:10px;font-size:16px;color:#0F172A;background:#FFFFFF}
+.yfs-ty-row{display:flex;gap:8px;margin-top:10px}
+.yfs-ty-row button{flex:1;min-height:44px;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer}
+.yfs-ty-send{background:#047857;border:1.5px solid #047857;color:#FFFFFF}
+.yfs-ty-send:disabled{opacity:.45;cursor:default}
+.yfs-ty-skip{background:#FFFFFF;border:1.5px solid #CBD5E1;color:#0F172A}
+.yfs-ty-fine{font-size:12px;color:#64748B;margin-top:8px}
+</style>
+<script id="yfs-heard-js">/* heard-about-us: after a REAL paid return (/api/pro/verify ok + token), show a Pro thank-you card with an optional "How did you hear about us?" field. */
+(function(){try{
+  var _f=window.fetch;if(!_f)return;
+  window.fetch=function(u){var p=_f.apply(this,arguments);
+    try{var url=typeof u==='string'?u:(u&&u.url)||'';
+      if(url.indexOf('/api/pro/verify')>=0){p.then(function(r){if(!r||!r.ok)return;r.clone().json().then(function(d){if(d&&d.token){
+        try{sessionStorage.setItem('yfs_ty_pending','1');}catch(_){}
+        var go=function(){setTimeout(function(){try{window.yfsShowThankYou&&window.yfsShowThankYou();}catch(_){}},300);};
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();}}).catch(function(){});}).catch(function(){});}
+    }catch(_){}
+    return p;};
+}catch(_){}})();
+</script>
 </head>
 <body>
 
@@ -2966,5 +2994,42 @@ window.yfsFileRetryState=S;
 })();
 </script>
 
+<script>/* heard-about-us: Pro thank-you card + optional attribution (never blocks Pro) */
+(function(){
+function done(){try{return localStorage.getItem('yfs_heard_done')==='1';}catch(_){return false;}}
+function src(){try{if(typeof window.yfsSrc==='function')return window.yfsSrc()||'';var o=JSON.parse(localStorage.getItem('yfs_src')||'null');return (o&&/^(tiktok|reels|shorts)$/.test(o.s))?o.s:'';}catch(_){return '';}}
+function clean(s){return String(s||'').replace(/[\u0000-\u001f\u007f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,120);}
+function close(){var c=document.getElementById('yfsThankYou');if(c)c.remove();try{sessionStorage.removeItem('yfs_ty_pending');}catch(_){}}
+function finish(answer){try{localStorage.setItem('yfs_heard_done','1');}catch(_){}
+  if(answer){try{localStorage.setItem('yfs_heard',JSON.stringify({a:answer,s:src(),t:Date.now()}));}catch(_){}
+    try{fetch(YFS_API+'/api/metrics/heard_about',{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({answer:answer,src:src()})}).catch(function(){});}catch(_){}}
+  else{try{yfsMetric('heard_skip');}catch(_){}}}
+window.yfsShowThankYou=function(){
+  if(document.getElementById('yfsThankYou'))return;
+  var pro=false;try{pro=localStorage.getItem('yfs_pro')==='1';}catch(_){}
+  if(!pro)return;
+  var ask=!done();
+  var c=document.createElement('div');c.id='yfsThankYou';c.className='yfs-ty';c.setAttribute('role','dialog');c.setAttribute('aria-labelledby','yfsTyH');
+  c.innerHTML='<button type="button" class="yfs-ty-x" aria-label="Close">×</button>'+
+    '<div class="yfs-ty-h" id="yfsTyH">✅ You’re Pro — thank you!</div>'+
+    '<div class="yfs-ty-s">Unlimited runs on every tool, plus clean PDF and Word downloads. Your tools are ready now.</div>'+
+    (ask?'<form id="yfsTyForm"><label for="yfsTyIn">How did you hear about us? <span>(optional)</span></label>'+
+    '<input id="yfsTyIn" type="text" maxlength="120" autocomplete="off" enterkeyhint="send" placeholder="e.g. TikTok, a friend, my school">'+
+    '<div class="yfs-ty-row"><button type="button" class="yfs-ty-skip" id="yfsTySkip">Skip</button><button type="submit" class="yfs-ty-send" id="yfsTySend" disabled>Send</button></div>'+
+    '<div class="yfs-ty-fine">Just a few words. Please don’t include your name or email.</div></form>':
+    '<div class="yfs-ty-row"><button type="button" class="yfs-ty-send" id="yfsTyOk">Start using Pro</button></div>');
+  document.body.appendChild(c);
+  c.querySelector('.yfs-ty-x').onclick=function(){if(ask)finish('');close();};
+  if(!ask){c.querySelector('#yfsTyOk').onclick=close;return;}
+  var inp=c.querySelector('#yfsTyIn'),send=c.querySelector('#yfsTySend');
+  inp.addEventListener('input',function(){send.disabled=!clean(inp.value);});
+  c.querySelector('#yfsTySkip').onclick=function(){finish('');close();};
+  c.querySelector('#yfsTyForm').onsubmit=function(e){e.preventDefault();var a=clean(inp.value);if(!a)return false;finish(a);
+    c.innerHTML='<div class="yfs-ty-h">Thanks! 🙌</div><div class="yfs-ty-s" style="margin-bottom:0">That helps us reach more people like you.</div>';setTimeout(close,1600);return false;};
+};
+/* if verify finished before this script loaded */
+try{if(sessionStorage.getItem('yfs_ty_pending')==='1'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(window.yfsShowThankYou,300);});else setTimeout(window.yfsShowThankYou,300);}}catch(_){}
+})();
+</script>
 </body>
 </html>
