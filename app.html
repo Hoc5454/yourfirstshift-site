@@ -712,6 +712,11 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
   };
 })();
 </script>
+<script id="yfs-pack-exp">/* plans: the $29 Job Hunt Pack is a 30-day pass with no subscription. End it cleanly on this device at its end date. */
+(function(){try{var t=localStorage.getItem('yfs_pro_token');if(!t)return;var b=t.split('.')[0].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';
+  var c=JSON.parse(atob(b));if(!c||!c.pack)return;
+  if(!(c.exp>0)||c.exp*1000<=Date.now()){localStorage.removeItem('yfs_pro');localStorage.removeItem('yfs_pro_token');localStorage.setItem('yfs_pack_ended',JSON.stringify({ends:(c.exp||0)*1000}));}
+}catch(_){}})();</script>
 <script id="yfs-org-exp">/* org-codes: end org-code Pro on this device at the plan end date (runs before isPro is read). Server also refuses the token after the end date. */
 (function(){try{var raw=localStorage.getItem('yfs_org');if(!raw)return;var o=JSON.parse(raw)||{};
   var mine=!!o.tok&&localStorage.getItem('yfs_pro_token')===o.tok;
@@ -759,6 +764,19 @@ body.yfs-tool #yfsOwen{margin-bottom:14px;position:relative;z-index:1;}
 #yfsOwen .yo-x{flex:none;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;border-radius:10px;color:#475569;font-size:18px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 #yfsOwen .yo-x:hover,#yfsOwen .yo-x:focus-visible{background:#FEF3C7;color:#0F172A;outline:2px solid #B45309;outline-offset:-2px;}
 @media print{#yfsOwen{display:none !important;}}
+</style>
+<style id="yfs-plans-css">
+#yfsCoOpen{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:10000;display:flex;align-items:center;gap:10px;
+  background:#0F172A;color:#FAFAFA;border-radius:999px;padding:12px 18px;font-size:15px;font-weight:700;box-shadow:0 12px 32px rgba(15,23,42,.35);white-space:nowrap;animation:yfsCoIn .18s ease-out}
+#yfsCoOpen .yfs-co-spin{width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(245,158,11,.3);border-top-color:#F59E0B;animation:yfsCoSpin .8s linear infinite;flex:none}
+#yfsCoOpen .yfs-co-lock{font-size:12px;font-weight:600;color:#94A3B8;border-left:1px solid #334155;padding-left:10px}
+@keyframes yfsCoSpin{to{transform:rotate(360deg)}}
+@keyframes yfsCoIn{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (prefers-reduced-motion:reduce){#yfsCoOpen,#yfsCoOpen .yfs-co-spin{animation:none}}
+body.yfs-co-busy #ypCta,body.yfs-co-busy #runBtn,body.yfs-co-busy #yfsPdfCta,body.yfs-co-busy #lockedPdfBtn{opacity:.55;pointer-events:none}
+.yfs-pack-note .yfs-pn-row{display:flex;gap:8px;margin-top:10px}
+.yfs-pack-note .yfs-pn-row button{margin-top:0}
+.yfs-pack-note .yfs-pn-row button.ghost{background:#fff;color:#0F172A;border-color:#CBD5E1}
 </style>
 </head>
 <body>
@@ -1157,18 +1175,27 @@ const YFS_API='https://yourfirstshift.culpepperhunter.workers.dev';
 /* checkout-same-tab: go to Stripe in THIS tab (a new tab opened after a server call gets blocked/stalled on phones,
    and paying in the same browser means Pro is saved where they paid). Stripe returns to app.html?checkout=success|canceled. */
 let yfsCoBusy=false;
-window.addEventListener('pageshow',function(){yfsCoBusy=false;});
-async function yfsOpenCheckout(){
-  if(yfsCoBusy)return; yfsCoBusy=true;
+function yfsCoState(on){let t=document.getElementById('yfsCoOpen');
+  document.body.classList.toggle('yfs-co-busy',!!on);
+  if(!on){if(t)t.remove();return;}
+  if(!t){t=document.createElement('div');t.id='yfsCoOpen';t.setAttribute('role','status');t.setAttribute('aria-live','polite');
+    t.innerHTML='<span class="yfs-co-spin" aria-hidden="true"></span><span>Opening secure checkout…</span><span class="yfs-co-lock" aria-hidden="true">🔒 Stripe</span>';
+    document.body.appendChild(t);}}
+window.addEventListener('pageshow',function(){yfsCoBusy=false;yfsCoState(false);});
+async function yfsGoCheckout(body){
+  if(yfsCoBusy)return; yfsCoBusy=true; yfsCoState(true);
   try{yfsMetric('pay_tap');}catch(_){}
   try{
-    const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
     const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.url){window.location.assign(d.url);setTimeout(function(){yfsCoBusy=false;},15000);return;}
+    if(r.ok&&d.url){window.location.assign(d.url);setTimeout(function(){yfsCoBusy=false;yfsCoState(false);},15000);return;}
+    if(r.status===409&&d.error==='plan_unavailable'){yfsCoBusy=false;yfsCoState(false);try{window.yfsPlansSync&&window.yfsPlansSync(true);}catch(_){}
+      alert('That plan isn’t available right now. Pro monthly is — you have not been charged.');return;}
   }catch(_){}
-  yfsCoBusy=false;
+  yfsCoBusy=false; yfsCoState(false);
   alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');
 }
+async function yfsOpenCheckout(){return yfsGoCheckout({});}
 const YFS_PORTAL='https://billing.stripe.com/p/login/3cIbIU3p4dJS7zd3BN04800';
 function openBillingPortal(ev){
   try{localStorage.setItem('yfs_cancel_pending','1');}catch(_){}
@@ -2742,16 +2769,14 @@ function renderPlans(){const list=document.getElementById('ypList');if(!list)ret
       (p.id==='free'?'<a class="yp-org" href="mailto:hello@yourfirstshiftapp.com?subject=Seats%20for%20our%20program"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/></svg><span style="flex:1"><b>For schools, unions &amp; job programs</b><span>Seats for your whole group. One invoice.</span></span><em>Contact us</em></a>':'');}).join('');
   list.querySelectorAll('.yp-card').forEach(b=>b.onclick=function(){const p=YFS_PLANS.find(x=>x.id===b.dataset.id);if(!buyable(p))return;ypPick=p.id;renderPlans();});
   const p=YFS_PLANS.find(x=>x.id===ypPick),cta=document.getElementById('ypCta'),fine=document.getElementById('ypFine');
-  if(pro&&ypPick!=='free'){cta.textContent='You’re on Pro';cta.disabled=true;fine.textContent='Manage or cancel any time from Account.';return;}
+  if(pro&&ypPick!=='free'&&!(window.yfsPackInfo&&window.yfsPackInfo())){cta.textContent='You’re on Pro';cta.disabled=true;fine.textContent='Manage or cancel any time from Account.';return;}
   cta.disabled=false;cta.textContent=ypPick==='free'?'Keep using Free':('Continue — '+p.price+(p.id==='pack'?' one time':' '+p.per));fine.textContent=p.fine||'';}
 window.yfsOpenPlans=function(){renderPlans();openSheet('yfsPlans');};
 window.yfsPlanGo=function(){const p=YFS_PLANS.find(x=>x.id===ypPick);if(!p||p.id==='free'){yfsCloseSheets();return;}
   if(p.id==='pro'){yfsOpenCheckout();return;} /* existing live $9 path, unchanged */
   if(typeof yfsCheckoutPlan==='function'){yfsCheckoutPlan(p.id);}};
 /* for plans other than $9 Pro: Worker must accept {plan} and return a Stripe url. Only used when that plan's live=true. */
-window.yfsCheckoutPlan=async function(plan){try{yfsMetric('pay_tap');}catch(_){}
-  try{const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:plan})});const d=await r.json().catch(()=>({}));if(r.ok&&d.url){window.location.assign(d.url);return;}}catch(_){}
-  alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');};
+window.yfsCheckoutPlan=function(plan){return yfsGoCheckout({plan:plan});};
 
 window.yfsOpenAccount=function(){const pro=(typeof isPro!=='undefined'&&isPro);
   const left=Math.max(0,(typeof FREE_LIMIT!=='undefined'?FREE_LIMIT:1)-(typeof usageCount!=='undefined'?usageCount:0));
@@ -3251,6 +3276,48 @@ window.fetch=function(u,init){
 function onLoad(){setTimeout(function(){refresh(false);},800);}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onLoad);else onLoad();
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refresh(false);});
+})();
+</script>
+<script id="yfs-plans">
+/* plans: show $29 Job Hunt Pack and $59/yr only when the Worker says their Stripe prices exist; pack = 30-day pass, no subscription. */
+(function(){
+var API=(typeof YFS_API!=='undefined')?YFS_API:'https://yourfirstshift.culpepperhunter.workers.dev';
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;}
+function claims(t){try{var b=String(t).split('.')[0].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(atob(b));}catch(_){return null;}}
+function fmt(ms){try{return new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}catch(_){return '';}}
+function esc(x){return String(x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+/* active pack on this device → {ends:ms}, else null */
+window.yfsPackInfo=function(){var t=ls('yfs_pro_token'),c=t&&claims(t);if(!c||!c.pack||ls('yfs_pro')!=='1')return null;var e=(+c.exp||0)*1000;return e>Date.now()?{ends:e}:null;};
+/* which plans are buyable: ask the Worker once per page (forced after a "plan_unavailable") */
+var synced=null;
+window.yfsPlansSync=function(force){if(synced&&!force)return synced;
+  synced=fetch(API+'/api/pro/plans',{method:'GET'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+    var pl=d&&d.plans||{},ch=false;(window.YFS_PLANS||[]).forEach(function(p){if(p.id==='pack'||p.id==='pro_year'){var v=!!pl[p.id];if(p.live!==v){p.live=v;ch=true;}}});
+    var sh=document.getElementById('yfsPlans');if(ch&&sh&&sh.classList.contains('open')&&typeof window.yfsOpenPlans==='function')window.yfsOpenPlans();
+    return pl;}).catch(function(){synced=null;return null;});
+  return synced;};
+if(typeof window.yfsOpenPlans==='function'){var _op=window.yfsOpenPlans;window.yfsOpenPlans=function(){var r=_op.apply(this,arguments);try{window.yfsPlansSync();}catch(_){}return r;};}
+/* UI for a pack holder: pill + Account say "through <date>", no Manage/Cancel (nothing to cancel) */
+function packUI(){var k=window.yfsPackInfo();var msb=document.getElementById('manageSubBtn');
+  if(!k)return;if(msb)msb.style.display='none';var pill=document.getElementById('usagePill');if(pill)pill.textContent='Pro · through '+fmt(k.ends);}
+if(typeof updateUsagePill==='function'){var _up=updateUsagePill;updateUsagePill=function(){var r=_up.apply(this,arguments);try{packUI();}catch(_){}return r;};}
+if(typeof window.yfsOpenAccount==='function'){var _oa=window.yfsOpenAccount;window.yfsOpenAccount=function(){var r=_oa.apply(this,arguments);try{var k=window.yfsPackInfo();if(k){
+  document.getElementById('yaPlan').textContent='Job Hunt Pack — Pro';
+  document.getElementById('yaPlanS').textContent='Everything unlocked through '+fmt(k.ends)+'. One-time pass — nothing to cancel.';
+  var m=document.getElementById('yaManage');if(m)m.style.display='none';var pb=document.getElementById('yaPlansBtn');if(pb)pb.style.display='flex';}}catch(_){}return r;};}
+/* end of pass: plain notice once */
+function endedNote(){var e=null;try{e=JSON.parse(ls('yfs_pack_ended')||'null');}catch(_){}
+  if(!e||document.getElementById('yfsPackEnded'))return;if(ls('yfs_pro')==='1'){ls('yfs_pack_ended',null);return;}
+  var n=document.createElement('div');n.id='yfsPackEnded';n.className='yfs-org-note yfs-pack-note';n.setAttribute('role','status');
+  n.innerHTML='<b>Your 30-day Job Hunt Pack ended'+(e.ends?' on '+esc(fmt(e.ends)):'')+'.</b> You’re on the Free plan now — your saved resumes are still here.<div class="yfs-pn-row"><button type="button" class="ghost">OK</button><button type="button">See plans</button></div>';
+  var bs=n.querySelectorAll('button');bs[0].onclick=function(){ls('yfs_pack_ended',null);n.remove();};
+  bs[1].onclick=function(){ls('yfs_pack_ended',null);n.remove();try{window.yfsOpenPlans();}catch(_){}};document.body.appendChild(n);}
+function recheck(){var t=ls('yfs_pro_token'),c=t&&claims(t);if(!c||!c.pack)return;
+  if(!((+c.exp||0)*1000>Date.now())){ls('yfs_pro',null);ls('yfs_pro_token',null);ls('yfs_pack_ended',JSON.stringify({ends:(+c.exp||0)*1000}));
+    try{isPro=false;}catch(_){}try{updateUsagePill();renderTool();}catch(_){}endedNote();}}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')recheck();});setInterval(recheck,60000);
+function go(){try{packUI();}catch(_){}endedNote();setTimeout(function(){try{window.yfsPlansSync();}catch(_){}},1200);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
 })();
 </script>
 </body>
