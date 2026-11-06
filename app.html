@@ -669,9 +669,9 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
 #runBtn.yfs-upgrade-cta,#runBtn.yfs-upgrade-cta.disabled{background:#F59E0B;color:#1C1917;border-color:#F59E0B;cursor:pointer;opacity:1;}
 </style>
 <script id="yfs-src">
-/* src-tracking: remember ?src=tiktok|reels|shorts and attach it to the existing anonymous metrics + Pro checkout request. No new keys, no personal data. */
+/* src-tracking: remember ?src=tiktok|reels|shorts|tiktok-ad (paid boost) and attach it to the existing anonymous metrics + Pro checkout request. No new keys, no personal data. */
 (function(){
-  var OK=['tiktok','reels','shorts'],DAYS=30,API='https://yourfirstshift.culpepperhunter.workers.dev';
+  var OK=['tiktok','reels','shorts','tiktok-ad'],DAYS=30,API='https://yourfirstshift.culpepperhunter.workers.dev';
   function clean(v){v=String(v||'').trim().toLowerCase();return OK.indexOf(v)>=0?v:'';}
   try{var q=clean(new URLSearchParams(location.search).get('src'));
     if(q){try{sessionStorage.setItem('yfs_src',q);}catch(_){}try{localStorage.setItem('yfs_src',JSON.stringify({s:q,t:Date.now()}));}catch(_){}}}catch(_){}
@@ -3129,7 +3129,7 @@ if(typeof window.yfsOrgRedeem==='function'){var _r=window.yfsOrgRedeem;window.yf
 <script>/* heard-about-us: Pro thank-you card + optional attribution (never blocks Pro) */
 (function(){
 function done(){try{return localStorage.getItem('yfs_heard_done')==='1';}catch(_){return false;}}
-function src(){try{if(typeof window.yfsSrc==='function')return window.yfsSrc()||'';var o=JSON.parse(localStorage.getItem('yfs_src')||'null');return (o&&/^(tiktok|reels|shorts)$/.test(o.s))?o.s:'';}catch(_){return '';}}
+function src(){try{if(typeof window.yfsSrc==='function')return window.yfsSrc()||'';var o=JSON.parse(localStorage.getItem('yfs_src')||'null');return (o&&/^(tiktok|reels|shorts|tiktok-ad)$/.test(o.s))?o.s:'';}catch(_){return '';}}
 function clean(s){return String(s||'').replace(/[\u0000-\u001f\u007f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,120);}
 function close(){var c=document.getElementById('yfsThankYou');if(c)c.remove();try{sessionStorage.removeItem('yfs_ty_pending');}catch(_){}}
 function finish(answer){try{localStorage.setItem('yfs_heard_done','1');}catch(_){}
