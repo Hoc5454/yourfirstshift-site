@@ -36,6 +36,7 @@ const ai=log=>log.filter(x=>/workers\.dev\/?$/.test(x.u));
   await p.evaluate(()=>yfsOpenCheckout());await p.waitForTimeout(500);
   const c=ck(log);ok(c.length===1&&JSON.parse(c[0].body).src==='tiktok','Pro checkout body = '+(c[0]&&c[0].body));
   ok(metric(log,'pay_tap').every(x=>x.u.endsWith('?src=tiktok'))&&metric(log,'pay_tap').length>=1,'pay_tap metric carries ?src=tiktok');
+  await p.evaluate(()=>{try{yfsCoBusy=false;}catch(_){}});/* harness: the fake Stripe page answers 204 so the tab never leaves; clear the double-tap guard between the two checks */
   await p.evaluate(()=>yfsCheckoutPlan('pack'));await p.waitForTimeout(400);
   const c2=ck(log)[1];ok(c2&&JSON.parse(c2.body).plan==='pack'&&JSON.parse(c2.body).src==='tiktok','plan checkout keeps plan + adds src: '+(c2&&c2.body));
   // new tab, no ?src (e.g. return from Stripe ?session_id=…) — src still known from the last 30 days
