@@ -21,10 +21,14 @@ globalThis.caches = { default: {
   async match(req) { const v = cacheStore.get(req.url); return v == null ? undefined : new Response(v); },
   async put(req, res) { cacheStore.set(req.url, await res.text()); } } };
 let anthropicCalls = 0;
+const STRIPE = {};
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (u, init) => {
   if (String(u).startsWith('https://api.anthropic.com/')) { anthropicCalls++;
     return new Response(JSON.stringify({ content: [{ type: 'text', text: 'ok' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); }
+  const sm = String(u).match(/^https:\/\/api\.stripe\.com\/v1\/subscriptions\/([^?]+)/);
+  if (sm) { const st = STRIPE[decodeURIComponent(sm[1])]; if (st === 'DOWN') return new Response('{"error":{"message":"down"}}', { status: 500 });
+    return st ? new Response(JSON.stringify({ id: sm[1], status: st }), { status: 200 }) : new Response('{"error":{"message":"No such subscription"}}', { status: 404 }); }
   throw new Error('unexpected network call: ' + u);
 };
 
@@ -145,5 +149,22 @@ ok(r.s === 200 && hk.length === 1 && hv.answer.length === 120 && hv.answer.start
 ok(KVS.m.get('m:heard_about') === '1', 'heard_about counter');
 r = await ha({ answer: '' }); ok(r.s === 200 && [...KVS.m.keys()].filter(k => k.startsWith('heard:')).length === 1, 'empty answer → counted, not stored');
 r = await call('POST', '/api/metrics/heard_skip'); ok(r.s === 200, 'heard_skip counter');
+// 8. Pro token refresh (keeps paying users Pro past the 35-day token)
+const rf = (token) => call('POST', '/api/pro/refresh', { body: { token } });
+STRIPE.sub_live = 'active'; STRIPE.sub_gone = 'canceled'; STRIPE.sub_down = 'DOWN';
+const expired = await sign({ sub: 'sub_live', cus: 'cus_1', iat: now() - 40 * 86400, exp: now() - 5 * 86400 });
+r = await ai(expired); ok(r.s === 402, 'expired Stripe token is refused by the AI route (the bug)');
+r = await rf(expired);
+ok(r.s === 200 && r.d.token && r.d.exp > now() + 30 * 86400, 'refresh: expired token + active sub → fresh token');
+r = await ai(r.d.token); ok(r.s === 200, 'refreshed token works on the AI route');
+r = await rf(await sign({ sub: 'sub_gone', iat: now(), exp: now() + 100 })); ok(r.s === 402 && r.d.error === 'inactive', 'refresh: canceled sub → 402 inactive');
+r = await rf(await sign({ sub: 'sub_live', iat: now() - 200 * 86400, exp: now() - 100 * 86400 })); ok(r.s === 401 && r.d.error === 'too_old', 'refresh: >90 days past exp → too_old (use Restore)');
+r = await rf(tokA); ok(r.s === 400, 'refresh: org token not refreshable');
+r = await rf('abc.def'); ok(r.s === 401, 'refresh: forged token → 401');
+const fakeSig = expired.split('.')[0] + '.' + 'x'.repeat(43); r = await rf(fakeSig); ok(r.s === 401, 'refresh: tampered signature → 401');
+await KVS.put('sub:sub_down', JSON.stringify({ status: 'active' }));
+r = await rf(await sign({ sub: 'sub_down', iat: now(), exp: now() - 10 })); ok(r.s === 200 && r.d.token, 'refresh: Stripe down → falls back to webhook record');
+STRIPE.sub_nore = 'DOWN'; r = await rf(await sign({ sub: 'sub_nore', iat: now(), exp: now() - 10 })); ok(r.s === 502, 'refresh: Stripe down + no record → 502 (app keeps state)');
+r = await call('OPTIONS', '/api/pro/refresh'); ok(r.s === 204 && r.h.get('Access-Control-Allow-Origin') === ORIGIN, 'refresh preflight');
 console.log(fail ? `\n${fail} FAILED, ${pass} passed` : `ALL PASS (${pass} checks)`);
 process.exit(fail ? 1 : 0);

@@ -2375,6 +2375,34 @@ async function handleHeardAbout(request, env, origin) {
   return j({ ok: true }, 200, origin, H);
 }
 
+// ---- POST /api/pro/refresh {token} — renew a Stripe Pro token while the subscription is still active ----
+// Accepts a correctly signed token even after exp (up to 90 days past), re-checks Stripe (or the webhook record),
+// and returns a fresh token. Org tokens never refresh (they end with the program). Added by Claude.
+const PRO_REFRESH_GRACE_S = 90 * 86400;
+async function handleProRefresh(request, env, origin) {
+  if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
+  const rl = await rateLimit(request);
+  if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
+  let token; try { token = String((await request.json()).token || ''); } catch {}
+  if (!token || !token.includes('.')) return j({ error: 'bad token' }, 400, origin);
+  const [body, sig] = token.split('.');
+  const expect = b64u(await hmac(env.PRO_SIGNING_SECRET, body));
+  if (!safeEq(sig || '', expect)) return j({ error: 'bad token' }, 401, origin);
+  let p; try { p = JSON.parse(new TextDecoder().decode(b64uDecode(body))); } catch { return j({ error: 'bad token' }, 400, origin); }
+  if (p.org) return j({ error: 'org token' }, 400, origin);
+  if (!p.sub) return j({ error: 'no subscription on token' }, 404, origin);
+  const now = Math.floor(Date.now() / 1000);
+  if (!p.exp || p.exp < now - PRO_REFRESH_GRACE_S) return j({ error: 'too_old' }, 401, origin);
+  let status = null;
+  try { status = (await stripeGet(env, 'subscriptions/' + encodeURIComponent(p.sub))).status; }
+  catch (_) { const rec = env.YFS_KV && await env.YFS_KV.get('sub:' + p.sub, 'json'); if (rec && rec.status) status = rec.status; }
+  if (!status) return j({ error: 'status unavailable' }, 502, origin);
+  if (!ACTIVE_SUB.has(status)) return j({ error: 'inactive', status }, 402, origin);
+  const exp = now + PRO_TOKEN_TTL_S;
+  const fresh = await signProToken(env, { sub: p.sub, cus: p.cus, iat: now, exp, src: 'refresh' });
+  return j({ ok: true, token: fresh, exp }, 200, origin);
+}
+
 async function routeOrg(request, env, path, origin) {
   const opt = () => new Response(null, { status: 204, headers: cors(origin) });
   if (path === '/api/metrics/heard_about') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleHeardAbout(request, env, origin); }
@@ -2392,6 +2420,10 @@ async function routePro(request, env, path, origin) {
   if (path === '/api/pro/restore') {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
     if (request.method === 'POST') return handleProRestore(request, env, origin);
+  }
+  if (path === '/api/pro/refresh') {
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
+    if (request.method === 'POST') return handleProRefresh(request, env, origin);
   }
   if (path === '/api/pro/status') {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
