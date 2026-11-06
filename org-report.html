@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>YFS Org Report</title>
+<style>
+:root{--ink:#0F172A;--sub:#475569;--line:#E2E8F0;--green:#047857;--bg:#F8FAFC;--card:#FFFFFF;--err:#B91C1C}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--sub);margin:0 0 16px;font-size:14px}
+form{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:12px}
+label{font-weight:700;font-size:14px;display:grid;gap:6px}
+input{min-height:44px;padding:8px 12px;border:1.5px solid #CBD5E1;border-radius:10px;font-size:16px;color:var(--ink);background:#fff;width:100%}
+button{min-height:48px;border-radius:10px;border:1.5px solid var(--green);background:var(--green);color:#fff;font-weight:800;font-size:16px;cursor:pointer}
+button.ghost{background:#fff;color:var(--green)}
+button:disabled{opacity:.5}
+#msg{min-height:20px;font-size:14px;margin:12px 2px}
+#msg.err{color:var(--err)}
+#out{display:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:4px}
+#out h2{font-size:18px;margin:0 0 2px}
+.period{color:var(--sub);font-size:14px;margin-bottom:12px}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:10px}
+.stat b{display:block;font-size:24px}
+.stat span{color:var(--sub);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td{padding:8px 4px;border-top:1px solid var(--line)}
+td:last-child{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.note{color:var(--sub);font-size:13px;margin-top:12px}
+.row{display:flex;gap:8px;margin-top:14px}.row button{flex:1}
+</style>
+</head>
+<body>
+<main>
+  <h1>Org usage report</h1>
+  <p class="sub">Seats and tool runs for one program code and one month. Counts only. No names, emails or resume text are collected.</p>
+  <form id="f">
+    <label>Program code<input id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="YFS-XXXX-XXXX" required></label>
+    <label>Month<input id="month" type="month" required></label>
+    <label>Admin key<input id="key" type="password" autocomplete="off" placeholder="From Shift (not saved)" required></label>
+    <button id="go" type="submit">Get report</button>
+  </form>
+  <div id="msg" aria-live="polite"></div>
+  <section id="out" aria-live="polite"></section>
+</main>
+<script>
+(function(){
+var API='https://yourfirstshift.culpepperhunter.workers.dev';
+var TOOLS=[['translator','Resume Translator'],['ats','ATS X-Ray'],['builder','Resume Builder'],['cover','Cover Letter'],['outreach','Outreach'],['interview','Interview Prep']];
+var $=function(id){return document.getElementById(id);};
+var last=null;
+var now=new Date();$('month').value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function n(v){return (typeof v==='number'&&isFinite(v))?v:0;}
+function norm(c){return String(c||'').toUpperCase().replace(/[\s_]+/g,'-').replace(/[^A-Z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'');}
+function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function toCSV(d){var h=['org','code','period_start','period_end','seat_limit','seats_redeemed','active_seats'],r=[d.org,d.code,d.period&&d.period.start,d.period&&d.period.end,n(d.seat_limit),n(d.seats_redeemed),n(d.active_seats)];
+  TOOLS.forEach(function(t){h.push(t[0]+'_runs');r.push(n(d.runs&&d.runs[t[0]]));});
+  h.push('total_pro_runs','generated_at');r.push(n(d.runs_total),d.generated_at||'');
+  return h.join(',')+'\n'+r.map(csvCell).join(',')+'\n';}
+window.yfsReportCSV=toCSV;
+function render(d){last=d;var o=$('out');
+  var rows=TOOLS.map(function(t){return '<tr><td>'+esc(t[1])+'</td><td>'+n(d.runs&&d.runs[t[0]])+'</td></tr>';}).join('');
+  o.innerHTML='<h2>'+esc(d.org||d.code)+'</h2><div class="period">'+esc(d.code)+' · '+esc(d.period&&d.period.start)+' to '+esc(d.period&&d.period.end)+'</div>'+
+    '<div class="stats"><div class="stat"><b>'+n(d.seats_redeemed)+' / '+n(d.seat_limit)+'</b><span>Seats redeemed</span></div>'+
+    '<div class="stat"><b>'+n(d.active_seats)+'</b><span>Active seats this month</span></div>'+
+    '<div class="stat"><b>'+n(d.runs_total)+'</b><span>Pro tool runs</span></div>'+
+    '<div class="stat"><b>'+(n(d.seats_redeemed)?(n(d.runs_total)/Math.max(1,n(d.active_seats))).toFixed(1):'0')+'</b><span>Runs per active seat</span></div></div>'+
+    '<table><tbody>'+rows+'</tbody></table>'+
+    '<p class="note">A seat = one phone or browser that entered the code. "Active" = opened the app with the code on at least once this month. Runs made before a device entered the code are not counted here. Small groups: share totals, not per-tool counts, if fewer than 5 seats are active.</p>'+
+    '<div class="row"><button type="button" id="dl">Download CSV</button><button type="button" class="ghost" id="cp">Copy summary</button></div>';
+  o.style.display='block';
+  $('dl').onclick=function(){var b=new Blob([toCSV(last)],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='yfs-org-report-'+last.code+'-'+(last.month||'')+'.csv';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},500);};
+  $('cp').onclick=function(){var t=(last.org||last.code)+' — '+(last.period&&last.period.start)+' to '+(last.period&&last.period.end)+'\nSeats redeemed: '+n(last.seats_redeemed)+' of '+n(last.seat_limit)+'\nActive seats: '+n(last.active_seats)+'\nPro tool runs: '+n(last.runs_total)+'\n'+TOOLS.map(function(x){return '  '+x[1]+': '+n(last.runs&&last.runs[x[0]]);}).join('\n');
+    try{navigator.clipboard.writeText(t);$('msg').className='';$('msg').textContent='Summary copied.';}catch(_){}};}
+$('f').onsubmit=async function(e){e.preventDefault();var code=norm($('code').value),m=$('month').value,key=$('key').value;$('code').value=code;
+  var msg=$('msg');msg.className='';msg.textContent='';$('out').style.display='none';
+  if(!/^\d{4}-\d{2}$/.test(m)){msg.className='err';msg.textContent='Pick a month.';return;}
+  $('go').disabled=true;$('go').textContent='Loading…';
+  try{var r=await fetch(API+'/api/admin/org-report?code='+encodeURIComponent(code)+'&month='+encodeURIComponent(m),{headers:{'Authorization':'Bearer '+key}});
+    var d=await r.json().catch(function(){return {};});
+    if(r.ok&&d&&d.code){d.month=m;render(d);}
+    else if(r.status===401||r.status===403){msg.className='err';msg.textContent='Admin key not accepted.';}
+    else if(r.status===404){msg.className='err';msg.textContent='No code found with that name.';}
+    else{msg.className='err';msg.textContent='Couldn’t load the report right now ('+r.status+').';}
+  }catch(_){msg.className='err';msg.textContent='Network error — try again.';}
+  $('go').disabled=false;$('go').textContent='Get report';};
+})();
+</script>
+</body>
+</html>

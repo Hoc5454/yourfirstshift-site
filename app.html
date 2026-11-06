@@ -3063,5 +3063,28 @@ try{var q=new URLSearchParams(location.search);var dc=q.get('org')||q.get('code'
 try{orgUI();}catch(_){}setTimeout(endedNote,500);
 })();
 </script>
+<script>/* org-report: anonymous per-code usage events (only while Pro comes from an org code). Sends the org token + event kind + tool id. No resume text, names or emails. */
+(function(){
+var IDS=['translator','ats','outreach','cover','interview','builder'];
+var _f=window.fetch;if(!_f)return;
+function org(){try{return (typeof yfsOrgInfo==='function')?yfsOrgInfo():null;}catch(_){return null;}}
+function send(k,tool){var o=org();if(!o)return;
+  try{_f.call(window,YFS_API+'/api/metrics/org_event',{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify(tool?{t:o.tok,k:k,tool:tool}:{t:o.tok,k:k})}).catch(function(){});}catch(_){}}
+window.yfsOrgEvent=send;
+function hdr(h,n){try{if(!h)return '';if(typeof h.get==='function')return h.get(n)||'';for(var k in h){if(k.toLowerCase()===n.toLowerCase())return h[k];}}catch(_){}return '';}
+window.fetch=function(u,init){var p=_f.apply(this,arguments);
+  try{var url=typeof u==='string'?u:(u&&u.url)||'';
+    if((url===YFS_API||url===YFS_API+'/')&&init&&String(init.method||'').toUpperCase()==='POST'&&hdr(init.headers,'X-YFS-Kind')!=='extract'&&org()){
+      var i=(typeof activeTool==='number')?activeTool:-1,tool=IDS[i]||'other';
+      p.then(function(r){if(r&&r.ok)send('run',tool);}).catch(function(){});}
+  }catch(_){}
+  return p;};
+/* "active seat": one open ping per device per day while org Pro is on */
+function opened(){var o=org();if(!o)return;var d=new Date().toISOString().slice(0,10);try{if(localStorage.getItem('yfs_org_open')===d)return;localStorage.setItem('yfs_org_open',d);}catch(_){}send('open');}
+setTimeout(opened,800);document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')opened();});
+/* right after a successful redeem */
+if(typeof window.yfsOrgRedeem==='function'){var _r=window.yfsOrgRedeem;window.yfsOrgRedeem=async function(){var r=await _r.apply(this,arguments);try{opened();}catch(_){}return r;};}
+})();
+</script>
 </body>
 </html>
