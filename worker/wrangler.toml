@@ -1,0 +1,35 @@
+# Source import only. Do not wrangler deploy or wrangler secret put from this file.
+# Secret values stay in the Cloudflare dashboard. Names below are names only.
+# Not deploy-ready: APP_URL, the production route, and secret values are omitted.
+# Read-only check of live script `yourfirstshift` on 2026-11-06.
+# Live script modified_on: 2026-11-01T16:02:45Z
+name = "yourfirstshift"
+main = "worker.js"
+# Live settings use this date and an empty compatibility_flags list.
+# The prep attachment said 2024-11-01. That is not the running date.
+compatibility_date = "2026-07-15"
+
+[[kv_namespaces]]
+binding = "YFS_KV"
+id = "e2b480fa2ccc43018f562ee82856e79c"
+
+[[d1_databases]]
+binding = "DB"
+# Live D1 name. The prep attachment used "DB", which is the binding, not the database.
+database_name = "yourfirstshift-db"
+database_id = "13fe808c-270f-4960-a56c-c7b6003ef982"
+
+# Live plain-text binding APP_URL exists. Its value is not in git.
+# Live route yourfirstshiftapp.com/*, workers.dev, and preview-URL settings
+# are also omitted. See worker/README.md.
+
+# Secret bindings (names only — never commit values, .dev.vars, or .env files):
+#   ANTHROPIC_API_KEY
+#   GOOGLE_CLIENT_ID
+#   GOOGLE_CLIENT_SECRET
+#   GOOGLE_REDIRECT_URI
+#   PRO_SIGNING_SECRET
+#   STRIPE_RK
+#   STRIPE_SECRET_KEY
+#   STRIPE_WEBHOOK_SECRET
+# Optional env read by the source, not a live secret binding: ENFORCE_FREE_LIMIT

@@ -1,0 +1,21 @@
+# Local Wrangler secrets and cache.
+.dev.vars
+.dev.vars.*
+*.dev.vars
+.wrangler/
+
+node_modules/
+
+# Every env file, including examples. This import has no .env.example.
+.env
+.env.*
+*.env
+
+# Key material
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_rsa.*
