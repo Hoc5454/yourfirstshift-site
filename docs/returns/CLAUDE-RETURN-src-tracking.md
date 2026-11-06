@@ -1,7 +1,7 @@
 # CLAUDE RETURN: src-tracking
 Base: LIVE tip d613ae0a · app.html sha256 7dc7461f53c4564ae02bdc15651d88b96aefc74089a72e48ad1d434fd9376600 · 265045 B (verified, matches ticket; = branch claude/file-reader-retry)
 Return: app.html · sha256 c9622d1272a8304523df84dc26af7e96407be31b8387a63e83e4c4737bdcacc9 · 266803 bytes · Scope: app.html only (+1 small script)
-Branch: claude/src-tracking · PR: __PR__
+Branch: claude/src-tracking · PR: https://github.com/Hoc5454/yourfirstshift-site/pull/2
 Screenshot (390x844, `app.html?src=tiktok#tool-1` → ATS X-Ray): docs/returns/src-tracking-390x844.png
 **DO NOT MERGE until Liz PASS + Shift ships + Hunter phone PASS.**
 
@@ -9,7 +9,7 @@ Screenshot (390x844, `app.html?src=tiktok#tool-1` → ATS X-Ray): docs/returns/s
 When someone opens the app from a link like `…/app.html?src=tiktok`, the app now remembers "tiktok" (also `reels` and `shorts`). It sends that tag along with the anonymous counters we already have (visit → free run → pay tap) and with the "Get Pro" checkout request. So we can see which platform brings free runs and paying users. Anything other than tiktok/reels/shorts is ignored. No personal data, no new keys.
 `#tool-1` already opened ATS X-Ray on the live tip. It still does, with or without `?src=` (tested).
 
-## ⚠ Two things the team must know (not code I can change)
+## ⚠ Three things the team must know (not code I can change)
 1. **Stripe metadata needs a 2-line Worker change (Shift).** The app now sends `{"src":"tiktok"}` in the body of `POST /api/pro/checkout`. The Worker is not in this repo. To land it in Stripe, the Worker should read `body.src`, accept only `tiktok|reels|shorts`, and pass it as `metadata[src]` (and/or `subscription_data[metadata][src]`) when it creates the Checkout Session. Until then the Worker just ignores it. Checkout still works either way (tested: body is valid JSON; with no src the body is still exactly `{}`).
 2. **Counters:** metrics now go to `/api/metrics/<name>?src=tiktok`. A Worker that routes on the path works the same. To count by platform, the Worker should read `?src` (same 3 values) and bump e.g. `free_run:tiktok`. Until then the totals are unchanged.
 3. **Bio link:** `yourfirstshiftapp.com/` is the landing page (index.html). It is not in this repo and not in the ticket base, so I didn't touch it. Two options:
