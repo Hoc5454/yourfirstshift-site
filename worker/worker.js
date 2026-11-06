@@ -2037,6 +2037,7 @@ async function verifyProToken(env, token) {
   if (!p.exp || p.exp < Math.floor(Date.now() / 1000)) return null;
   // Org-code Pro (B2B): code must still exist, not ended, and this device's seat must still exist.
   if (p.org) { if (!(await yfsOrgTokenOk(env, p))) return null; return p; }
+  if (p.pack) { if (p.pi && env.YFS_KV && await env.YFS_KV.get('packrev:' + p.pi)) return null; return p; }
   // Revocation: subscription state from webhook (missing record => trust token until exp)
   if (p.sub && env.YFS_KV) {
     const rec = await env.YFS_KV.get('sub:' + p.sub, 'json');
@@ -2066,6 +2067,12 @@ async function handleProVerify(request, env, origin) {
   catch (e) { return j({ error: 'session not found' }, 404, origin); }
   if (s.status !== 'complete') return j({ error: 'session not complete' }, 402, origin);
   if (!yfsIsProSession(s)) return j({ error: 'wrong product' }, 403, origin);
+  if (s.mode === 'payment') {
+    if (!yfsIsPackSession(s)) return j({ error: 'not paid' }, 402, origin);
+    const t = await yfsPackToken(env, s, 'pack');
+    if (!t) return j({ error: 'pack ended' }, 410, origin);
+    return j({ ok: true, token: t.token, exp: t.exp, plan: 'pack' }, 200, origin);
+  }
   if (s.mode !== 'subscription' || !s.subscription) return j({ error: 'not a subscription' }, 403, origin);
   const subId = typeof s.subscription === 'string' ? s.subscription : s.subscription.id;
   // Seed KV in case webhook hasn't landed yet
@@ -2117,6 +2124,9 @@ async function handleYfsProStripeWebhook(request, env) {
       await put(typeof o.subscription === 'string' ? o.subscription
         : (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription), 'active');
       break;
+    case 'charge.refunded':
+      if (o.payment_intent && (o.refunded || o.amount_refunded > 0)) await env.YFS_KV.put('packrev:' + (typeof o.payment_intent === 'string' ? o.payment_intent : o.payment_intent.id), '1', { expirationTtl: 60 * 86400 });
+      break;
     case 'invoice.payment_failed':
       await put(typeof o.subscription === 'string' ? o.subscription
         : (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription), 'past_due');
@@ -2135,12 +2145,13 @@ async function handleProRestore(request, env, origin) {
   let email; try { email = String((await request.json()).email || '').trim(); } catch {}
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return j({ error: 'bad email' }, 400, origin);
   const variants = [...new Set([email, email.toLowerCase()])];
-  let found = null;
+  let found = null, pack = null;
   try {
     // Lookup via Checkout Sessions on the Pro Payment Link (key has checkout read; no customer read needed)
     for (const em of variants) {
       const ss = await stripeGet(env, 'checkout/sessions?limit=50&status=complete&customer_details[email]=' + encodeURIComponent(em));
       for (const x of (ss.data || [])) {
+        if (yfsIsPackSession(x)) { const t = await yfsPackToken(env, x, 'restore'); if (t && (!pack || t.exp > pack.exp)) pack = t; continue; }
         if (!yfsIsProSession(x) || x.mode !== 'subscription' || !x.subscription) continue;
         const subId = typeof x.subscription === 'string' ? x.subscription : x.subscription.id;
         let status = null;
@@ -2156,6 +2167,7 @@ async function handleProRestore(request, env, origin) {
     const m = String(e && e.message || ''); console.log('restore lookup failed', /ermission/.test(m) ? 'permission' : 'other');
     return j({ error: 'lookup failed, try again' }, 502, origin);
   }
+  if (!found && pack) return j({ ok: true, token: pack.token, exp: pack.exp, plan: 'pack' }, 200, origin);
   if (!found) return j({ error: 'no active Pro subscription for that email' }, 404, origin);
   const now = Math.floor(Date.now() / 1000);
   const token = await signProToken(env, { sub: found.sub, cus: found.cus, iat: now, exp: now + PRO_TOKEN_TTL_S, src: 'restore' });
@@ -2228,22 +2240,59 @@ async function handleMetrics(request, env, path, origin){
 // ---- Worker-created Pro Checkout Session (cancel returns to the free result) ----
 const YFS_PRO_PRICE = 'price_1TtWAN2UF854inJLHEqOW9Lx'; // same $9/mo price as Payment Link
 function yfsIsProSession(s) { return !!s && (s.payment_link === PAYMENT_LINK_ID || (s.metadata && s.metadata.yfs_pro === '1')); }
+// ---- Plans: $9/mo Pro (always), $59/yr Pro and $29 one-time 30-day Job Hunt Pack (only when Shift sets their Stripe price IDs as plain vars) ----
+const YFS_PACK_DAYS = 30;
+function yfsPlanFor(env, id) {
+  id = String(id || 'pro');
+  if (id === 'pro') return { id: 'pro', mode: 'subscription', price: YFS_PRO_PRICE };
+  if (id === 'pro_year' && /^price_[A-Za-z0-9]+$/.test(env.YFS_PRICE_YEAR || '')) return { id, mode: 'subscription', price: env.YFS_PRICE_YEAR };
+  if (id === 'pack' && /^price_[A-Za-z0-9]+$/.test(env.YFS_PRICE_PACK || '')) return { id, mode: 'payment', price: env.YFS_PRICE_PACK };
+  return null;
+}
+function yfsIsPackSession(s) {
+  return !!s && s.mode === 'payment' && s.payment_status === 'paid' && !!s.metadata && s.metadata.yfs_pro === '1' && s.metadata.yfs_plan === 'pack';
+}
+function yfsPackPi(s) { return s && (typeof s.payment_intent === 'string' ? s.payment_intent : (s.payment_intent && s.payment_intent.id)) || ''; }
+async function yfsPackToken(env, s, src) {
+  const now = Math.floor(Date.now() / 1000), exp = (Number(s.created) || now) + YFS_PACK_DAYS * 86400;
+  if (exp <= now) return null;
+  const pi = yfsPackPi(s);
+  if (pi && env.YFS_KV && await env.YFS_KV.get('packrev:' + pi)) return null;      // refunded
+  return { token: await signProToken(env, { pack: s.id, pi, cus: s.customer, iat: now, exp, src }), exp };
+}
+// GET /api/pro/plans → which plans can be bought right now (app shows only these)
+function handleProPlans(env, origin) {
+  return j({ plans: { pro: true, pro_year: !!yfsPlanFor(env, 'pro_year'), pack: !!yfsPlanFor(env, 'pack') }, pack_days: YFS_PACK_DAYS }, 200, origin, { 'Cache-Control': 'no-store' });
+}
+
 async function handleProCheckout(request, env, origin) {
   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
   const rl = await rateLimit(request);
   if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
-  let email = ''; try { email = String((await request.json()).email || '').trim(); } catch {}
+  let b = {}; try { b = await request.json(); } catch {}
+  let email = String(b.email || '').trim();
   if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) email = '';
+  const plan = yfsPlanFor(env, b.plan);
+  if (!plan) return j({ error: 'plan_unavailable' }, 409, origin);
+  const src = String(b.src || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
   const base = originOk(origin) ? origin : 'https://yourfirstshiftapp.com';
   const p = new URLSearchParams();
-  p.set('mode', 'subscription');
-  p.set('line_items[0][price]', YFS_PRO_PRICE);
+  p.set('mode', plan.mode);
+  p.set('line_items[0][price]', plan.price);
   p.set('line_items[0][quantity]', '1');
   p.set('success_url', base + '/app.html?checkout=success&session_id={CHECKOUT_SESSION_ID}');
   p.set('cancel_url', base + '/app.html?checkout=canceled');
   p.set('billing_address_collection', 'auto');
   p.set('metadata[yfs_pro]', '1');
-  p.set('subscription_data[metadata][yfs_pro]', '1');
+  p.set('metadata[yfs_plan]', plan.id);
+  if (src) p.set('metadata[yfs_src]', src);
+  if (plan.mode === 'subscription') {
+    p.set('subscription_data[metadata][yfs_pro]', '1');
+    p.set('subscription_data[metadata][yfs_plan]', plan.id);
+  } else {
+    p.set('customer_creation', 'always');
+    p.set('payment_intent_data[metadata][yfs_plan]', plan.id);
+  }
   if (email) p.set('customer_email', email);
   const r = await fetch('https://api.stripe.com/v1/checkout/sessions', { method: 'POST',
     headers: { Authorization: 'Bearer ' + env.STRIPE_RK, 'Content-Type': 'application/x-www-form-urlencoded' }, body: p.toString() });
@@ -2420,6 +2469,10 @@ async function routePro(request, env, path, origin) {
   if (path === '/api/pro/restore') {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
     if (request.method === 'POST') return handleProRestore(request, env, origin);
+  }
+  if (path === '/api/pro/plans') {
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
+    if (request.method === 'GET') return handleProPlans(env, origin);
   }
   if (path === '/api/pro/refresh') {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
