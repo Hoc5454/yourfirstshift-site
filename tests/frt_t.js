@@ -12,7 +12,7 @@ async function setup(b,{used=false,pro=false,plan}){
   const st={errs:[],extract:0,ai:0,ck:0,pending:[]};
   p.on('pageerror',e=>{st.errs.push(e.message);console.log('PAGEERR',e.message);});p.on('dialog',d=>d.dismiss());
   ctx.on('page',np=>np.close().catch(()=>{}));
-  await ctx.route('**/*',async r=>{const u=r.request().url();
+  await ctx.route('**/*',async r=>{const u=r.request().url();/* checkout-same-tab: Stripe now opens in the SAME tab; a 204 keeps the test on the app page */if(u.startsWith('https://checkout.stripe.com/'))return r.fulfill({status:204,body:''});
     if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync(H),contentType:'text/html'});
     if(u.includes('/api/pro/checkout')){st.ck++;return r.fulfill({body:JSON.stringify({url:'https://checkout.stripe.com/c/test'}),contentType:'application/json'});}
     if(/workers\.dev\/?$/.test(u)){const k=(r.request().headers()['x-yfs-kind']||'');

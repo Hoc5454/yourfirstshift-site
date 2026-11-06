@@ -5,7 +5,7 @@ const H=process.argv[2]||'../app.html';const RAW=fs.readFileSync('raw_resume.txt
 const XR=`## AI MATCH ESTIMATE: 64/100 (vs this job posting)\n## VERDICT: Solid fit.\n\n## ✅ KEYWORD HITS (2 found)\n- Motor grader\n- Dozer\n\n## ❌ CRITICAL GAPS (1 missing)\n- Grade stakes\n\n## 🔧 TOP 5 FIXES — do these before applying\n1. Put "motor grader" in your summary\n\n## 📊 HIRING PROBABILITY\nGood with fixes.`;
 let fails=0;const ok=(c,m)=>{console.log((c?'  PASS ':'  FAIL ')+m);if(!c)fails++;};
 async function ctxFor(b,log,opts={}){const ctx=await b.newContext({viewport:{width:390,height:844}});
-  await ctx.route('**/*',r=>{const q=r.request(),u=q.url();
+  await ctx.route('**/*',r=>{const q=r.request(),u=q.url();/* checkout-same-tab: Stripe now opens in the SAME tab; a 204 keeps the test on the app page */if(u.startsWith('https://checkout.stripe.com/'))return r.fulfill({status:204,body:''});
     if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync(H),contentType:'text/html'});
     if(u.includes('fonts.g'))return r.abort();
     if(u.includes('workers.dev'))log.push({u,body:q.postData()||''});

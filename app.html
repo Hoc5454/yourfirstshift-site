@@ -1154,13 +1154,19 @@ const FREE_LIMIT = 1;
 let usageCount = parseInt(localStorage.getItem('yfs_usage')||'0');
 const YFS_API='https://yourfirstshift.culpepperhunter.workers.dev';
 
+/* checkout-same-tab: go to Stripe in THIS tab (a new tab opened after a server call gets blocked/stalled on phones,
+   and paying in the same browser means Pro is saved where they paid). Stripe returns to app.html?checkout=success|canceled. */
+let yfsCoBusy=false;
+window.addEventListener('pageshow',function(){yfsCoBusy=false;});
 async function yfsOpenCheckout(){
+  if(yfsCoBusy)return; yfsCoBusy=true;
   try{yfsMetric('pay_tap');}catch(_){}
   try{
     const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.url){window.open(d.url,'_blank','noopener');return;}
+    if(r.ok&&d.url){window.location.assign(d.url);setTimeout(function(){yfsCoBusy=false;},15000);return;}
   }catch(_){}
+  yfsCoBusy=false;
   alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');
 }
 const YFS_PORTAL='https://billing.stripe.com/p/login/3cIbIU3p4dJS7zd3BN04800';
@@ -2744,7 +2750,7 @@ window.yfsPlanGo=function(){const p=YFS_PLANS.find(x=>x.id===ypPick);if(!p||p.id
   if(typeof yfsCheckoutPlan==='function'){yfsCheckoutPlan(p.id);}};
 /* for plans other than $9 Pro: Worker must accept {plan} and return a Stripe url. Only used when that plan's live=true. */
 window.yfsCheckoutPlan=async function(plan){try{yfsMetric('pay_tap');}catch(_){}
-  try{const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:plan})});const d=await r.json().catch(()=>({}));if(r.ok&&d.url){window.open(d.url,'_blank','noopener');return;}}catch(_){}
+  try{const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:plan})});const d=await r.json().catch(()=>({}));if(r.ok&&d.url){window.location.assign(d.url);return;}}catch(_){}
   alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');};
 
 window.yfsOpenAccount=function(){const pro=(typeof isPro!=='undefined'&&isPro);
