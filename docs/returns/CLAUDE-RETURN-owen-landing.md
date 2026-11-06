@@ -2,7 +2,7 @@
 Base: LIVE tip d613ae0a · app.html sha256 7dc7461f53c4564ae02bdc15651d88b96aefc74089a72e48ad1d434fd9376600 · 265045 B (verified, matches ticket)
 **Built on top of src-tracking** (ticket says it depends on it). This file = src-tracking + Owen card. Ship src-tracking first, or ship this file alone (it contains both).
 Return: app.html · sha256 fd2e1681d2948aeecc8f95053bf1bcf46aff67e8a8a2abdae06a63fdc1b7ab35 · 269517 bytes · Scope: app.html only
-Branch: claude/owen-landing (stacked on claude/src-tracking) · PR: __PR__
+Branch: claude/owen-landing (stacked on claude/src-tracking) · PR: https://github.com/Hoc5454/yourfirstshift-site/pull/3
 Screenshots (390x844): docs/returns/owen-landing-390x844.png (Start screen) · docs/returns/owen-landing-xray-390x844.png (`#tool-1`)
 **DO NOT MERGE until Liz PASS + Shift ships + Hunter phone PASS.**
 
