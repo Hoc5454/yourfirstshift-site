@@ -731,6 +731,18 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
     return p;};
 }catch(_){}})();
 </script>
+<style id="yfs-owen">
+#yfsOwen{display:none;max-width:560px;margin:12px auto 0;padding:0 20px;box-sizing:border-box;}
+#yfsOwen.on{display:block;}
+body.yfs-tool #yfsOwen{margin-bottom:14px;position:relative;z-index:1;}
+#yfsOwen .yo-card{display:flex;align-items:center;gap:10px;background:#FFFBEB;border:1px solid #FCD34D;border-left:4px solid #F59E0B;border-radius:12px;padding:10px 6px 10px 14px;color:#0F172A;font-family:var(--font-b,system-ui,sans-serif);font-size:15px;line-height:1.35;}
+#yfsOwen .yo-tx{flex:1;margin:0;}
+#yfsOwen .yo-tx b{color:#0F172A;font-weight:800;}
+#yfsOwen .yo-tx span{color:#334155;}
+#yfsOwen .yo-x{flex:none;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;background:none;border:0;border-radius:10px;color:#475569;font-size:18px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+#yfsOwen .yo-x:hover,#yfsOwen .yo-x:focus-visible{background:#FEF3C7;color:#0F172A;outline:2px solid #B45309;outline-offset:-2px;}
+@media print{#yfsOwen{display:none !important;}}
+</style>
 </head>
 <body>
 
@@ -3151,5 +3163,26 @@ window.yfsShowThankYou=function(){
 try{if(sessionStorage.getItem('yfs_ty_pending')==='1'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(window.yfsShowThankYou,300);});else setTimeout(window.yfsShowThankYou,300);}}catch(_){}
 })();
 </script>
+<script id="yfs-owen-js">
+/* owen-landing: "Owen sent you. Your free run is ready." — only when a known ?src came in this visit, Free run still unused, not Pro. Non-blocking, dismissible. */
+(function(){
+  function want(){try{
+    if(typeof yfsSrcThisSession!=='function'||!yfsSrcThisSession())return false;
+    if(sessionStorage.getItem('yfs_owen_x')==='1')return false;
+    if(localStorage.getItem('yfs_pro')==='1')return false;
+    var used=parseInt(localStorage.getItem('yfs_usage')||'0',10)||0,lim=(typeof FREE_LIMIT!=='undefined'?FREE_LIMIT:1);
+    return used<lim;}catch(_){return false;}}
+  function el(){var c=document.getElementById('yfsOwen');if(c)return c;var home=document.getElementById('yfsHome');if(!home)return null;
+    c=document.createElement('div');c.id='yfsOwen';
+    c.innerHTML='<div class="yo-card"><p class="yo-tx"><b>Owen sent you.</b> <span>Your free run is ready.</span></p><button type="button" class="yo-x" aria-label="Dismiss">✕</button></div>';
+    c.querySelector('.yo-x').onclick=function(){try{sessionStorage.setItem('yfs_owen_x','1');}catch(_){}c.classList.remove('on');};
+    home.parentNode.insertBefore(c,home);return c;}
+  window.yfsOwenRefresh=function(){try{var w=want();var c=w?el():document.getElementById('yfsOwen');if(c)c.classList.toggle('on',w);}catch(_){}};
+  try{if(typeof updateUsagePill==='function'){var _u=updateUsagePill;updateUsagePill=function(){var r=_u.apply(this,arguments);yfsOwenRefresh();return r;};}}catch(_){}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',yfsOwenRefresh);else yfsOwenRefresh();
+  window.addEventListener('pageshow',yfsOwenRefresh);
+})();
+</script>
+
 </body>
 </html>

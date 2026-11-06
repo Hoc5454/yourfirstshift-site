@@ -7,7 +7,7 @@ LIVE c9622d12 → #10 org-codes v2 → #11 org-report v2 → **heard-about-us v3
 | Branch | Replaces | app.html sha256 | Bytes |
 |---|---|---|---|
 | `claude/heard-about-us-v3` | #9 (same code, on top of #11) | `553a3fe75a8c3d3055ea2970878eec5bb5ac0ba70384f2fdf0ae8ebd290b1eee` | 284,922 |
-| `claude/owen-landing-v2` | #3 (same code, on top of heard v3) | `2ad80b9d7b68…` (see PR) | 287,636 |
+| `claude/owen-landing-v2` | #3 (same code, on top of heard v3) | `2ad80b9d7b68fb37400b17cb392c2bfe252a151251ca890440caf51b77d2815d` | 287,636 |
 
 Built by 3-way merge with LIVE (c9622d12) as the common ancestor. Only overlaps: blocks added right before `</head>` / `</body>`. Kept all of them; no feature code changed.
 
