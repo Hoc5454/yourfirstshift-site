@@ -136,5 +136,14 @@ ok(rr.status === 503, 'no ADMIN_KEY set → 503 (route safely off)');
 r = await call('POST', '/api/metrics/org_redeem'); ok(r.s === 200 && r.d.ok, 'org_redeem funnel counter');
 r = await call('POST', '/api/metrics/visit'); ok(r.s === 200, 'existing visit metric still works');
 
+// 7. heard-about-us answers (PR #4)
+const ha = (b, ip) => call('POST', '/api/metrics/heard_about', { body: JSON.stringify(b), raw: true, ip, headers: { 'Content-Type': 'text/plain;charset=UTF-8' } });
+r = await ha({ answer: '  TikTok\nvideo ' + 'x'.repeat(200), src: 'TikTok!' });
+const hk = [...KVS.m.keys()].filter(k => k.startsWith('heard:'));
+const hv = hk.length ? JSON.parse(KVS.m.get(hk[0])) : {};
+ok(r.s === 200 && hk.length === 1 && hv.answer.length === 120 && hv.answer.startsWith('TikTok video') && hv.src === 'tiktok', 'heard_about stores trimmed answer + clean src');
+ok(KVS.m.get('m:heard_about') === '1', 'heard_about counter');
+r = await ha({ answer: '' }); ok(r.s === 200 && [...KVS.m.keys()].filter(k => k.startsWith('heard:')).length === 1, 'empty answer → counted, not stored');
+r = await call('POST', '/api/metrics/heard_skip'); ok(r.s === 200, 'heard_skip counter');
 console.log(fail ? `\n${fail} FAILED, ${pass} passed` : `ALL PASS (${pass} checks)`);
 process.exit(fail ? 1 : 0);

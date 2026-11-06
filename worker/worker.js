@@ -2202,7 +2202,7 @@ async function handleProStatus(request, env, origin) {
 
 
 // ---- Anonymous funnel counters (no PII: no email, no IP, no ids stored) ----
-const YFS_METRICS=['visit','free_run','pay_tap','org_redeem'];
+const YFS_METRICS=['visit','free_run','pay_tap','org_redeem','heard_about','heard_skip'];
 async function handleMetrics(request, env, path, origin){
   const H={'Cache-Control':'no-store'};
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
@@ -2359,8 +2359,25 @@ async function handleOrgReport(request, env, url, origin) {
     generated_at: new Date().toISOString() }, 200, origin, H);
 }
 
+// ---- POST /api/metrics/heard_about (text/plain JSON {answer, src}) — PR #4 "How did you hear about us?" ----
+// Keeps the typed answer (≤120 chars, no other data) + bumps the counter. Read back: wrangler kv key list --prefix heard:
+async function handleHeardAbout(request, env, origin) {
+  const H = { 'Cache-Control': 'no-store' };
+  if (!env.YFS_KV || !requestOriginAllowed(request)) return new Response(null, { status: 204, headers: { ...cors(origin), ...H } });
+  if (!(await yfsOrgRateLimit(request))) return j({ error: 'Rate limit' }, 429, origin, H);
+  let b = {}; try { b = JSON.parse(await request.text()); } catch {}
+  const answer = String(b.answer || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120);
+  const src = String(b.src || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+  if (answer) { const ts = Date.now();
+    await env.YFS_KV.put(`heard:${ts}:${crypto.randomUUID().slice(0, 8)}`, JSON.stringify({ answer, src, ts }), { expirationTtl: 800 * 86400 }); }
+  const day = new Date().toISOString().slice(0, 10);
+  await kvInc(env, 'm:heard_about'); await kvInc(env, 'm:heard_about:' + day);
+  return j({ ok: true }, 200, origin, H);
+}
+
 async function routeOrg(request, env, path, origin) {
   const opt = () => new Response(null, { status: 204, headers: cors(origin) });
+  if (path === '/api/metrics/heard_about') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleHeardAbout(request, env, origin); }
   if (path === '/api/org/redeem') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleOrgRedeem(request, env, origin); }
   if (path === '/api/metrics/org_event') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleOrgEvent(request, env, origin); }
   if (path === '/api/admin/org-report') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'GET') return handleOrgReport(request, env, new URL(request.url), origin); }

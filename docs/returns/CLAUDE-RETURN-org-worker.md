@@ -16,6 +16,7 @@ Branch: `claude/org-worker` · Scope: `worker/worker.js` (+1 test file). **No de
   - `POST /api/metrics/org_event` (text/plain JSON `{t, k:'open'|'run', tool}`) → always `204`. Counts only org tokens that pass the same check as the AI route.
   - `GET /api/admin/org-report?code=&month=YYYY-MM` + `Authorization: Bearer <ADMIN_KEY>` → JSON report for `org-report.html`. `401` wrong key, `404` unknown code, `503` if `ADMIN_KEY` isn't set.
 - `org_redeem` added to the funnel counters (the app already pings it).
+- **Also covers PR #4 (heard-about-us) Worker half:** `POST /api/metrics/heard_about` keeps the typed answer (max 120 chars, plus the `src` tag) in KV `heard:<ts>:<rand>` (800-day TTL) and bumps a counter; `heard_skip` is a counter. Read answers: `wrangler kv key list --binding=YFS_KV --remote --prefix heard:`. No new secrets.
 - Uses existing bindings only: `YFS_KV`, `PRO_SIGNING_SECRET`. Nothing new in `wrangler.toml`.
 
 ## KV keys (no personal data)
@@ -35,7 +36,7 @@ Branch: `claude/org-worker` · Scope: `worker/worker.js` (+1 test file). **No de
 - Free a seat: delete `orgseat:<CODE>:<device>` and lower `orgcount:<CODE>` by 1.
 - Test code for Hunter's phone check: `YFS-TEST-AB12`, 2 seats, ends in 30 days. Delete it after.
 
-## Tests: `node worker/test/org_worker_t.mjs` → **ALL PASS (36 checks)**
+## Tests: `node worker/test/org_worker_t.mjs` → **ALL PASS (40 checks)**
 Mocked KV/cache/Anthropic, no network, fake secrets. Covers: invalid / malformed / bad device; normalized code; re-redeem uses no seat; full at limit; expired; CORS + preflight; foreign origin 403; rate limit; org token passes the free gate; forged token, freed seat, ended-early code and fake code all rejected (and restored code works again); **Stripe token still works and canceled Stripe sub still revoked**; usage events counted per tool, non-org/bad tokens ignored; report auth (none/wrong/missing secret), counts, paged active seats, period, 404/400; `org_redeem` + existing `visit` metric.
 
 ## Honest limits
