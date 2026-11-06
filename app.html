@@ -668,6 +668,33 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
 /* file-reader-retry: after Free is used the Upgrade CTA is always orange + tappable, whatever the upload zone shows */
 #runBtn.yfs-upgrade-cta,#runBtn.yfs-upgrade-cta.disabled{background:#F59E0B;color:#1C1917;border-color:#F59E0B;cursor:pointer;opacity:1;}
 </style>
+<script id="yfs-src">
+/* src-tracking: remember ?src=tiktok|reels|shorts and attach it to the existing anonymous metrics + Pro checkout request. No new keys, no personal data. */
+(function(){
+  var OK=['tiktok','reels','shorts'],DAYS=30,API='https://yourfirstshift.culpepperhunter.workers.dev';
+  function clean(v){v=String(v||'').trim().toLowerCase();return OK.indexOf(v)>=0?v:'';}
+  try{var q=clean(new URLSearchParams(location.search).get('src'));
+    if(q){try{sessionStorage.setItem('yfs_src',q);}catch(_){}try{localStorage.setItem('yfs_src',JSON.stringify({s:q,t:Date.now()}));}catch(_){}}}catch(_){}
+  /* session value first; else last known src from the past 30 days (survives a new tab / return from Stripe) */
+  window.yfsSrc=function(){var s='';try{s=clean(sessionStorage.getItem('yfs_src'));}catch(_){}
+    if(!s){try{var o=JSON.parse(localStorage.getItem('yfs_src')||'null');if(o&&Date.now()-(+o.t||0)<DAYS*864e5)s=clean(o.s);}catch(_){}}
+    return s;};
+  window.yfsSrcThisSession=function(){try{return clean(sessionStorage.getItem('yfs_src'));}catch(_){return '';}};
+  var _f=window.fetch;if(typeof _f!=='function')return;
+  window.fetch=function(input,init){
+    try{var s=window.yfsSrc();
+      if(s&&typeof input==='string'&&input.indexOf(API+'/api/')===0){
+        if(/\/api\/metrics\/[a-z_]+$/.test(input))input+='?src='+encodeURIComponent(s);
+        else if(/\/api\/pro\/checkout$/.test(input)&&init&&typeof init.body==='string'){
+          var o=JSON.parse(init.body||'{}');
+          if(o&&typeof o==='object'&&!Array.isArray(o)&&!o.src){o.src=s;init=Object.assign({},init,{body:JSON.stringify(o)});}
+        }
+      }
+    }catch(_){}
+    return init===undefined?_f.call(window,input):_f.call(window,input,init);
+  };
+})();
+</script>
 </head>
 <body>
 
