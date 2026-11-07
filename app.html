@@ -1191,6 +1191,7 @@ const YFS_API='https://yourfirstshift.culpepperhunter.workers.dev';
 /* checkout-same-tab: go to Stripe in THIS tab (a new tab opened after a server call gets blocked/stalled on phones,
    and paying in the same browser means Pro is saved where they paid). Stripe returns to app.html?checkout=success|canceled. */
 let yfsCoBusy=false;
+const YFS_CO_TIMEOUT_MS=10000;
 function yfsCoState(on){let t=document.getElementById('yfsCoOpen');
   document.body.classList.toggle('yfs-co-busy',!!on);
   if(!on){if(t)t.remove();return;}
@@ -1201,14 +1202,23 @@ window.addEventListener('pageshow',function(){yfsCoBusy=false;yfsCoState(false);
 async function yfsGoCheckout(body){
   if(yfsCoBusy)return; yfsCoBusy=true; yfsCoState(true);
   try{yfsMetric('pay_tap');}catch(_){}
+  /* co-timeout: if the Worker hasn't answered in ~10s, stop the spinner and tell them honestly (they can tap again). */
+  const yfsCoAc=(typeof AbortController==='function')?new AbortController():null;let yfsCoSlow=false;
+  const yfsCoT=setTimeout(function(){yfsCoSlow=true;try{yfsCoAc&&yfsCoAc.abort();}catch(_){}},YFS_CO_TIMEOUT_MS);
   try{
-    const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
-    const d=await r.json().catch(()=>({}));
+    const r=await Promise.race([
+      fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{}),signal:yfsCoAc?yfsCoAc.signal:undefined}),
+      new Promise(function(_,rej){setTimeout(function(){rej(new Error('co_timeout'));},YFS_CO_TIMEOUT_MS+50);})]);
+    const d=await Promise.race([r.json().catch(()=>({})),new Promise(function(res){setTimeout(function(){res({});},3000);})]);
+    clearTimeout(yfsCoT);
     if(r.ok&&d.url){window.location.assign(d.url);setTimeout(function(){yfsCoBusy=false;yfsCoState(false);},15000);return;}
     if(r.status===409&&d.error==='plan_unavailable'){yfsCoBusy=false;yfsCoState(false);try{window.yfsPlansSync&&window.yfsPlansSync(true);}catch(_){}
       alert('That plan isn’t available right now. Pro monthly is — you have not been charged.');return;}
   }catch(_){}
+  clearTimeout(yfsCoT);
   yfsCoBusy=false; yfsCoState(false);
+  if(yfsCoSlow){
+    alert('Checkout is taking too long to open. Please check your connection and tap again. You have not been charged.');return;}
   alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');
 }
 async function yfsOpenCheckout(){return yfsGoCheckout({});}
