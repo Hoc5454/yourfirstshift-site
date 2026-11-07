@@ -1202,7 +1202,9 @@ async function yfsGoCheckout(body){
   if(yfsCoBusy)return; yfsCoBusy=true; yfsCoState(true);
   try{yfsMetric('pay_tap');}catch(_){}
   try{
-    const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+    const ac=(typeof AbortController==='function')?new AbortController():null;const to=setTimeout(function(){try{ac&&ac.abort();}catch(_){}},20000);
+    let r;try{r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{}),signal:ac?ac.signal:undefined});}
+    finally{clearTimeout(to);}
     const d=await r.json().catch(()=>({}));
     if(r.ok&&d.url){window.location.assign(d.url);setTimeout(function(){yfsCoBusy=false;yfsCoState(false);},15000);return;}
     if(r.status===409&&d.error==='plan_unavailable'){yfsCoBusy=false;yfsCoState(false);try{window.yfsPlansSync&&window.yfsPlansSync(true);}catch(_){}
@@ -1684,7 +1686,7 @@ Example: Freelance web developer 2022-2024, built 8 client websites using React 
         <label class="builder-label">Skills & Technologies</label>
         <textarea id="b_skills" rows="3" placeholder="List everything you know — software, tools, languages, certifications, equipment...
 Example: CDL-A, OSHA 10, forklift certified, MIG welding, pallet jack, RF scanner, Spanish (fluent)..."></textarea>
-        <div class="rb-cert-chips" id="rbCertChips">${['CDL-A','CDL-B','OSHA 10','OSHA 30','Forklift certified','NCCER','CNA','CPR / First Aid'].map(c=>`<button type="button" class="rb-cert-chip" data-cert="${c}" onclick="rbAddCert(this)">+ ${c}</button>`).join('')}</div>
+        <div class="rb-cert-chips" id="rbCertChips">${['CDL-A','CDL-B','OSHA 10','OSHA 30','Forklift certified','NCCER','CNA','CPR / First Aid'].map(c=>`<button type="button" class="rb-cert-chip" data-cert="${c}" aria-label="Add ${c} to certifications" onclick="rbAddCert(this)">+ ${c}</button>`).join('')}</div>
         <div style="font-size:11px;color:#71717A;margin-top:4px;">Tap only the certs you actually hold.</div>
       </div>
       <div class="builder-field full">
