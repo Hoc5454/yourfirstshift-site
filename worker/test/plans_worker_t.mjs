@@ -93,6 +93,15 @@ r = await call(envOn, 'POST', '/api/pro/verify', { body: { session_id: 'cs_test_
 const forged = await W.fetch(new Request('https://w.example/api/stripe/webhook', { method: 'POST', headers: { 'Stripe-Signature': `t=${now()},v1=deadbeef` }, body: '{"id":"evt_x","type":"charge.refunded","data":{"object":{"payment_intent":"pi_2"}}}' }), envOn);
 ok(forged.status === 400, 'webhook: forged refund rejected');
 
+// 4b. chargeback (dispute) on a pack revokes it too
+SESS.cs_test_pack3 = { id: 'cs_test_pack3', status: 'complete', mode: 'payment', payment_status: 'paid', created: now() - day, customer: 'cus_p3', payment_intent: 'pi_3', metadata: { yfs_pro: '1', yfs_plan: 'pack' }, customer_details: { email: 'dispute@x.com' } };
+r = await call(envOn, 'POST', '/api/pro/verify', { body: { session_id: 'cs_test_pack3' } }); const disTok = r.d && r.d.token;
+r = await ai(disTok); ok(r.s === 200, 'pack before chargeback works');
+wr = await hook({ id: 'evt_disp', type: 'charge.dispute.created', data: { object: { id: 'dp_1', charge: 'ch_3', payment_intent: 'pi_3' } } }).then(x => x.status);
+ok(wr === 200, 'webhook: signed dispute event accepted');
+r = await ai(disTok); ok(r.s === 402, 'chargeback → pack pass stops working');
+r = await call(envOn, 'POST', '/api/pro/restore', { body: { email: 'dispute@x.com' } }); ok(r.s === 404, 'chargeback → restore refuses the pack');
+
 // 5. restore by email
 SESS.cs_test_pack2 = { id: 'cs_test_pack2', status: 'complete', mode: 'payment', payment_status: 'paid', created: now() - 5 * day, customer: 'cus_p2', payment_intent: 'pi_2', metadata: { yfs_pro: '1', yfs_plan: 'pack' }, customer_details: { email: 'buyer@x.com' } };
 r = await call(envOn, 'POST', '/api/pro/restore', { body: { email: 'buyer@x.com' } });

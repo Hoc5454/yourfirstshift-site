@@ -2127,6 +2127,10 @@ async function handleYfsProStripeWebhook(request, env) {
     case 'charge.refunded':
       if (o.payment_intent && (o.refunded || o.amount_refunded > 0)) await env.YFS_KV.put('packrev:' + (typeof o.payment_intent === 'string' ? o.payment_intent : o.payment_intent.id), '1', { expirationTtl: 60 * 86400 });
       break;
+    case 'charge.dispute.created':
+      // chargeback on a $29 Job Hunt Pack → pass stops working (same as a refund)
+      if (o.payment_intent) await env.YFS_KV.put('packrev:' + (typeof o.payment_intent === 'string' ? o.payment_intent : o.payment_intent.id), '1', { expirationTtl: 120 * 86400 });
+      break;
     case 'invoice.payment_failed':
       await put(typeof o.subscription === 'string' ? o.subscription
         : (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription), 'past_due');
