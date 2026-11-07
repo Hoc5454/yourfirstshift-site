@@ -11,6 +11,7 @@ Liz's two follow-ups were mostly already built in PR #20/#21 (the "Opening secur
 - No CSS, pricing, Worker or Stripe changes.
 
 ## Base / hashes
+- Branch: claude/shipped-14-18 · PR: https://github.com/Hoc5454/yourfirstshift-site/pull/24 (stacked on #21; ship #21 first)
 - Base: branch claude/polish (PR #21) app.html sha256 c7815286d7c5f4ecb51ed6eb27c157de3a03f648eb7c832fcac2516fe985540c · 301,123 B — stacked on #21 because the spinner + double-tap guard live there (main = live d81fbb6a… does not have them yet).
 - New app.html sha256 c7191a2846aabcb68dbbe577b941d220f2f8505305ccb2b4090d5b37ca4ad383 · 301,947 B
 - Live main app.html (rollback) d81fbb6af2d4fb20cbe21f29e1dfe6cc4f4a5433699ee15356a279e239aebb65 · 292,752 B
