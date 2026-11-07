@@ -18,6 +18,7 @@ app.html already points at `/favicon.ico` and `/apple-touch-icon.png`, so the ap
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <meta name="theme-color" content="#1B2A4A">
+<link rel="canonical" href="https://www.yourfirstshiftapp.com/">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@graph":[
  {"@type":"WebSite","name":"YourFirstShift","alternateName":"YFS","url":"https://www.yourfirstshiftapp.com/"},
@@ -28,6 +29,12 @@ app.html already points at `/favicon.ico` and `/apple-touch-icon.png`, so the ap
 Remove any older `<link rel="icon">` lines that point at the old yellow Y files.
 
 The WebSite block tells Google to show "YourFirstShift" as the site name instead of "yourfirstshiftapp.com". Google picks this up on its own schedule (days to a few weeks).
+
+## Search basics (Shift)
+- **One address.** Google currently shows `https://www.yourfirstshiftapp.com`, but og:url uses the bare domain. Pick www and 301-redirect `yourfirstshiftapp.com` to `https://www.yourfirstshiftapp.com` (Cloudflare redirect rule). Update og:url on the homepage to the www address.
+- **robots.txt / sitemap.xml:** included in this PR. Upload only if the site doesn't already have them (if it does, send Claude the current ones).
+- **Google Search Console** (sign in as yourfirstshift@gmail.com): add the domain, submit `sitemap.xml`, then URL Inspection > Request indexing on the homepage.
+- **Bing Webmaster Tools:** import from Search Console (one click). Bing also feeds DuckDuckGo, Yahoo and ChatGPT search.
 
 ## Not touched
 app.html, Worker, checkout, pricing, Stripe.
