@@ -712,6 +712,11 @@ footer a[style*="#F59E0B"]{color:var(--amber-ink) !important;}
   };
 })();
 </script>
+<script id="yfs-pack-exp">/* plans: the $29 Job Hunt Pack is a 30-day pass with no subscription. End it cleanly on this device at its end date. */
+(function(){try{var t=localStorage.getItem('yfs_pro_token');if(!t)return;var b=t.split('.')[0].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';
+  var c=JSON.parse(atob(b));if(!c||!c.pack)return;
+  if(!(c.exp>0)||c.exp*1000<=Date.now()){localStorage.removeItem('yfs_pro');localStorage.removeItem('yfs_pro_token');localStorage.setItem('yfs_pack_ended',JSON.stringify({ends:(c.exp||0)*1000}));}
+}catch(_){}})();</script>
 <script id="yfs-org-exp">/* org-codes: end org-code Pro on this device at the plan end date (runs before isPro is read). Server also refuses the token after the end date. */
 (function(){try{var raw=localStorage.getItem('yfs_org');if(!raw)return;var o=JSON.parse(raw)||{};
   var mine=!!o.tok&&localStorage.getItem('yfs_pro_token')===o.tok;
@@ -760,6 +765,80 @@ body.yfs-tool #yfsOwen{margin-bottom:14px;position:relative;z-index:1;}
 #yfsOwen .yo-x:hover,#yfsOwen .yo-x:focus-visible{background:#FEF3C7;color:#0F172A;outline:2px solid #B45309;outline-offset:-2px;}
 @media print{#yfsOwen{display:none !important;}}
 </style>
+<style id="yfs-plans-css">
+#yfsCoOpen{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:10000;display:flex;align-items:center;gap:10px;
+  background:#0F172A;color:#FAFAFA;border-radius:999px;padding:12px 18px;font-size:15px;font-weight:700;box-shadow:0 12px 32px rgba(15,23,42,.35);white-space:nowrap;animation:yfsCoIn .18s ease-out}
+#yfsCoOpen .yfs-co-spin{width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(245,158,11,.3);border-top-color:#F59E0B;animation:yfsCoSpin .8s linear infinite;flex:none}
+#yfsCoOpen .yfs-co-lock{font-size:12px;font-weight:600;color:#94A3B8;border-left:1px solid #334155;padding-left:10px}
+@keyframes yfsCoSpin{to{transform:rotate(360deg)}}
+@keyframes yfsCoIn{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (prefers-reduced-motion:reduce){#yfsCoOpen,#yfsCoOpen .yfs-co-spin{animation:none}}
+body.yfs-co-busy #ypCta,body.yfs-co-busy #runBtn,body.yfs-co-busy #yfsPdfCta,body.yfs-co-busy #lockedPdfBtn{opacity:.55;pointer-events:none}
+.yfs-pack-note .yfs-pn-row{display:flex;gap:8px;margin-top:10px}
+.yfs-pack-note .yfs-pn-row button{margin-top:0}
+.yfs-pack-note .yfs-pn-row button.ghost{background:#fff;color:#0F172A;border-color:#CBD5E1}
+</style>
+<style id="yfs-polish">
+/* polish sweep (Claude): footer links never break mid-phrase */
+.footer-links{flex-wrap:wrap;justify-content:center;gap:2px 18px}
+.footer-links a{white-space:nowrap}
+/* vault cards: 2x2 action grid with full-size buttons */
+.vx-acts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.vx-acts button{min-height:44px;white-space:nowrap;font-size:12px;border-radius:8px}
+@media(max-width:360px){.vx-acts{grid-template-columns:1fr}}
+/* tool tabs: soft fade on the right says "swipe for more" (removed at the end) */
+.tabs{-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}
+.tabs.at-end{-webkit-mask-image:none;mask-image:none}
+@media (max-width:600px){
+  /* result actions fill the row evenly (no lone "Clear" button) */
+  .action-row .action-btn{flex:1 1 auto;min-height:44px}
+}
+.rb-cert-chip,.style-opt,#rbDlBtn,.rb-print-btn{min-height:44px}
+</style>
+<style id="yfs-resume-css">
+.yfs-stream-note .yfs-keep{display:block;font-weight:600;font-size:12px;color:#B45309;margin-top:2px}
+.yfs-partial-note{background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:8px;padding:8px 10px;font:700 13px/1.35 system-ui,sans-serif;margin:0 0 10px}
+#errorBox .yfs-retry-btn{display:block;margin-top:10px;min-height:44px;padding:0 20px;border-radius:10px;border:0;background:#047857;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+</style>
+<script id="yfs-resume">
+/* resume-fix: phones cut the result stream when you switch apps. Each run gets an id; an interrupted run resumes ONCE
+   automatically when you come back (finished result from the server cache, or the same run again — never a new free run).
+   Errors are named honestly and logged by TYPE only (no text, no personal data). */
+(function(){
+function hexId(){var a=new Uint8Array(16);try{(window.crypto||window.msCrypto).getRandomValues(a);}catch(_){for(var i=0;i<16;i++)a[i]=Math.random()*256|0;}
+  return Array.prototype.map.call(a,function(x){return ('0'+x.toString(16)).slice(-2);}).join('');}
+window.yfsNewId=hexId;
+window.yfsDev=function(){var d='';try{d=localStorage.getItem('yfs_did')||'';}catch(_){}if(!/^[a-f0-9]{32}$/.test(d)){d=hexId();try{localStorage.setItem('yfs_did',d);}catch(_){}}return d;};
+function uaFam(){var u=navigator.userAgent||'';if(/SamsungBrowser/.test(u))return 'samsung';if(/FBAN|FBAV|Instagram|TikTok|musical_ly|Bytedance|Snapchat|Line\//.test(u))return 'inapp';
+  if(/EdgA?\//.test(u))return 'edge';if(/Firefox|FxiOS/.test(u))return 'firefox';if(/CriOS|Chrome/.test(u))return 'chrome';if(/Safari/.test(u))return 'safari';return 'other';}
+document.addEventListener('visibilitychange',function(){if(window.yfsRunBusy&&document.visibilityState==='hidden'&&window.yfsRunState)window.yfsRunState.hidden=true;});
+document.addEventListener('freeze',function(){if(window.yfsRunBusy&&window.yfsRunState)window.yfsRunState.hidden=true;});
+var MSG={interrupted:'Your result was interrupted when you left the app.',network:'Lost connection while writing your result. Check your signal.',
+  busy:'Our AI is busy for a moment.',http_5xx:'Our server had a hiccup.',timeout:'Your result stopped coming in.',incomplete:'Your result got cut off before it finished.',
+  empty:'No result came back.',http_4xx:'That request didn’t go through.',other:'Something went wrong.'};
+window.yfsRunFailed=function(e){
+  var st=window.yfsRunState||{},hidden=!!st.hidden||document.visibilityState==='hidden',t='other',m=String(e&&e.message||'');
+  if(m==='incomplete')t='incomplete';else if(e&&e.name==='AbortError')t='timeout';else if(m==='http')t=e.status>=500?'http_5xx':(e.status===429?'busy':'http_4xx');
+  else if(m==='stream')t='busy';else if(m==='empty')t='empty';else if((e&&e.name==='TypeError')||/network|fetch|load/i.test(m))t='network';
+  if(hidden&&(t==='network'||t==='incomplete'||t==='other'||t==='timeout'))t='interrupted';
+  try{var A=(typeof YFS_API!=='undefined')?YFS_API:'https://yourfirstshift.culpepperhunter.workers.dev';
+    fetch(A+'/api/metrics/client_err',{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({t:t,ua:uaFam()})}).catch(function(){});}catch(_){}
+  var box=document.getElementById('outputBox');
+  if(box){box.querySelectorAll('.yfs-stream-note').forEach(function(n){n.remove();});
+    if(box.textContent.trim()){if(!box.querySelector('.yfs-partial-note')){var pn=document.createElement('div');pn.className='yfs-partial-note';pn.textContent='⚠️ Incomplete — this result was cut off before it finished.';box.insertBefore(pn,box.firstChild);}}
+    else{var os=document.getElementById('outputSection');if(os)os.style.display='none';}}
+  st.interrupted=true;window.yfsRunState=st;
+  var free=!(typeof isPro!=='undefined'&&isPro),keep=free?' It won’t use your free run.':'';
+  var auto=(t==='interrupted'&&(st.auto||0)<1);
+  var eb=document.getElementById('errorBox');if(!eb)return;eb.innerHTML='';
+  var d=document.createElement('div');d.textContent=MSG[t]+(auto?' Picking it back up…':' Tap Try again.'+keep);eb.appendChild(d);
+  if(!auto){var b=document.createElement('button');b.type='button';b.className='yfs-retry-btn';b.textContent='Try again';b.onclick=function(){eb.style.display='none';runTool();};eb.appendChild(b);}
+  eb.setAttribute('role','alert');eb.style.display='block';
+  if(auto){st.auto=1;var go=function(){if(document.visibilityState!=='visible')return;document.removeEventListener('visibilitychange',go);setTimeout(function(){eb.style.display='none';runTool();},350);};
+    if(document.visibilityState==='visible')go();else document.addEventListener('visibilitychange',go);}
+};
+})();
+</script>
 </head>
 <body>
 
@@ -1157,18 +1236,29 @@ const YFS_API='https://yourfirstshift.culpepperhunter.workers.dev';
 /* checkout-same-tab: go to Stripe in THIS tab (a new tab opened after a server call gets blocked/stalled on phones,
    and paying in the same browser means Pro is saved where they paid). Stripe returns to app.html?checkout=success|canceled. */
 let yfsCoBusy=false;
-window.addEventListener('pageshow',function(){yfsCoBusy=false;});
-async function yfsOpenCheckout(){
-  if(yfsCoBusy)return; yfsCoBusy=true;
+function yfsCoState(on){let t=document.getElementById('yfsCoOpen');
+  document.body.classList.toggle('yfs-co-busy',!!on);
+  if(!on){if(t)t.remove();return;}
+  if(!t){t=document.createElement('div');t.id='yfsCoOpen';t.setAttribute('role','status');t.setAttribute('aria-live','polite');
+    t.innerHTML='<span class="yfs-co-spin" aria-hidden="true"></span><span>Opening secure checkout…</span><span class="yfs-co-lock" aria-hidden="true">🔒 Stripe</span>';
+    document.body.appendChild(t);}}
+window.addEventListener('pageshow',function(){yfsCoBusy=false;yfsCoState(false);});
+async function yfsGoCheckout(body){
+  if(yfsCoBusy)return; yfsCoBusy=true; yfsCoState(true);
   try{yfsMetric('pay_tap');}catch(_){}
   try{
-    const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const ac=(typeof AbortController==='function')?new AbortController():null;const to=setTimeout(function(){try{ac&&ac.abort();}catch(_){}},20000);
+    let r;try{r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{}),signal:ac?ac.signal:undefined});}
+    finally{clearTimeout(to);}
     const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.url){window.location.assign(d.url);setTimeout(function(){yfsCoBusy=false;},15000);return;}
+    if(r.ok&&d.url){window.location.assign(d.url);setTimeout(function(){yfsCoBusy=false;yfsCoState(false);},15000);return;}
+    if(r.status===409&&d.error==='plan_unavailable'){yfsCoBusy=false;yfsCoState(false);try{window.yfsPlansSync&&window.yfsPlansSync(true);}catch(_){}
+      alert('That plan isn’t available right now. Pro monthly is — you have not been charged.');return;}
   }catch(_){}
-  yfsCoBusy=false;
+  yfsCoBusy=false; yfsCoState(false);
   alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');
 }
+async function yfsOpenCheckout(){return yfsGoCheckout({});}
 const YFS_PORTAL='https://billing.stripe.com/p/login/3cIbIU3p4dJS7zd3BN04800';
 function openBillingPortal(ev){
   try{localStorage.setItem('yfs_cancel_pending','1');}catch(_){}
@@ -1641,7 +1731,7 @@ Example: Freelance web developer 2022-2024, built 8 client websites using React 
         <label class="builder-label">Skills & Technologies</label>
         <textarea id="b_skills" rows="3" placeholder="List everything you know — software, tools, languages, certifications, equipment...
 Example: CDL-A, OSHA 10, forklift certified, MIG welding, pallet jack, RF scanner, Spanish (fluent)..."></textarea>
-        <div class="rb-cert-chips" id="rbCertChips">${['CDL-A','CDL-B','OSHA 10','OSHA 30','Forklift certified','NCCER','CNA','CPR / First Aid'].map(c=>`<button type="button" class="rb-cert-chip" data-cert="${c}" onclick="rbAddCert(this)">+ ${c}</button>`).join('')}</div>
+        <div class="rb-cert-chips" id="rbCertChips">${['CDL-A','CDL-B','OSHA 10','OSHA 30','Forklift certified','NCCER','CNA','CPR / First Aid'].map(c=>`<button type="button" class="rb-cert-chip" data-cert="${c}" aria-label="Add ${c} to certifications" onclick="rbAddCert(this)">+ ${c}</button>`).join('')}</div>
         <div style="font-size:11px;color:#71717A;margin-top:4px;">Tap only the certs you actually hold.</div>
       </div>
       <div class="builder-field full">
@@ -1730,10 +1820,14 @@ function triggerFileInput(e){
   fi.click();
 }
 const YFS_FI='<input type="file" id="fileInput" class="file-input" accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.png,.jpg,.jpeg,.webp,.heic" onchange="handleFileSelect(event)"/>';
+/* hang-guard: give up on a request that never answers while the screen is visible (keeps waiting while the app is in the background). */
+function yfsGuard(ms){const ac=(typeof AbortController==='function')?new AbortController():null;let t=null;
+  const arm=function(){t=setTimeout(function(){if(document.visibilityState==='visible'){try{ac&&ac.abort();}catch(_){}}else arm();},ms);};arm();
+  return {signal:ac?ac.signal:undefined,ac:ac,done:function(){clearTimeout(t);}};}
 function extractErrMsg(err){
   const offline=(typeof navigator!=='undefined'&&navigator.onLine===false);
   if(offline)return 'You appear to be offline. Reconnect and try again, or paste your resume below.';
-  if(err&&err.name==='TypeError')return 'We couldn\u2019t reach our file reader just now. Try again, upload a PDF, or paste your resume below.';
+  if(err&&(err.name==='TypeError'||err.name==='AbortError'))return 'We couldn\u2019t reach our file reader just now. Try again, upload a PDF, or paste your resume below.';
   return 'We couldn\u2019t read that file. Try a PDF, or paste your resume below.';
 }
 let _pdfjsP=null;
@@ -1797,7 +1891,7 @@ function processFile(file){
     showFileError(filename,'File too large. Please use a file under 10MB.');
     return;
   }
-  zone.innerHTML='<div class="upload-icon">\u23F3</div><div class="upload-title loading-text">Reading your document<span class="dots"></span></div><div class="upload-sub" style="color:var(--amber);">Usually 10–30 seconds…</div>';
+  zone.innerHTML='<div class="upload-icon">\u23F3</div><div class="upload-title loading-text">Reading your document<span class="dots"></span></div><div class="upload-sub" style="color:var(--amber);">Keep this screen open — about 30 seconds.</div>';
 
   if(['txt','md','csv','log'].includes(ext)){
     const r=new FileReader();
@@ -1864,9 +1958,11 @@ async function extractTextFromPDF(base64,filename){
     const lt=await localPdfText(base64);
     if(lt&&lt.split(/\s+/).length>=40){extractedFileText=lt;showFileSuccess(filename,lt);return;}
   }catch(_){}
+  const _g=yfsGuard(60000);
   try{
     const res=await fetch(YFS_API,{
       method:'POST',
+      signal:_g.signal,
       headers:proHeaders({'X-YFS-Kind':'extract'}),
       body:JSON.stringify({
         model:'claude-sonnet-4-6',max_tokens:3000,
@@ -1883,13 +1979,15 @@ async function extractTextFromPDF(base64,filename){
     else showFileError(filename,'This PDF may be a scanned image. Try uploading a photo of it instead, or paste the text below.');
   }catch(err){
     showFileError(filename,extractErrMsg(err));
-  }
+  }finally{if(typeof _g!=='undefined'&&_g)_g.done();}
 }
 
 async function extractTextFromImage(base64,mediaType,filename){
+  const _g=yfsGuard(60000);
   try{
     const res=await fetch(YFS_API,{
       method:'POST',
+      signal:_g.signal,
       headers:proHeaders({'X-YFS-Kind':'extract'}),
       body:JSON.stringify({
         model:'claude-sonnet-4-6',max_tokens:3000,
@@ -1906,7 +2004,7 @@ async function extractTextFromImage(base64,mediaType,filename){
     else showFileError(filename,'Could not extract text from image. Please paste your resume below.');
   }catch(err){
     showFileError(filename,extractErrMsg(err));
-  }
+  }finally{if(typeof _g!=='undefined'&&_g)_g.done();}
 }
 
 function showFileSuccess(filename,fullText){
@@ -1957,26 +2055,33 @@ function yfsTryExample(){
 }
 
 // ─── P0.6 STREAMING (SSE from Worker; falls back to JSON) ───
-async function yfsReadStream(res,free){
+async function yfsReadStream(res,free,ac){
   const ct=(res.headers.get('content-type')||'');
   if(!ct.includes('event-stream')||!res.body){const data=await res.json();return data?.content?.map(b=>b.text||'').join('\n')||'';}
   const os=document.getElementById('outputSection'),box=document.getElementById('outputBox'),rest=document.getElementById('lockedRest');
   const builder=TOOLS[activeTool].hasBuilder;
   if(!builder){box.classList.remove('yfs-modern','yfs-onepage');box.setAttribute('contenteditable','false');rest.style.display='none';rest.innerHTML='';
     const lp=document.getElementById('lockedPdfBtn');if(lp)lp.style.display='none';const sc=document.getElementById('shareCardBtn');if(sc)sc.style.display='none';
-    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result…</div>';os.style.display='block';os.scrollIntoView({behavior:'smooth',block:'start'});}
-  const rd=res.body.getReader(),dec=new TextDecoder();let buf='',acc='',last=0,shown=false;
+    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result… <span class="yfs-keep">Keep this screen open — about 30 seconds.</span></div>';os.style.display='block';os.scrollIntoView({behavior:'smooth',block:'start'});}
+  const rd=res.body.getReader(),dec=new TextDecoder();let buf='',acc='',last=0,shown=false,stopped=false,wd=null;
+  const arm=()=>{clearTimeout(wd);wd=setTimeout(function(){if(document.visibilityState==='visible'){try{ac&&ac.abort();}catch(_){}}else arm();},45000);};
   const paint=(force)=>{if(builder)return;const now=Date.now();if(!force&&now-last<120)return;last=now;
     let vis=acc;if(free){const sp=splitFree(acc);if(sp[1])vis=sp[0];else if(acc.length>900)vis=acc.slice(0,900);}
-    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result…</div>'+yfsMd(vis);
+    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result… <span class="yfs-keep">Keep this screen open — about 30 seconds.</span></div>'+yfsMd(vis);
     if(!shown){shown=true;}};
   const btn=document.getElementById('runBtn');
-  while(true){const {done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+  arm();
+  try{
+  while(true){const {done,value}=await rd.read();if(done)break;arm();buf+=dec.decode(value,{stream:true});
     let i;while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);
       if(!line.startsWith('data:'))continue;const d=line.slice(5).trim();if(!d||d==='[DONE]')continue;
       try{const ev=JSON.parse(d);if(ev.type==='content_block_delta'&&ev.delta&&ev.delta.text){acc+=ev.delta.text;paint(false);
           if(builder&&btn)btn.innerHTML='<span class="loading-text">Writing… '+acc.split(/\s+/).length+' words</span>';}
+        else if(ev.type==='message_stop'){stopped=true;}
         else if(ev.type==='error'){throw new Error('stream');}}catch(e){if(e.message==='stream')throw e;}}}
+  }catch(e){clearTimeout(wd);if(acc)e.partial=acc;throw e;}
+  clearTimeout(wd);
+  if(!stopped){const ie=new Error('incomplete');ie.partial=acc;throw ie;}
   return acc;
 }
 
@@ -2009,18 +2114,31 @@ async function runTool(){
   if(!input) return;
   const xrRes=activeTool===1?((document.getElementById('xrayResume')?.value||'').trim()||extractedFileText||savedResume||''):null;
 
+  if(window.yfsRunBusy) return;                       /* resume-fix: real in-flight guard */
+  const _rs=window.yfsRunState||{};
+  const _resume=!!(_rs.interrupted&&_rs.tool===activeTool&&_rs.id);
+  const _runId=_resume?_rs.id:yfsNewId();
+  window.yfsRunState={id:_runId,tool:activeTool,interrupted:false,hidden:document.visibilityState==='hidden',auto:_resume?(_rs.auto||0):0};
+  window.yfsRunBusy=true;
+
   const btn=document.getElementById('runBtn');
   btn.className='run-btn loading';
-  btn.innerHTML=`<span class="loading-text">Working on it<span class="dots"></span></span>`;
+  btn.innerHTML=`<span class="loading-text">${_resume?'Picking up your result':'Working on it'}<span class="dots"></span></span>`;
 
   document.getElementById('errorBox').style.display='none';
   document.getElementById('outputSection').style.display='none';
 
   try{
     const prompt=TOOLS[activeTool].prompt(input,activeTool===1?xrRes:(activeTool===3?((extractedFileText||'').trim()||savedResume):savedResume),selectedStyle);
-    const res=await fetch(YFS_API,{
+    let text=null;
+    if(_resume){try{const cr=await fetch(YFS_API+'/api/run/'+_runId+'?d='+yfsDev());if(cr.ok){const cd=await cr.json();if(cd&&cd.text)text=cd.text;}}catch(_){}}
+    if(text===null){
+    const _ac=(typeof AbortController==='function')?new AbortController():null;
+    let _hw=null;const _armH=function(){_hw=setTimeout(function(){if(document.visibilityState==='visible'){try{_ac&&_ac.abort();}catch(_){}}else _armH();},45000);};_armH();
+    let res;try{res=await fetch(YFS_API,{
       method:'POST',
-      headers:proHeaders(),
+      signal:_ac?_ac.signal:undefined,
+      headers:proHeaders({'X-YFS-Run':_runId,'X-YFS-Dev':yfsDev()}),
       body:JSON.stringify({
         model:'claude-sonnet-4-6',
         max_tokens:3000,
@@ -2028,14 +2146,17 @@ async function runTool(){
         stream:true,
         messages:[{role:'user',content:prompt}]
       })
-    });
+    });}finally{clearTimeout(_hw);}
     if(res.status===402){
+      window.yfsRunBusy=false;window.yfsRunState={};
       localStorage.removeItem('yfs_pro'); localStorage.removeItem('yfs_pro_token'); isPro=false;
       if((window.yfsRunGen||0)===_gen){usageCount=Math.max(usageCount,FREE_LIMIT); localStorage.setItem('yfs_usage',String(usageCount));}
       updateUsagePill(); renderTool(); // shows existing locked/upgrade UI
       return;
     }
-    let text=await yfsReadStream(res,!isPro);
+    if(!res.ok){const he=new Error('http');he.status=res.status;throw he;}
+    text=await yfsReadStream(res,!isPro,_ac);
+    }
     if(!text) throw new Error('empty');
 
     const wasFree=!isPro;
@@ -2055,12 +2176,12 @@ async function runTool(){
     localStorage.setItem('yfs_usage',String(usageCount));}
     if(wasFree)yfsMetric('free_run');
     updateUsagePill();
+    window.yfsRunState={};
 
   }catch(e){
-    const eb=document.getElementById('errorBox');
-    eb.textContent='Something went wrong. Check your connection and try again.';
-    eb.style.display='block';
+    yfsRunFailed(e);
   }
+  window.yfsRunBusy=false;
 
   if(usageCount>=FREE_LIMIT && !isPro && TOOLS[activeTool].hasBuilder){
     updateRunBtn();
@@ -2097,7 +2218,7 @@ function yfsVaultThumb(e){const ln=String(e.text||'').split('\n').map(x=>x.trim(
   return '<div class="rb-page '+rbTplClass(e.look||selectedStyle)+'"><div class="rb-head"><div class="rb-name">'+yfsEsc(nm.slice(0,60))+'</div>'+(tg?'<div class="rb-target">'+yfsEsc(tg.slice(0,80))+'</div>':'')+(ct?'<div class="rb-contact">'+yfsEsc(ct.slice(0,120))+'</div>':'')+'</div>'+body+'</div>';}
 function yfsVaultRender(){const g=document.getElementById('vxGrid');if(!g)return;const a=yfsVaultList(),act=yfsVaultActive();
   if(!a.length){g.innerHTML='<div class="vx-empty">No resumes saved yet. Name one, upload or paste it below, then Save.</div>';return;}
-  g.innerHTML=a.slice().sort((x,y)=>(y.ts||0)-(x.ts||0)).map(e=>'<div class="vx-card'+(e.id===act?' on':'')+'" data-id="'+e.id+'"><div class="vx-thumb">'+(e.id===act?'<span class="vx-badge">✓ ACTIVE</span>':'')+yfsVaultThumb(e)+'</div><div class="vx-meta"><div class="vx-t">'+yfsEsc(e.name)+'</div><div class="vx-d">'+yfsEsc((e.look||'')+' · '+new Date(e.ts||Date.now()).toLocaleDateString())+'</div><div class="vx-acts"><button class="vx-use" data-a="use">'+(e.id===act?'In use':'Use')+'</button><button data-a="edit">Edit</button><button data-a="ren">Rename</button><button data-a="del">🗑</button></div></div></div>').join('');
+  g.innerHTML=a.slice().sort((x,y)=>(y.ts||0)-(x.ts||0)).map(e=>'<div class="vx-card'+(e.id===act?' on':'')+'" data-id="'+e.id+'"><div class="vx-thumb">'+(e.id===act?'<span class="vx-badge">✓ ACTIVE</span>':'')+yfsVaultThumb(e)+'</div><div class="vx-meta"><div class="vx-t">'+yfsEsc(e.name)+'</div><div class="vx-d">'+yfsEsc((e.look||'')+' · '+new Date(e.ts||Date.now()).toLocaleDateString())+'</div><div class="vx-acts"><button class="vx-use" data-a="use">'+(e.id===act?'In use':'Use')+'</button><button data-a="edit">Edit</button><button data-a="ren">Rename</button><button data-a="del" aria-label="Delete this resume" title="Delete">🗑</button></div></div></div>').join('');
   g.querySelectorAll('.vx-card').forEach(c=>c.onclick=function(ev){const b=ev.target.closest('button');const id=c.dataset.id;const a2=b?b.dataset.a:'use';
     if(a2==='del'){if(confirm('Delete this saved resume from this device?'))yfsVaultDel(id);return;}
     if(a2==='ren'){const e=yfsVaultList().find(x=>x.id===id);const n=prompt('Rename resume',e?e.name:'');if(n&&n.trim()){const l=yfsVaultList();l.forEach(x=>{if(x.id===id)x.name=n.trim().slice(0,80);});yfsVaultSet(l);yfsVaultRender();updateVaultUI();}return;}
@@ -2742,16 +2863,14 @@ function renderPlans(){const list=document.getElementById('ypList');if(!list)ret
       (p.id==='free'?'<a class="yp-org" href="mailto:hello@yourfirstshiftapp.com?subject=Seats%20for%20our%20program"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/></svg><span style="flex:1"><b>For schools, unions &amp; job programs</b><span>Seats for your whole group. One invoice.</span></span><em>Contact us</em></a>':'');}).join('');
   list.querySelectorAll('.yp-card').forEach(b=>b.onclick=function(){const p=YFS_PLANS.find(x=>x.id===b.dataset.id);if(!buyable(p))return;ypPick=p.id;renderPlans();});
   const p=YFS_PLANS.find(x=>x.id===ypPick),cta=document.getElementById('ypCta'),fine=document.getElementById('ypFine');
-  if(pro&&ypPick!=='free'){cta.textContent='You’re on Pro';cta.disabled=true;fine.textContent='Manage or cancel any time from Account.';return;}
+  if(pro&&ypPick!=='free'&&!(window.yfsPackInfo&&window.yfsPackInfo())){cta.textContent='You’re on Pro';cta.disabled=true;fine.textContent='Manage or cancel any time from Account.';return;}
   cta.disabled=false;cta.textContent=ypPick==='free'?'Keep using Free':('Continue — '+p.price+(p.id==='pack'?' one time':' '+p.per));fine.textContent=p.fine||'';}
 window.yfsOpenPlans=function(){renderPlans();openSheet('yfsPlans');};
 window.yfsPlanGo=function(){const p=YFS_PLANS.find(x=>x.id===ypPick);if(!p||p.id==='free'){yfsCloseSheets();return;}
   if(p.id==='pro'){yfsOpenCheckout();return;} /* existing live $9 path, unchanged */
   if(typeof yfsCheckoutPlan==='function'){yfsCheckoutPlan(p.id);}};
 /* for plans other than $9 Pro: Worker must accept {plan} and return a Stripe url. Only used when that plan's live=true. */
-window.yfsCheckoutPlan=async function(plan){try{yfsMetric('pay_tap');}catch(_){}
-  try{const r=await fetch(YFS_API+'/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan:plan})});const d=await r.json().catch(()=>({}));if(r.ok&&d.url){window.location.assign(d.url);return;}}catch(_){}
-  alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');};
+window.yfsCheckoutPlan=function(plan){return yfsGoCheckout({plan:plan});};
 
 window.yfsOpenAccount=function(){const pro=(typeof isPro!=='undefined'&&isPro);
   const left=Math.max(0,(typeof FREE_LIMIT!=='undefined'?FREE_LIMIT:1)-(typeof usageCount!=='undefined'?usageCount:0));
@@ -2998,6 +3117,11 @@ const S={file:null,retried:false,hid:false,ok:false,pending:false,reading:false,
 const FINAL=/too large|HEIC|scanned|empty|extract text|file type|Unknown file|\(4\d\d\)/i;
 function away(){return document.visibilityState==='hidden';}
 function retry(){S.pending=false;clearTimeout(S.stallT);if(!S.file)return;S.retried=true;try{processFile(S.file);}catch(_){}}
+/* reader-resume: phones need a moment to get the network back after an app switch. Wait until online, then 1.5s, then the ONE retry. */
+function retrySoon(){if(S.waiting)return;S.waiting=true;
+  try{const z=document.getElementById('uploadZone');if(z&&!S.ok)z.innerHTML='<div class="upload-icon">\u23F3</div><div class="upload-title loading-text">Reconnecting — picking your document back up<span class="dots"></span></div><div class="upload-sub" style="color:var(--amber);">Keep this screen open — about 30 seconds.</div>';}catch(_){}
+  const go=function(){setTimeout(function(){S.waiting=false;if(!S.ok&&!away())retry();else S.pending=!S.ok;},1500);};
+  if(navigator.onLine===false){const h=function(){window.removeEventListener('online',h);go();};window.addEventListener('online',h);}else go();}
 if(typeof processFile==='function'){const _p=processFile;processFile=function(file){
   if(file){if(file!==S.file){S.file=file;S.retried=false;}S.hid=away();S.ok=false;S.pending=false;S.reading=true;S.out++;}
   return _p.apply(this,arguments);};}
@@ -3011,16 +3135,18 @@ if(typeof showFileError==='function'){const _e=showFileError;showFileError=funct
   const transient=!FINAL.test(String(message||''));
   if(S.file&&!S.retried&&transient&&(S.hid||away())){
     S.reading=true;                     /* keep "Reading your document…" on screen; no error flash */
-    if(away())S.pending=true; else setTimeout(retry,350);
+    if(away())S.pending=true; else retrySoon();
     return;}
   return _e.apply(this,arguments);};}
 function back(){if(away())return;
-  if(S.pending){S.pending=false;setTimeout(retry,350);return;}
+  if(S.pending){S.pending=false;retrySoon();return;}
   /* read went quiet while we were away (no answer at all): give it a few seconds, then retry once */
   if(S.reading&&S.hid&&!S.retried&&!S.stallT){S.stallT=setTimeout(function(){S.stallT=null;if(S.reading&&!S.ok&&!S.retried&&!away())retry();},6000);}
   try{updateRunBtn();}catch(_){}}
 document.addEventListener('visibilitychange',function(){if(away()){if(S.reading)S.hid=true;}else back();});
 window.addEventListener('pageshow',back);window.addEventListener('focus',back);
+/* Samsung Internet / Chrome freeze background tabs instead of only hiding them */
+document.addEventListener('freeze',function(){if(S.reading)S.hid=true;});document.addEventListener('resume',back);
 
 /* Upgrade CTA after Free: always orange + checkout (non-builder tools; builder keeps its own Unlock Pro CTA) */
 function cta(){try{const btn=document.getElementById('runBtn');if(!btn||typeof isPro==='undefined'||isPro)return;
@@ -3253,5 +3379,49 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refresh(false);});
 })();
 </script>
+<script id="yfs-plans">
+/* plans: show $29 Job Hunt Pack and $59/yr only when the Worker says their Stripe prices exist; pack = 30-day pass, no subscription. */
+(function(){
+var API=(typeof YFS_API!=='undefined')?YFS_API:'https://yourfirstshift.culpepperhunter.workers.dev';
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;}
+function claims(t){try{var b=String(t).split('.')[0].replace(/-/g,'+').replace(/_/g,'/');while(b.length%4)b+='=';return JSON.parse(atob(b));}catch(_){return null;}}
+function fmt(ms){try{return new Date(ms).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}catch(_){return '';}}
+function esc(x){return String(x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+/* active pack on this device → {ends:ms}, else null */
+window.yfsPackInfo=function(){var t=ls('yfs_pro_token'),c=t&&claims(t);if(!c||!c.pack||ls('yfs_pro')!=='1')return null;var e=(+c.exp||0)*1000;return e>Date.now()?{ends:e}:null;};
+/* which plans are buyable: ask the Worker once per page (forced after a "plan_unavailable") */
+var synced=null;
+window.yfsPlansSync=function(force){if(synced&&!force)return synced;
+  synced=fetch(API+'/api/pro/plans',{method:'GET'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+    var pl=d&&d.plans||{},ch=false;(window.YFS_PLANS||[]).forEach(function(p){if(p.id==='pack'||p.id==='pro_year'){var v=!!pl[p.id];if(p.live!==v){p.live=v;ch=true;}}});
+    var sh=document.getElementById('yfsPlans');if(ch&&sh&&sh.classList.contains('open')&&typeof window.yfsOpenPlans==='function')window.yfsOpenPlans();
+    return pl;}).catch(function(){synced=null;return null;});
+  return synced;};
+if(typeof window.yfsOpenPlans==='function'){var _op=window.yfsOpenPlans;window.yfsOpenPlans=function(){var r=_op.apply(this,arguments);try{window.yfsPlansSync();}catch(_){}return r;};}
+/* UI for a pack holder: pill + Account say "through <date>", no Manage/Cancel (nothing to cancel) */
+function packUI(){var k=window.yfsPackInfo();var msb=document.getElementById('manageSubBtn');
+  if(!k)return;if(msb)msb.style.display='none';var pill=document.getElementById('usagePill');if(pill)pill.textContent='Pro · through '+fmt(k.ends);}
+if(typeof updateUsagePill==='function'){var _up=updateUsagePill;updateUsagePill=function(){var r=_up.apply(this,arguments);try{packUI();}catch(_){}return r;};}
+if(typeof window.yfsOpenAccount==='function'){var _oa=window.yfsOpenAccount;window.yfsOpenAccount=function(){var r=_oa.apply(this,arguments);try{var k=window.yfsPackInfo();if(k){
+  document.getElementById('yaPlan').textContent='Job Hunt Pack — Pro';
+  document.getElementById('yaPlanS').textContent='Everything unlocked through '+fmt(k.ends)+'. One-time pass — nothing to cancel.';
+  var m=document.getElementById('yaManage');if(m)m.style.display='none';var pb=document.getElementById('yaPlansBtn');if(pb)pb.style.display='flex';}}catch(_){}return r;};}
+/* end of pass: plain notice once */
+function endedNote(){var e=null;try{e=JSON.parse(ls('yfs_pack_ended')||'null');}catch(_){}
+  if(!e||document.getElementById('yfsPackEnded'))return;if(ls('yfs_pro')==='1'){ls('yfs_pack_ended',null);return;}
+  var n=document.createElement('div');n.id='yfsPackEnded';n.className='yfs-org-note yfs-pack-note';n.setAttribute('role','status');
+  n.innerHTML='<b>Your 30-day Job Hunt Pack ended'+(e.ends?' on '+esc(fmt(e.ends)):'')+'.</b> You’re on the Free plan now — your saved resumes are still here.<div class="yfs-pn-row"><button type="button" class="ghost">OK</button><button type="button">See plans</button></div>';
+  var bs=n.querySelectorAll('button');bs[0].onclick=function(){ls('yfs_pack_ended',null);n.remove();};
+  bs[1].onclick=function(){ls('yfs_pack_ended',null);n.remove();try{window.yfsOpenPlans();}catch(_){}};document.body.appendChild(n);}
+function recheck(){var t=ls('yfs_pro_token'),c=t&&claims(t);if(!c||!c.pack)return;
+  if(!((+c.exp||0)*1000>Date.now())){ls('yfs_pro',null);ls('yfs_pro_token',null);ls('yfs_pack_ended',JSON.stringify({ends:(+c.exp||0)*1000}));
+    try{isPro=false;}catch(_){}try{updateUsagePill();renderTool();}catch(_){}endedNote();}}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')recheck();});setInterval(recheck,60000);
+function go(){try{packUI();}catch(_){}endedNote();setTimeout(function(){try{window.yfsPlansSync();}catch(_){}},1200);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
+})();
+</script>
+<script id="yfs-polish-js">(function(){function f(){var t=document.querySelector('.tabs');if(!t)return;var e=t.scrollLeft+t.clientWidth>=t.scrollWidth-4;t.classList.toggle('at-end',e);}
+var t=document.querySelector('.tabs');if(t){t.addEventListener('scroll',f,{passive:true});window.addEventListener('resize',f);setTimeout(f,300);}})();</script>
 </body>
 </html>

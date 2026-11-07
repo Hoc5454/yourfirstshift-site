@@ -38,4 +38,13 @@ let fails=0;const ok=(c,n)=>{console.log((c?'PASS ':'FAIL ')+n);if(!c)fails++;};
  await p.goBack();await p.waitForTimeout(500);
  await Promise.all([p.waitForURL('https://checkout.stripe.com/**',{timeout:5000}).catch(()=>{}),p.evaluate(()=>{yfsOpenCheckout();})]);
  ok(log.ck===2&&p.url().startsWith('https://checkout.stripe.com/'),'T5 back from Stripe → Upgrade works again');await ctx.close();
+ // T6 server hangs → gives up after 20s with the honest "not charged" message, button usable again
+ ({ctx,p,log,alerts}=await open({delay:26000}));
+ const t0=Date.now();await p.evaluate(()=>{yfsOpenCheckout();});await p.waitForEvent('dialog',{timeout:30000}).catch(()=>{});await p.waitForTimeout(300);
+ ok(alerts.length===1&&/not been charged/.test(alerts[0])&&Date.now()-t0<24000&&p.url().startsWith('http://yfs.local/'),'T6 hung checkout → stops at ~20s, "not charged", stays on app');
+ ok(await p.evaluate(()=>!document.getElementById('yfsCoOpen')&&!yfsCoBusy),'T6 spinner cleared, can tap again');await ctx.close();
+ // T7 certification buttons have spoken labels
+ ({ctx,p}=await open());await p.evaluate(()=>yfsOpenTool(5));await p.waitForTimeout(400);
+ const lab=await p.evaluate(()=>[...document.querySelectorAll('.rb-cert-chip')].map(e=>e.getAttribute('aria-label')));
+ ok(lab.length>0&&lab.every(x=>/^Add .+ to certifications$/.test(x||'')),'T7 every certification chip has a label ('+lab.length+')');await ctx.close();
  await b.close();console.log(fails?('FAILED '+fails):'ALL PASS');process.exit(fails?1:0);})();
