@@ -45,7 +45,7 @@ const isOrange=bg=>{const m=bg.match(/\d+/g);if(!m)return false;const [r,g,bb]=m
   await upload(p);await p.waitForTimeout(400);
   await hide(p);await p.waitForTimeout(100);st.pending.splice(0).forEach(f=>f());await p.waitForTimeout(400);
   ok(!/couldn.t reach/i.test(await zone(p)),'no file-reader error while app is in background');
-  await show(p);await p.waitForTimeout(1500);
+  await show(p);await p.waitForTimeout(3200);/* reader-resume: retry now waits ~1.5s for the network */
   const z=await zone(p);ok(/resume loaded/i.test(z),'resume loaded after return: '+z.slice(0,60));
   ok(st.extract===2,'exactly 2 extract calls (1 retry), got '+st.extract);
   ok(await p.evaluate(()=>(extractedFileText||'').includes('Johnson')||extractedFileText.length>100),'extracted text kept');
@@ -55,7 +55,7 @@ const isOrange=bg=>{const m=bg.match(/\d+/g);if(!m)return false;const [r,g,bb]=m
  console.log('T2 retry also fails -> friendly error + paste fallback, no 3rd try, free run not burned');
  {const {ctx,p,st}=await setup(b,{plan:['hang','abort','ok']});
   await upload(p);await p.waitForTimeout(300);await hide(p);st.pending.splice(0).forEach(f=>f());await p.waitForTimeout(300);
-  await show(p);await p.waitForTimeout(1500);
+  await show(p);await p.waitForTimeout(3200);/* reader-resume: retry now waits ~1.5s for the network */
   const z=await zone(p);ok(/couldn.t reach our file reader/i.test(z)&&/paste your resume/i.test(z),'friendly error + paste fallback: '+z.slice(0,90));
   await show(p);await p.waitForTimeout(800);
   ok(st.extract===2,'no extra retry after second failure, calls='+st.extract);
@@ -85,7 +85,7 @@ const isOrange=bg=>{const m=bg.match(/\d+/g);if(!m)return false;const [r,g,bb]=m
   ok(/Upgrade to continue/.test(s.txt)&&isOrange(s.bg),'Upgrade CTA orange after free run');
   await upload(p);await p.waitForTimeout(300);
   s=await btn(p);console.log('   while reading:',JSON.stringify(s));ok(/Upgrade to continue/.test(s.txt)&&isOrange(s.bg)&&!s.dis,'orange while reading');
-  await hide(p);st.pending.splice(0).forEach(f=>f());await p.waitForTimeout(300);await show(p);await p.waitForTimeout(1500);
+  await hide(p);st.pending.splice(0).forEach(f=>f());await p.waitForTimeout(300);await show(p);await p.waitForTimeout(3200);/* reader-resume: retry now waits ~1.5s for the network */
   ok(/couldn.t reach our file reader/i.test(await zone(p)),'file error showing after retry failed');
   s=await btn(p);console.log('   error state:',JSON.stringify(s));
   ok(/Upgrade to continue/.test(s.txt)&&/ready/.test(s.cls)&&!s.dis&&isOrange(s.bg),'Upgrade CTA still orange in error state');

@@ -795,6 +795,7 @@ body.yfs-co-busy #ypCta,body.yfs-co-busy #runBtn,body.yfs-co-busy #yfsPdfCta,bod
 .rb-cert-chip,.style-opt,#rbDlBtn,.rb-print-btn{min-height:44px}
 </style>
 <style id="yfs-resume-css">
+.yfs-stream-note .yfs-keep{display:block;font-weight:600;font-size:12px;color:#B45309;margin-top:2px}
 .yfs-partial-note{background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:8px;padding:8px 10px;font:700 13px/1.35 system-ui,sans-serif;margin:0 0 10px}
 #errorBox .yfs-retry-btn{display:block;margin-top:10px;min-height:44px;padding:0 20px;border-radius:10px;border:0;background:#047857;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
 </style>
@@ -810,6 +811,7 @@ window.yfsDev=function(){var d='';try{d=localStorage.getItem('yfs_did')||'';}cat
 function uaFam(){var u=navigator.userAgent||'';if(/SamsungBrowser/.test(u))return 'samsung';if(/FBAN|FBAV|Instagram|TikTok|musical_ly|Bytedance|Snapchat|Line\//.test(u))return 'inapp';
   if(/EdgA?\//.test(u))return 'edge';if(/Firefox|FxiOS/.test(u))return 'firefox';if(/CriOS|Chrome/.test(u))return 'chrome';if(/Safari/.test(u))return 'safari';return 'other';}
 document.addEventListener('visibilitychange',function(){if(window.yfsRunBusy&&document.visibilityState==='hidden'&&window.yfsRunState)window.yfsRunState.hidden=true;});
+document.addEventListener('freeze',function(){if(window.yfsRunBusy&&window.yfsRunState)window.yfsRunState.hidden=true;});
 var MSG={interrupted:'Your result was interrupted when you left the app.',network:'Lost connection while writing your result. Check your signal.',
   busy:'Our AI is busy for a moment.',http_5xx:'Our server had a hiccup.',timeout:'Your result stopped coming in.',incomplete:'Your result got cut off before it finished.',
   empty:'No result came back.',http_4xx:'That request didn’t go through.',other:'Something went wrong.'};
@@ -1884,7 +1886,7 @@ function processFile(file){
     showFileError(filename,'File too large. Please use a file under 10MB.');
     return;
   }
-  zone.innerHTML='<div class="upload-icon">\u23F3</div><div class="upload-title loading-text">Reading your document<span class="dots"></span></div><div class="upload-sub" style="color:var(--amber);">Usually 10–30 seconds…</div>';
+  zone.innerHTML='<div class="upload-icon">\u23F3</div><div class="upload-title loading-text">Reading your document<span class="dots"></span></div><div class="upload-sub" style="color:var(--amber);">Keep this screen open — about 30 seconds.</div>';
 
   if(['txt','md','csv','log'].includes(ext)){
     const r=new FileReader();
@@ -2051,12 +2053,12 @@ async function yfsReadStream(res,free,ac){
   const builder=TOOLS[activeTool].hasBuilder;
   if(!builder){box.classList.remove('yfs-modern','yfs-onepage');box.setAttribute('contenteditable','false');rest.style.display='none';rest.innerHTML='';
     const lp=document.getElementById('lockedPdfBtn');if(lp)lp.style.display='none';const sc=document.getElementById('shareCardBtn');if(sc)sc.style.display='none';
-    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result…</div>';os.style.display='block';os.scrollIntoView({behavior:'smooth',block:'start'});}
+    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result… <span class="yfs-keep">Keep this screen open — about 30 seconds.</span></div>';os.style.display='block';os.scrollIntoView({behavior:'smooth',block:'start'});}
   const rd=res.body.getReader(),dec=new TextDecoder();let buf='',acc='',last=0,shown=false,stopped=false,wd=null;
   const arm=()=>{clearTimeout(wd);wd=setTimeout(function(){if(document.visibilityState==='visible'){try{ac&&ac.abort();}catch(_){}}else arm();},45000);};
   const paint=(force)=>{if(builder)return;const now=Date.now();if(!force&&now-last<120)return;last=now;
     let vis=acc;if(free){const sp=splitFree(acc);if(sp[1])vis=sp[0];else if(acc.length>900)vis=acc.slice(0,900);}
-    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result…</div>'+yfsMd(vis);
+    box.innerHTML='<div class="yfs-stream-note">✍️ Writing your result… <span class="yfs-keep">Keep this screen open — about 30 seconds.</span></div>'+yfsMd(vis);
     if(!shown){shown=true;}};
   const btn=document.getElementById('runBtn');
   arm();
@@ -3105,6 +3107,11 @@ const S={file:null,retried:false,hid:false,ok:false,pending:false,reading:false,
 const FINAL=/too large|HEIC|scanned|empty|extract text|file type|Unknown file|\(4\d\d\)/i;
 function away(){return document.visibilityState==='hidden';}
 function retry(){S.pending=false;clearTimeout(S.stallT);if(!S.file)return;S.retried=true;try{processFile(S.file);}catch(_){}}
+/* reader-resume: phones need a moment to get the network back after an app switch. Wait until online, then 1.5s, then the ONE retry. */
+function retrySoon(){if(S.waiting)return;S.waiting=true;
+  try{const z=document.getElementById('uploadZone');if(z&&!S.ok)z.innerHTML='<div class="upload-icon">\u23F3</div><div class="upload-title loading-text">Reconnecting — picking your document back up<span class="dots"></span></div><div class="upload-sub" style="color:var(--amber);">Keep this screen open — about 30 seconds.</div>';}catch(_){}
+  const go=function(){setTimeout(function(){S.waiting=false;if(!S.ok&&!away())retry();else S.pending=!S.ok;},1500);};
+  if(navigator.onLine===false){const h=function(){window.removeEventListener('online',h);go();};window.addEventListener('online',h);}else go();}
 if(typeof processFile==='function'){const _p=processFile;processFile=function(file){
   if(file){if(file!==S.file){S.file=file;S.retried=false;}S.hid=away();S.ok=false;S.pending=false;S.reading=true;S.out++;}
   return _p.apply(this,arguments);};}
@@ -3118,16 +3125,18 @@ if(typeof showFileError==='function'){const _e=showFileError;showFileError=funct
   const transient=!FINAL.test(String(message||''));
   if(S.file&&!S.retried&&transient&&(S.hid||away())){
     S.reading=true;                     /* keep "Reading your document…" on screen; no error flash */
-    if(away())S.pending=true; else setTimeout(retry,350);
+    if(away())S.pending=true; else retrySoon();
     return;}
   return _e.apply(this,arguments);};}
 function back(){if(away())return;
-  if(S.pending){S.pending=false;setTimeout(retry,350);return;}
+  if(S.pending){S.pending=false;retrySoon();return;}
   /* read went quiet while we were away (no answer at all): give it a few seconds, then retry once */
   if(S.reading&&S.hid&&!S.retried&&!S.stallT){S.stallT=setTimeout(function(){S.stallT=null;if(S.reading&&!S.ok&&!S.retried&&!away())retry();},6000);}
   try{updateRunBtn();}catch(_){}}
 document.addEventListener('visibilitychange',function(){if(away()){if(S.reading)S.hid=true;}else back();});
 window.addEventListener('pageshow',back);window.addEventListener('focus',back);
+/* Samsung Internet / Chrome freeze background tabs instead of only hiding them */
+document.addEventListener('freeze',function(){if(S.reading)S.hid=true;});document.addEventListener('resume',back);
 
 /* Upgrade CTA after Free: always orange + checkout (non-builder tools; builder keeps its own Unlock Pro CTA) */
 function cta(){try{const btn=document.getElementById('runBtn');if(!btn||typeof isPro==='undefined'||isPro)return;
