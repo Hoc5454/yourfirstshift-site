@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#1B2A4A">
+<link rel="canonical" href="https://www.yourfirstshiftapp.com/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+ {"@type":"WebSite","name":"YourFirstShift","alternateName":"YFS","url":"https://www.yourfirstshiftapp.com/"},
+ {"@type":"Organization","name":"YourFirstShift","url":"https://www.yourfirstshiftapp.com/","logo":"https://www.yourfirstshiftapp.com/icon-512.png"}
+]}
+</script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>YourFirstShift™ — Honest AI Job Tools</title>
+<!-- share-preview: link cards for texts, Facebook, LinkedIn, TikTok bio -->
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="YourFirstShift"/>
+<meta property="og:title" content="YourFirstShift™ — Honest AI Job Tools"/>
+<meta property="og:description" content="See how your resume matches any job, then fix it in plain English. 1 free run, no card. We never invent experience."/>
+<meta property="og:image" content="https://www.yourfirstshiftapp.com/og-image-bfd6ac1d.jpg"/>
+<meta property="og:image:secure_url" content="https://www.yourfirstshiftapp.com/og-image-bfd6ac1d.jpg"/>
+<meta property="og:image:type" content="image/jpeg"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:image:alt" content="YourFirstShift — honest AI job tools for real workers. 1 free run, Pro $9/mo."/>
+<meta property="og:url" content="https://www.yourfirstshiftapp.com/"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="YourFirstShift™ — Honest AI Job Tools"/>
+<meta name="twitter:description" content="See how your resume matches any job, then fix it in plain English. 1 free run, no card. We never invent experience."/>
+<meta name="twitter:image" content="https://www.yourfirstshiftapp.com/og-image-bfd6ac1d.jpg"/>
+
+<meta name="description" content="Match your resume to what recruiters and AI ranking tools look for — without inventing anything. Build a resume, check your match for any job, write cover letters, and prep for interviews. Free to try."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#F8FAFC;--card:#FFFFFF;--ink:#0F172A;--ink2:#334155;--muted:#475569;--line:#E2E8F0;--line2:#CBD5E1;
+  --amber:#F59E0B;--amber-ink:#B45309;--amber-soft:#FEF3C7;--on-amber:#1C1917;
+  --blue:#1D4ED8;--blue-soft:#DBEAFE;--green:#047857;--green-soft:#ECFDF5;--green-line:#A7F3D0;
+  --font-d:'Barlow Condensed',system-ui,sans-serif;--font-b:'Barlow',system-ui,sans-serif;
+}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-b);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+a{color:var(--blue);}
+a:focus-visible,button:focus-visible{outline:3px solid #93C5FD;outline-offset:2px;border-radius:8px;}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px;}
+.narrow{max-width:640px;}
+
+/* TOP BAR */
+.top{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;height:62px;}
+.logo{display:inline-flex;align-items:center;min-height:44px;font-family:var(--font-d);font-size:24px;font-weight:800;letter-spacing:-.2px;color:var(--ink);text-decoration:none;}
+.logo span{color:var(--amber-ink);}
+.logo sup{font-size:10px;color:var(--amber-ink);}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:12px;font-family:var(--font-b);font-size:17px;font-weight:700;text-decoration:none;cursor:pointer;border:0;transition:transform .12s,box-shadow .12s;}
+.btn-amber{background:var(--amber);color:var(--on-amber);box-shadow:0 2px 10px rgba(217,119,6,.25);}
+.btn-amber:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(217,119,6,.3);}
+.btn-ghost{background:var(--card);color:var(--ink);border:1px solid var(--line2);}
+.btn-ghost:hover{border-color:#94A3B8;}
+.btn-sm{min-height:44px;padding:0 16px;font-size:16px;}
+.btn-lg{min-height:58px;padding:0 30px;font-size:19px;}
+
+/* HERO */
+.hero{padding:36px 0 28px;}
+.eyebrow{display:inline-block;font-size:14px;font-weight:700;color:var(--green);background:var(--green-soft);border:1px solid var(--green-line);border-radius:999px;padding:6px 12px;margin-bottom:16px;}
+h1{font-family:var(--font-d);font-weight:800;text-transform:uppercase;font-size:clamp(46px,12vw,84px);line-height:.98;letter-spacing:-.5px;margin-bottom:16px;}
+h1 .hl{color:var(--amber-ink);}
+.lead{font-size:clamp(18px,2.6vw,21px);line-height:1.5;color:var(--ink2);max-width:620px;margin-bottom:24px;}
+.lead strong{color:var(--ink);}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px;}
+.fine{font-size:15px;color:var(--muted);}
+.trust{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px;}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink2);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:7px 12px;}
+
+/* SECTIONS */
+section{padding:44px 0;}
+.sec-alt{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+.kicker{font-size:14px;font-weight:700;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;}
+h2{font-family:var(--font-d);font-weight:800;text-transform:uppercase;font-size:clamp(34px,7vw,52px);line-height:1.02;margin-bottom:12px;}
+.sub{font-size:18px;color:var(--muted);margin-bottom:24px;max-width:620px;}
+
+/* TASK CARDS (mirror app Start) */
+.tasks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;}
+.task{display:flex;align-items:center;gap:14px;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:14px;color:var(--ink);text-decoration:none;min-height:80px;transition:border-color .15s;}
+.task:hover{border-color:#94A3B8;}
+.task.main{border:2px solid var(--blue);}
+.task .ic{flex:none;width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;}
+.task .tx{flex:1;display:flex;flex-direction:column;gap:2px;}
+.task b{font-size:19px;line-height:1.25;}
+.task span.d{font-size:15px;color:var(--muted);line-height:1.35;}
+.task span.tag{font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.6px;}
+.more{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px;font-size:16px;color:var(--muted);}
+.pill-link{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;font-size:16px;font-weight:600;color:var(--blue);background:#EFF6FF;border:1px solid #BFDBFE;border-radius:999px;text-decoration:none;}
+
+/* WHY */
+.why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;align-items:start;}
+.why p{font-size:17px;color:var(--ink2);margin-bottom:12px;}
+.why p strong{color:var(--ink);}
+.example{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:16px;}
+.example .lbl{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
+.ex-row{padding:12px 14px;border-radius:10px;margin-bottom:8px;font-size:16px;line-height:1.45;}
+.ex-before{background:#FFF7ED;border:1px solid #FED7AA;}
+.ex-after{background:var(--green-soft);border:1px solid var(--green-line);}
+.ex-row em{display:block;font-style:normal;font-size:13px;font-weight:700;margin-bottom:2px;}
+.ex-before em{color:#9A3412;}.ex-after em{color:var(--green);}
+.ex-note{font-size:14px;color:var(--muted);margin-top:4px;}
+
+/* HOW */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;counter-reset:s;}
+.step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;}
+.step .n{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;background:var(--blue);color:#fff;font-weight:700;font-size:17px;margin-bottom:10px;}
+.step b{display:block;font-size:19px;margin-bottom:4px;}
+.step p{font-size:16px;color:var(--muted);}
+
+/* PRICING */
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;align-items:stretch;}
+.plan{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;}
+.plan.pro{border:2px solid var(--blue);box-shadow:0 0 0 4px var(--blue-soft);}
+.plan.soon{background:#F1F5F9;border:1px dashed #94A3B8;}
+.plan-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.plan-name{font-size:20px;font-weight:700;}
+.badge{font-size:13px;font-weight:700;border-radius:999px;padding:4px 10px;white-space:nowrap;}
+.badge.soon{background:#E2E8F0;color:#334155;}
+.badge.go{background:var(--blue-soft);color:#1E3A8A;}
+.price{display:flex;align-items:baseline;gap:6px;}
+.price b{font-family:var(--font-d);font-weight:800;font-size:44px;line-height:1;}
+.price span{font-size:16px;color:var(--muted);}
+.plan.soon .price b{color:#475569;}
+.plan ul{list-style:none;display:flex;flex-direction:column;gap:6px;margin:4px 0 8px;}
+.plan li{display:flex;gap:8px;font-size:16px;color:var(--ink2);line-height:1.4;}
+.plan li::before{content:'';flex:none;width:18px;height:18px;margin-top:2px;background:no-repeat center/18px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23047857' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E");}
+.plan .spacer{flex:1;}
+.plan .btn{width:100%;}
+.plan .note{font-size:14px;color:var(--muted);text-align:center;}
+.btn-off{background:#E2E8F0;color:#475569;cursor:default;}
+.org{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:12px;padding:18px 20px;background:var(--card);border:1px dashed #94A3B8;border-radius:16px;}
+.org .tx{flex:1;min-width:220px;}
+.org b{display:block;font-size:19px;}
+.org span{font-size:16px;color:var(--muted);}
+.manage{margin-top:16px;font-size:16px;color:var(--muted);text-align:center;}
+.manage a{color:var(--green);font-weight:700;}
+
+/* FINAL */
+.final{text-align:center;padding:56px 0;}
+.final h2{margin-bottom:10px;}
+.final p{font-size:18px;color:var(--muted);margin:0 auto 22px;max-width:520px;}
+
+/* FOOTER */
+footer{background:var(--card);border-top:1px solid var(--line);padding:28px 0 36px;}
+footer .wrap{display:flex;flex-direction:column;gap:10px;}
+.f-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;}
+.f-links{display:flex;flex-wrap:wrap;gap:4px 18px;}
+.f-links a{display:inline-flex;align-items:center;min-height:44px;font-size:15px;font-weight:600;color:var(--ink2);text-decoration:none;}
+.f-links a:hover{color:var(--blue);}
+.f-links a.green{color:var(--green);}
+.f-copy{font-size:14px;color:var(--muted);line-height:1.5;}
+
+@media(max-width:640px){
+  .top .wrap{height:58px;}
+  .hero{padding:26px 0 22px;}
+  .cta-row .btn{width:100%;}
+  section{padding:36px 0;}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a href="/" class="logo" aria-label="YourFirstShift home">Your<span>First</span>Shift<sup>™</sup></a>
+    <a href="app.html" class="btn btn-amber btn-sm">Open the app</a>
+  </div>
+</header>
+
+<main>
+<!-- HERO -->
+<section class="hero" aria-labelledby="h1">
+  <div class="wrap">
+    <div class="eyebrow">Honest AI job tools · Free to try</div>
+    <h1 id="h1">Get hired <span class="hl">faster.</span></h1>
+    <p class="lead">Often it's not a skill problem — it's a match problem. See how your resume matches any job, usually in about a minute, then fix it with your real experience. <strong>We never invent anything.</strong></p>
+    <div class="cta-row">
+      <a href="app.html" class="btn btn-amber btn-lg">Try it free →</a>
+      <a href="#how" class="btn btn-ghost btn-lg">See how it works</a>
+    </div>
+    <p class="fine">1 free AI run · no signup · no card</p>
+    <div class="trust">
+      <span class="chip"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>We never invent experience</span>
+      <span class="chip"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg>Powered by Claude</span>
+      <span class="chip"><span aria-hidden="true">🇺🇸</span>Proudly USA</span>
+    </div>
+  </div>
+</section>
+
+<!-- TASKS -->
+<section class="sec-alt" id="tools" aria-labelledby="tasksH">
+  <div class="wrap">
+    <div class="kicker">What do you need?</div>
+    <h2 id="tasksH">Pick a task. We'll walk you through it.</h2>
+    <p class="sub">Works for any job and any background — trades, healthcare, office, warehouse, tech, or your first job.</p>
+    <div class="tasks">
+      <a class="task" href="app.html#tool-5">
+        <span class="ic" style="background:#FEF3C7"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 12v6"/><path d="M9 15h6"/></svg></span>
+        <span class="tx"><b>Build my resume</b><span class="d">No resume yet? Answer a few questions.</span></span>
+      </a>
+      <a class="task main" href="app.html#tool-1">
+        <span class="ic" style="background:#DBEAFE"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span>
+        <span class="tx"><b>Fix my resume for a job</b><span class="d">See your match score and what to change.</span><span class="tag">Start here if you have a resume</span></span>
+      </a>
+      <a class="task" href="app.html#tool-3">
+        <span class="ic" style="background:#D1FAE5"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
+        <span class="tx"><b>Write a cover letter</b><span class="d">Honest, specific, and not a template.</span></span>
+      </a>
+      <a class="task" href="app.html#tool-4">
+        <span class="ic" style="background:#EDE9FE"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6D28D9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 11h6"/><path d="M9 14h4"/></svg></span>
+        <span class="tx"><b>Practice my interview</b><span class="d">Likely questions for your job, with coached answers.</span></span>
+      </a>
+    </div>
+    <div class="more">More tools: <a class="pill-link" href="app.html#tool-0">Resume Translator</a><a class="pill-link" href="app.html#tool-2">Outreach message</a></div>
+  </div>
+</section>
+
+<!-- WHY -->
+<section aria-labelledby="whyH">
+  <div class="wrap">
+    <div class="why-grid">
+      <div class="why">
+        <div class="kicker">The real problem</div>
+        <h2 id="whyH">Software sorts. People decide.</h2>
+        <p>Many employers run applications through an <strong>applicant tracking system (ATS)</strong> and AI ranking tools that search resumes for the words in the job posting. If your resume describes your work in different words, your real experience can be hard to spot — even when you're qualified.</p>
+        <p><strong>We help you say what you really did, in the words the job uses.</strong> A person still makes the call.</p>
+      </div>
+      <div class="example" role="figure" aria-label="Example of an honest rewrite">
+        <div class="lbl">Example · same experience, clearer words</div>
+        <div class="ex-row ex-before"><em>Before</em>Did inventory stuff and drove the forklift.</div>
+        <div class="ex-row ex-after"><em>After</em>Ran daily cycle counts and moved pallets by forklift, using an RF scanner for inventory control.</div>
+        <p class="ex-note">Only true details go in. If you didn't do it, we don't add it. Match scores are AI estimates, not an official ATS score.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW -->
+<section class="sec-alt" id="how" aria-labelledby="howH">
+  <div class="wrap">
+    <div class="kicker">How it works</div>
+    <h2 id="howH">Usually about a minute to your first result.</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><b>Add your resume once</b><p>Upload a PDF, Word file, or photo — or paste your work history. No resume? The builder makes one with you.</p></div>
+      <div class="step"><span class="n">2</span><b>Pick a task</b><p>Check your match for a job, write a cover letter, a message to a hiring manager, or prep for the interview.</p></div>
+      <div class="step"><span class="n">3</span><b>Edit, then apply</b><p>Edit right on screen. Copy your result, or download a clean PDF and Word file with Pro. No guarantees — just a clearer, honest match.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" aria-labelledby="priceH">
+  <div class="wrap">
+    <div class="kicker">Pricing</div>
+    <h2 id="priceH">Try it free. Pay only if it helps.</h2>
+    <p class="sub">1 free AI run on any tool. No signup, no card.</p>
+    <div class="plans">
+      <div class="plan">
+        <div class="plan-top"><span class="plan-name">Free</span></div>
+        <div class="price"><b>$0</b></div>
+        <ul><li>1 free AI run on any tool</li><li>No account needed</li><li>Watermarked preview on screen</li></ul>
+        <div class="spacer"></div>
+        <a href="app.html" class="btn btn-ghost">Start free</a>
+      </div>
+
+      <div class="plan pro">
+        <div class="plan-top"><span class="plan-name">Pro</span><span class="badge go">Available now</span></div>
+        <div class="price"><b>$9</b><span>/ month</span></div>
+        <ul><li>Unlimited runs on all 6 tools</li><li>Clean PDF + Word (.docx) downloads</li><li>Save unlimited resumes in My Resumes</li><li>Upload PDF, Word (.docx), or a photo</li></ul>
+        <div class="spacer"></div>
+        <a href="/app.html" class="btn btn-amber" onclick="return yfsLandCheckout(event)">Get Pro — $9/month</a>
+        <div class="note">Secure checkout with Stripe · <a href="https://billing.stripe.com/p/login/3cIbIU3p4dJS7zd3BN04800" target="_blank" rel="noopener">Cancel anytime</a></div>
+      </div>
+
+      <div class="plan soon" aria-disabled="true">
+        <div class="plan-top"><span class="plan-name">Job Hunt Pack</span><span class="badge soon">Available soon</span></div>
+        <div class="price"><b>$29</b><span>one time · 30 days</span></div>
+        <ul><li>Everything in Pro for 30 days</li><li>No subscription, nothing to cancel</li></ul>
+        <div class="spacer"></div>
+        <span class="btn btn-off" aria-disabled="true">Available soon</span>
+      </div>
+
+      <div class="plan soon" aria-disabled="true">
+        <div class="plan-top"><span class="plan-name">Pro — yearly</span><span class="badge soon">Available soon</span></div>
+        <div class="price"><b>$59</b><span>/ year</span></div>
+        <ul><li>Everything in Pro</li><li>Paid once a year — save 45%</li></ul>
+        <div class="spacer"></div>
+        <span class="btn btn-off" aria-disabled="true">Available soon</span>
+      </div>
+
+      <div class="plan soon" aria-disabled="true">
+        <div class="plan-top"><span class="plan-name">Premium</span><span class="badge soon">Coming soon</span></div>
+        <p style="font-size:16px;color:var(--ink2);">Pro plus a LinkedIn profile rewrite and a job application tracker. Not available yet — we'll announce it when it's ready.</p>
+      </div>
+    </div>
+
+    <div class="org">
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M10 21v-6h4v6"/></svg>
+      <div class="tx"><b>For schools, unions &amp; job programs</b><span>Seats for your whole group, one invoice.</span></div>
+      <!--email_off--><a class="btn btn-ghost btn-sm" href="mailto:hello@yourfirstshiftapp.com?subject=YourFirstShift%20for%20our%20program">Contact us</a><!--email_on-->
+    </div>
+
+    <p class="manage">Already on Pro? <a href="https://billing.stripe.com/p/login/3cIbIU3p4dJS7zd3BN04800" target="_blank" rel="noopener">Cancel / manage subscription</a></p>
+  </div>
+</section>
+
+<!-- FINAL -->
+<section class="final sec-alt" aria-labelledby="finalH">
+  <div class="wrap narrow">
+    <h2 id="finalH">Your next job starts <span style="color:var(--amber-ink)">right here.</span></h2>
+    <p>1 free AI run. No signup. No card. See your match and fix it with your real experience.</p>
+    <a href="app.html" class="btn btn-amber btn-lg">Get started free →</a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="f-row">
+      <a href="/" class="logo">Your<span>First</span>Shift<sup>™</sup></a>
+      <nav class="f-links" aria-label="Footer">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <!--email_off--><a href="mailto:hello@yourfirstshiftapp.com">Contact</a><!--email_on-->
+        <a class="green" href="https://billing.stripe.com/p/login/3cIbIU3p4dJS7zd3BN04800" target="_blank" rel="noopener">Cancel / Manage subscription</a>
+      </nav>
+    </div>
+    <p class="f-copy">🇺🇸 Proudly USA · Built &amp; operated in the United States · 100% transparent &amp; honest — we never invent your experience.</p>
+    <!--email_off--><p class="f-copy">Contact: <a href="mailto:hello@yourfirstshiftapp.com">hello@yourfirstshiftapp.com</a></p><!--email_on-->
+    <p class="f-copy">© 2026 YourFirstShift™. AI-powered job tools for every worker.</p>
+    <p class="f-copy">YourFirstShift™ is Powered by Claude · Independent product, not affiliated with or endorsed by Anthropic PBC. "Claude" is a trademark of Anthropic PBC.</p>
+  </div>
+</footer>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+async function yfsLandCheckout(ev){if(ev&&ev.preventDefault)ev.preventDefault();
+try{fetch('https://yourfirstshift.culpepperhunter.workers.dev/api/metrics/pay_tap',{method:'POST',keepalive:true}).catch(()=>{});}catch(_){}
+try{const r=await fetch('https://yourfirstshift.culpepperhunter.workers.dev/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+const d=await r.json().catch(()=>({}));if(r.ok&&d.url&&/^https:\/\/checkout\.stripe\.com\//.test(d.url)){window.location.href=d.url;return false;}}catch(_){}
+alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');return false;}
+</script>
+</body>
+</html>
