@@ -1,0 +1,99 @@
+{
+  "purpose": "Parent operational release and Liz review. Not a deploy. No Cloudflare write. No redirect rule added.",
+  "pages_deployment": "638483b7",
+  "index": {
+    "baseline_source": "attached immutable Pages index, re-fetched from https://638483b7.yourfirstshift-site.pages.dev/index.html and matched",
+    "baseline_sha256": "b479522e714d5137e771972102d0987c387230f219cac9dbde92762601733115",
+    "baseline_bytes": 23337,
+    "patched_sha256": "cbfd3c0630c0b475f6234d2f26dbfc79802a0361476bbee813f47bc533195843",
+    "patched_bytes": 23869,
+    "patch_sha256": "9bb2f89dc972961e75060fa275ab14c4f4c412cee16a3d8ce6f9ccfc04ca798a",
+    "patch_bytes": 2557,
+    "patch_file": "docs/returns/index-head-live.patch",
+    "artifact_index": "/opt/cursor/artifacts/index.html",
+    "body_from_head_close_unchanged": true,
+    "changes": [
+      "Replaced the two older icon links with the PR 30 head snippet (favicon 48, favicon-96, apple-touch, manifest, theme-color #1B2A4A, canonical www, WebSite + Organization JSON-LD name YourFirstShift).",
+      "Set og:url to https://www.yourfirstshiftapp.com/.",
+      "Removed the older theme-color #F8FAFC so the reviewed #1B2A4A is the only theme-color. HTML uses the first theme-color, so leaving both would ignore the snippet.",
+      "Left og:image and twitter:image on https://yourfirstshiftapp.com/og-image.jpg.",
+      "Did not add a redirect rule. Did not merge PR 30 or PR 28. Did not copy PR 30 assets into this branch."
+    ],
+    "www_observed": {
+      "url": "https://www.yourfirstshiftapp.com/",
+      "sha256": "8133023f02122b5090a921ff286f54bd167e506ec7f0daf9aafa688b887400b1",
+      "bytes": 23289,
+      "stable_across_two_fetches": true,
+      "difference_from_pages_baseline": "Three opening <!--email_off--> comments are absent on www (48 bytes). Head tags match the Pages baseline. The same patch applies and leaves the www body unchanged.",
+      "www_patched_sha256_not_the_tip_file": "ee24602076dffcc38c5e33967779b878907ccb96ff739498f1c8f70cafe52d71",
+      "www_patched_bytes": 23821,
+      "tip_file": "Use the Pages-based artifact index.html (patched_sha256 above), which keeps the immutable Pages bytes outside the head."
+    },
+    "apex_observed": "GET https://yourfirstshiftapp.com/ returned 301 Location: https://www.yourfirstshiftapp.com/ during this read. No redirect was added in the repo."
+  },
+  "app_html": {
+    "phone_tested_sha256": "324aa1b03e4f9e450eb4ba8907bf6aec822ac89200b0c44df2668d0d622661d8",
+    "bytes": 309500,
+    "git_blob": "f47bf74018ceb9f8043acefdf660172e72712605",
+    "source_commit": "569c4d591f5d1b7523dc33d41f35bbacb29e4e76",
+    "integration_commit": "c4bdcba2516212bcae17e9c9b5bf343a1a8fe29d",
+    "pages_refetch_matches": true,
+    "www_note": "https://www.yourfirstshiftapp.com/app.html is the Pages file plus Cloudflare email-protection. That response hash changes on each fetch. It is not a second app version and was not copied into git."
+  },
+  "worker": {
+    "identical_to_main_702f9995192493a9492d6e425ad5d1a625cdcf00": true,
+    "worker_js_sha256": "d203d8a7666b26e2b99fd9a72f21cdba1eb0b39f0f17e3771dca6d92099708b9",
+    "worker_js_bytes": 158444,
+    "worker_js_git_blob": "6732d881a06368231ac4b741d39ec4d43c049404"
+  },
+  "pr30_assets_not_in_this_branch": {
+    "head": "63aed2b3ab5525a6ea77c667700949ea6dcd13ab",
+    "files": {
+      "favicon.ico": {
+        "sha256": "2c7bbfc0d19e2e0ab3cd2152a9302c6f6fe9cd5b2fb7cf552151df7eb0a04d0f",
+        "bytes": 6633
+      },
+      "favicon-48.png": {
+        "sha256": "f3a47e6ce629945ee8860f89e0f013b4a56e3a52ce2766163d85d90fa912f9ec",
+        "bytes": 3579
+      },
+      "favicon-96.png": {
+        "sha256": "33fc202a71639e43f8552775334420453620b65d421aabcdf210f828ff9a03a5",
+        "bytes": 7894
+      },
+      "apple-touch-icon.png": {
+        "sha256": "9e9fb55207935bdde521f933920e5c0ee7a799fe93ac01f2138e01e15eb82105",
+        "bytes": 10978
+      },
+      "icon-192.png": {
+        "sha256": "7328406e497976ff4d79c858ad597d43f96e25ebbc6e689687d3cbc5c17d14e5",
+        "bytes": 17891
+      },
+      "icon-512.png": {
+        "sha256": "ac54e11eb0e574b4082593ba802a06bff1953f72d6db89e5caf8af9ace6e4e02",
+        "bytes": 42414
+      },
+      "site.webmanifest": {
+        "sha256": "4226f4d5cea8be6ff8306c5b90da2d5e1abf5924be731aedc3b6249114ca8313",
+        "bytes": 313
+      },
+      "robots.txt": {
+        "sha256": "4e7370ed50d2c66dd47f73aebba47a0835370358016ec7ff18cf73147165efae",
+        "bytes": 79
+      },
+      "sitemap.xml": {
+        "sha256": "2612d1e8ef4d6daeb00e1d73405569b3b13c8f72f77d9dddc9548d81d79497c9",
+        "bytes": 586
+      }
+    }
+  },
+  "merge": {
+    "base": "702f9995192493a9492d6e425ad5d1a625cdcf00",
+    "merged": "569c4d591f5d1b7523dc33d41f35bbacb29e4e76",
+    "merge_commit": "c4bdcba2516212bcae17e9c9b5bf343a1a8fe29d",
+    "tree": "5ca4810bc6b0eb19b81d021901262ab77d64530b",
+    "conflicts": 0,
+    "retarget_pr29_content_safe": true,
+    "retarget_done": false
+  }
+}
