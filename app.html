@@ -785,6 +785,7 @@ body.yfs-co-busy #ypCta,body.yfs-co-busy #runBtn,body.yfs-co-busy #yfsPdfCta,bod
 /* vault cards: 2x2 action grid with full-size buttons */
 .vx-acts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .vx-acts button{min-height:44px;white-space:nowrap;font-size:12px;border-radius:8px}
+@media(max-width:360px){.vx-acts{grid-template-columns:1fr}}
 /* tool tabs: soft fade on the right says "swipe for more" (removed at the end) */
 .tabs{-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}
 .tabs.at-end{-webkit-mask-image:none;mask-image:none}
@@ -1819,10 +1820,14 @@ function triggerFileInput(e){
   fi.click();
 }
 const YFS_FI='<input type="file" id="fileInput" class="file-input" accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.png,.jpg,.jpeg,.webp,.heic" onchange="handleFileSelect(event)"/>';
+/* hang-guard: give up on a request that never answers while the screen is visible (keeps waiting while the app is in the background). */
+function yfsGuard(ms){const ac=(typeof AbortController==='function')?new AbortController():null;let t=null;
+  const arm=function(){t=setTimeout(function(){if(document.visibilityState==='visible'){try{ac&&ac.abort();}catch(_){}}else arm();},ms);};arm();
+  return {signal:ac?ac.signal:undefined,ac:ac,done:function(){clearTimeout(t);}};}
 function extractErrMsg(err){
   const offline=(typeof navigator!=='undefined'&&navigator.onLine===false);
   if(offline)return 'You appear to be offline. Reconnect and try again, or paste your resume below.';
-  if(err&&err.name==='TypeError')return 'We couldn\u2019t reach our file reader just now. Try again, upload a PDF, or paste your resume below.';
+  if(err&&(err.name==='TypeError'||err.name==='AbortError'))return 'We couldn\u2019t reach our file reader just now. Try again, upload a PDF, or paste your resume below.';
   return 'We couldn\u2019t read that file. Try a PDF, or paste your resume below.';
 }
 let _pdfjsP=null;
@@ -1953,9 +1958,11 @@ async function extractTextFromPDF(base64,filename){
     const lt=await localPdfText(base64);
     if(lt&&lt.split(/\s+/).length>=40){extractedFileText=lt;showFileSuccess(filename,lt);return;}
   }catch(_){}
+  const _g=yfsGuard(60000);
   try{
     const res=await fetch(YFS_API,{
       method:'POST',
+      signal:_g.signal,
       headers:proHeaders({'X-YFS-Kind':'extract'}),
       body:JSON.stringify({
         model:'claude-sonnet-4-6',max_tokens:3000,
@@ -1972,13 +1979,15 @@ async function extractTextFromPDF(base64,filename){
     else showFileError(filename,'This PDF may be a scanned image. Try uploading a photo of it instead, or paste the text below.');
   }catch(err){
     showFileError(filename,extractErrMsg(err));
-  }
+  }finally{if(typeof _g!=='undefined'&&_g)_g.done();}
 }
 
 async function extractTextFromImage(base64,mediaType,filename){
+  const _g=yfsGuard(60000);
   try{
     const res=await fetch(YFS_API,{
       method:'POST',
+      signal:_g.signal,
       headers:proHeaders({'X-YFS-Kind':'extract'}),
       body:JSON.stringify({
         model:'claude-sonnet-4-6',max_tokens:3000,
@@ -1995,7 +2004,7 @@ async function extractTextFromImage(base64,mediaType,filename){
     else showFileError(filename,'Could not extract text from image. Please paste your resume below.');
   }catch(err){
     showFileError(filename,extractErrMsg(err));
-  }
+  }finally{if(typeof _g!=='undefined'&&_g)_g.done();}
 }
 
 function showFileSuccess(filename,fullText){
@@ -2125,7 +2134,8 @@ async function runTool(){
     if(_resume){try{const cr=await fetch(YFS_API+'/api/run/'+_runId+'?d='+yfsDev());if(cr.ok){const cd=await cr.json();if(cd&&cd.text)text=cd.text;}}catch(_){}}
     if(text===null){
     const _ac=(typeof AbortController==='function')?new AbortController():null;
-    const res=await fetch(YFS_API,{
+    let _hw=null;const _armH=function(){_hw=setTimeout(function(){if(document.visibilityState==='visible'){try{_ac&&_ac.abort();}catch(_){}}else _armH();},45000);};_armH();
+    let res;try{res=await fetch(YFS_API,{
       method:'POST',
       signal:_ac?_ac.signal:undefined,
       headers:proHeaders({'X-YFS-Run':_runId,'X-YFS-Dev':yfsDev()}),
@@ -2136,7 +2146,7 @@ async function runTool(){
         stream:true,
         messages:[{role:'user',content:prompt}]
       })
-    });
+    });}finally{clearTimeout(_hw);}
     if(res.status===402){
       window.yfsRunBusy=false;window.yfsRunState={};
       localStorage.removeItem('yfs_pro'); localStorage.removeItem('yfs_pro_token'); isPro=false;
