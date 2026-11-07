@@ -26,7 +26,7 @@ Liz's two follow-ups were mostly already built in PR #20/#21 (the "Opening secur
 1. Open yourfirstshiftapp.com/app.html in Chrome.
 2. Tap **Plans** at the bottom, then the $9 button.
 3. You should see a dark bar at the top: "Opening secure checkout… 🔒 Stripe", then the Stripe page in the same tab. Don't pay — tap back.
-4. (Optional) Turn on Airplane mode, tap the $9 button again: within about 10 seconds the bar disappears and a message says it's taking too long and you have not been charged. Turn Airplane mode off.
+4. (Optional) Turn on Airplane mode, tap the $9 button again: the bar should disappear within about 10 seconds (often right away) with a message that says "You have not been charged." It should NOT spin forever. Turn Airplane mode off.
 
 ## Rollback
 Redeploy the base/main app.html (live d81fbb6a…, or #21's c7815286… if #21 has shipped).
