@@ -95,5 +95,30 @@
     "conflicts": 0,
     "retarget_pr29_content_safe": true,
     "retarget_done": false
+  },
+  "followup_image_url": {
+    "reason": "Meta's public Sharing docs say an og:image is cached by its URL and is not updated unless that URL changes. This commit adds one new static filename and does not add a query string to existing files.",
+    "source_doc": "https://developers.facebook.com/docs/sharing/webmasters",
+    "previous_candidate_sha256": "cbfd3c0630c0b475f6234d2f26dbfc79802a0361476bbee813f47bc533195843",
+    "previous_candidate_bytes": 23869,
+    "committed_index_sha256": "9758fcd75bef9939f99b136752674ed53625a13a66784cb6099ae7d51fd3c1b3",
+    "committed_index_bytes": 23908,
+    "body_from_head_close_matches_baseline_b479522e": true,
+    "image_file": "og-image-bfd6ac1d.jpg",
+    "image_url": "https://www.yourfirstshiftapp.com/og-image-bfd6ac1d.jpg",
+    "image_sha256": "bfd6ac1d3c01047a333194078af7aff7510bb5e758c9bc98a59b78afe8a57620",
+    "image_bytes": 98217,
+    "image_dimensions": "1200x630",
+    "image_bytes_match_attached_and_pages_2d0570ba_and_www": true,
+    "existing_repo_og-image.jpg_sha256_unchanged": "9649b967ec13450e08dd0b1e757258c917bd1b8ab738efe7ffad4674cd6776bb",
+    "existing_repo_og-image.jpg_bytes_unchanged": 106123,
+    "tags_set_to_image_url": [
+      "og:image",
+      "og:image:secure_url",
+      "twitter:image"
+    ],
+    "canonical": "https://www.yourfirstshiftapp.com/",
+    "og_url": "https://www.yourfirstshiftapp.com/",
+    "limitation": "Google Messages can keep a preview cached for the page URL even after the image URL changes. This does not force that cache to redraw."
   }
 }

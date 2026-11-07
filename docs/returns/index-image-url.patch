@@ -1,0 +1,22 @@
+--- index.html	Liz-passed candidate cbfd3c0630c0b475f6234d2f26dbfc79802a0361476bbee813f47bc533195843 23869 bytes
++++ index.html	og:image, og:image:secure_url, and twitter:image use the versioned www URL
+@@ -21,8 +21,8 @@
+ <meta property="og:site_name" content="YourFirstShift"/>
+ <meta property="og:title" content="YourFirstShift™ — Honest AI Job Tools"/>
+ <meta property="og:description" content="See how your resume matches any job, then fix it in plain English. 1 free run, no card. We never invent experience."/>
+-<meta property="og:image" content="https://yourfirstshiftapp.com/og-image.jpg"/>
+-<meta property="og:image:secure_url" content="https://yourfirstshiftapp.com/og-image.jpg"/>
++<meta property="og:image" content="https://www.yourfirstshiftapp.com/og-image-bfd6ac1d.jpg"/>
++<meta property="og:image:secure_url" content="https://www.yourfirstshiftapp.com/og-image-bfd6ac1d.jpg"/>
+ <meta property="og:image:type" content="image/jpeg"/>
+ <meta property="og:image:width" content="1200"/>
+ <meta property="og:image:height" content="630"/>
+@@ -31,7 +31,7 @@
+ <meta name="twitter:card" content="summary_large_image"/>
+ <meta name="twitter:title" content="YourFirstShift™ — Honest AI Job Tools"/>
+ <meta name="twitter:description" content="See how your resume matches any job, then fix it in plain English. 1 free run, no card. We never invent experience."/>
+-<meta name="twitter:image" content="https://yourfirstshiftapp.com/og-image.jpg"/>
++<meta name="twitter:image" content="https://www.yourfirstshiftapp.com/og-image-bfd6ac1d.jpg"/>
+ 
+ <meta name="description" content="Match your resume to what recruiters and AI ranking tools look for — without inventing anything. Build a resume, check your match for any job, write cover letters, and prep for interviews. Free to try."/>
+ <link rel="preconnect" href="https://fonts.googleapis.com"/>
