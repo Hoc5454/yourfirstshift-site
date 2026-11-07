@@ -1976,7 +1976,7 @@ const FREE_LIMITS = {
 const ALLOWED_ORIGINS = ['https://yourfirstshiftapp.com', 'https://www.yourfirstshiftapp.com', 'https://yourfirstshift.pages.dev', 'https://yourfirstshift-site.pages.dev'];
 const RL_LIMIT = 20;
 function originOk(o) { if (!o) return false; if (ALLOWED_ORIGINS.includes(o)) return true; try { const u = new URL(o); return u.protocol === 'https:' && /^[a-z0-9-]+\.yourfirstshift-site\.pages\.dev$/.test(u.hostname); } catch { return false; } }
-function cors(origin) { if (!originOk(origin)) return { 'Vary': 'Origin' }; return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-YFS-Pro, X-YFS-Kind', 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' }; }
+function cors(origin) { if (!originOk(origin)) return { 'Vary': 'Origin' }; return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-YFS-Pro, X-YFS-Kind, X-YFS-Run, X-YFS-Dev', 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' }; }
 function requestOriginAllowed(request) { const o = request.headers.get('Origin'); if (o) return originOk(o); const r = request.headers.get('Referer'); if (!r) return false; try { return originOk(new URL(r).origin); } catch { return false; } }
 async function rateLimit(request) { const ip = request.headers.get('CF-Connecting-IP') || 'unknown'; const hour = Math.floor(Date.now() / 3600000); const key = new Request(`https://rl.internal/rl:${ip}:${hour}`); const cache = caches.default; const hit = await cache.match(key); const count = hit ? parseInt(await hit.text(), 10) || 0 : 0; if (count >= RL_LIMIT) return { ok: false, count }; await cache.put(key, new Response(String(count + 1), { headers: { 'Cache-Control': 'max-age=3600' } })); return { ok: true, count: count + 1 }; }
 
@@ -2456,6 +2456,73 @@ async function handleProRefresh(request, env, origin) {
   return j({ ok: true, token: fresh, exp }, 200, origin);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// resume-fix (Claude): phones kill the result stream when the user switches apps.
+//  • Each AI run carries X-YFS-Run (32 hex, new per run) + X-YFS-Dev (32 hex device id, no personal data).
+//  • freeGate: retrying the SAME run (same request body) within 10 min doesn't count a new free run (max 3 retries).
+//  • The finished result (already free-cut for free users) is cached 10 min under runres:<dev>:<run>;
+//    GET /api/run/<run>?d=<dev> returns it, so a returning user gets it instantly with no new AI cost.
+//    Needs both random ids → nobody can fetch someone else's result. Expires automatically.
+//  • POST /api/metrics/client_err logs error TYPES only (no text, no ids) → GET /api/metrics/errors.
+// ════════════════════════════════════════════════════════════════════════════
+const RUN_TTL_S = 600, RUN_RETRIES = 3;
+const ERR_TYPES = ['interrupted', 'network', 'http_5xx', 'http_4xx', 'busy', 'incomplete', 'empty', 'timeout', 'other'];
+const UA_FAM = ['samsung', 'chrome', 'safari', 'firefox', 'edge', 'inapp', 'other'];
+function yfsRunId(request) { const v = String(request.headers.get('X-YFS-Run') || ''); return /^[a-f0-9]{32}$/.test(v) ? v : ''; }
+function yfsDevId(request) { const v = String(request.headers.get('X-YFS-Dev') || ''); return /^[a-f0-9]{32}$/.test(v) ? v : ''; }
+async function yfsBodyHash(request) { try { return hex(await crypto.subtle.digest('SHA-256', te.encode(await request.clone().text()))); } catch (_) { return ''; } }
+async function yfsCacheRun(env, dev, run, stream, free) {
+  try {
+    const rd = stream.getReader(), dec = new TextDecoder(); let buf = '', text = '', done = false;
+    while (true) { const r = await rd.read(); if (r.done) break; buf += dec.decode(r.value, { stream: true });
+      let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!ln.startsWith('data:')) continue; let o = null; try { o = JSON.parse(ln.slice(5).trim()); } catch (_) { continue; }
+        if (o && o.type === 'content_block_delta' && o.delta && typeof o.delta.text === 'string') text += o.delta.text;
+        else if (o && o.type === 'message_stop') done = true; } }
+    if (done && text) await env.YFS_KV.put('runres:' + dev + ':' + run, JSON.stringify({ text, free: free ? 1 : 0, ts: Date.now() }), { expirationTtl: RUN_TTL_S });
+  } catch (_) {}
+}
+async function yfsBucket(request, name, max) {
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown', hour = Math.floor(Date.now() / 3600000);
+  const key = new Request(`https://rl.internal/${name}:${ip}:${hour}`), cache = caches.default;
+  const hit = await cache.match(key), n = hit ? parseInt(await hit.text(), 10) || 0 : 0;
+  if (n >= max) return false;
+  await cache.put(key, new Response(String(n + 1), { headers: { 'Cache-Control': 'max-age=3600' } })); return true;
+}
+async function handleRunFetch(request, env, path, origin) {
+  const H = { 'Cache-Control': 'no-store' };
+  if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin, H);
+  if (!env.YFS_KV) return j({ error: 'unavailable' }, 503, origin, H);
+  if (!(await yfsBucket(request, 'run', 120))) return j({ error: 'Rate limit' }, 429, origin, H);
+  const run = path.slice('/api/run/'.length), dev = String(new URL(request.url).searchParams.get('d') || '');
+  if (!/^[a-f0-9]{32}$/.test(run) || !/^[a-f0-9]{32}$/.test(dev)) return j({ error: 'bad_request' }, 400, origin, H);
+  const rec = await env.YFS_KV.get('runres:' + dev + ':' + run, 'json');
+  if (!rec || !rec.text) return j({ error: 'not_found' }, 404, origin, H);
+  return j({ ok: true, done: true, text: rec.text }, 200, origin, H);
+}
+async function handleClientErr(request, env, origin) {
+  const done = () => new Response(null, { status: 204, headers: { ...cors(origin), 'Cache-Control': 'no-store' } });
+  if (!env.YFS_KV || !requestOriginAllowed(request)) return done();
+  if (!(await yfsBucket(request, 'err', 30))) return done();
+  let b = {}; try { b = JSON.parse(await request.text()); } catch (_) { return done(); }
+  const t = ERR_TYPES.includes(b.t) ? b.t : 'other', ua = UA_FAM.includes(b.ua) ? b.ua : 'other';
+  await kvInc(env, `m:err:${new Date().toISOString().slice(0, 10)}:${t}:${ua}`, { expirationTtl: 30 * 86400 });
+  return done();
+}
+async function handleErrStats(env, origin) {
+  const out = {}; const days = [0, 1].map(k => new Date(Date.now() - k * 864e5).toISOString().slice(0, 10));
+  for (const d of days) { out[d] = {}; const pg = await env.YFS_KV.list({ prefix: 'm:err:' + d + ':' });
+    for (const k of pg.keys) out[d][k.name.slice(('m:err:' + d + ':').length)] = parseInt(await env.YFS_KV.get(k.name) || '0', 10) || 0; }
+  return j({ errors: out }, 200, origin, { 'Cache-Control': 'no-store' });
+}
+async function routeResume(request, env, path, origin) {
+  const opt = () => new Response(null, { status: 204, headers: cors(origin) });
+  if (path.startsWith('/api/run/')) { if (request.method === 'OPTIONS') return opt(); if (request.method === 'GET') return handleRunFetch(request, env, path, origin); }
+  if (path === '/api/metrics/client_err') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleClientErr(request, env, origin); }
+  if (path === '/api/metrics/errors' && request.method === 'GET' && env.YFS_KV) return handleErrStats(env, origin);
+  return null;
+}
+
 async function routeOrg(request, env, path, origin) {
   const opt = () => new Response(null, { status: 204, headers: cors(origin) });
   if (path === '/api/metrics/heard_about') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleHeardAbout(request, env, origin); }
@@ -2466,6 +2533,8 @@ async function routeOrg(request, env, path, origin) {
 }
 
 async function routePro(request, env, path, origin) {
+  const resumeRes = await routeResume(request, env, path, origin);
+  if (resumeRes) return resumeRes;
   const orgRes = await routeOrg(request, env, path, origin);
   if (orgRes) return orgRes;
   if (path === '/api/metrics' || path.startsWith('/api/metrics/')) return handleMetrics(request, env, path, origin);
@@ -2508,9 +2577,18 @@ async function freeGate(request, env, origin) {
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const day = new Date().toISOString().slice(0, 10);
   const key = `free:${ip}:${day}`;
+  const run = yfsRunId(request), h = run ? await yfsBodyHash(request) : '';
+  if (run) {   // resume-fix: same run retried after an interruption → not a new free run (max RUN_RETRIES, same request only)
+    const rec = await env.YFS_KV.get('frun:' + run, 'json');
+    if (rec && rec.h === h && (rec.n || 0) < RUN_RETRIES) {
+      await env.YFS_KV.put('frun:' + run, JSON.stringify({ h, n: (rec.n || 0) + 1 }), { expirationTtl: RUN_TTL_S });
+      return null;
+    }
+  }
   const n = parseInt(await env.YFS_KV.get(key) || '0', 10);
   if (n >= FREE_PER_DAY) return j({ error: 'pro_required', upgrade: 'https://buy.stripe.com/3cIbIU3p4dJS7zd3BN04800' }, 402, origin);
   await env.YFS_KV.put(key, String(n + 1), { expirationTtl: 60 * 60 * 26 });
+  if (run) await env.YFS_KV.put('frun:' + run, JSON.stringify({ h, n: 0 }), { expirationTtl: RUN_TTL_S });
   return null;
 }
 
@@ -2542,9 +2620,9 @@ function yfsFreeSSE(body){const dec=new TextDecoder(),enc=new TextEncoder(),cut=
     ctl.enqueue(enc.encode(ln+'\n'));};
   return body.pipeThrough(new TransformStream({transform(ch,ctl){buf+=dec.decode(ch,{stream:true});let i;while((i=buf.indexOf('\n'))>=0){const ln=buf.slice(0,i).replace(/\r$/,'');buf=buf.slice(i+1);handle(ln,ctl);}},
     flush(ctl){buf+=dec.decode();if(buf)handle(buf,ctl);const f=cut.flush();if(f)ctl.enqueue(enc.encode(ev(f)));}}));}
-async function handleAnthropicProxy(request, env, origin) { try { const _tok = request.headers.get('X-YFS-Pro'); const _free = request.headers.get('X-YFS-Kind') !== 'extract' && !(_tok && await verifyProToken(env, _tok)); if (!env.ANTHROPIC_API_KEY) { return json({ error: 'Server misconfigured: missing ANTHROPIC_API_KEY' }, 500, origin); } const body = await request.json(); const payload = { model: body.model || 'claude-sonnet-4-6', max_tokens: body.max_tokens || 2800, messages: body.messages }; if (body.system) payload.system = body.system; if (body.stream === true) payload.stream = true; const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(payload) }); if (payload.stream && res.ok && res.body) { return new Response(_free ? yfsFreeSSE(res.body) : res.body, { status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-YFS-Free-Cut': _free ? '1' : '0', 'Cache-Control': 'no-cache', ...cors(origin) } }); } const data = await res.json(); if (_free && res.ok && data && Array.isArray(data.content)) { try { for (const b of data.content) if (b && typeof b.text === 'string') b.text = yfsCutText(b.text); } catch (_) {} } return new Response(JSON.stringify(data), { status: res.status, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); } catch (err) { return json({ error: 'Server error', detail: String(err && err.message || err) }, 500, origin); } }
+async function handleAnthropicProxy(request, env, origin, ctx) { try { const _tok = request.headers.get('X-YFS-Pro'); const _free = request.headers.get('X-YFS-Kind') !== 'extract' && !(_tok && await verifyProToken(env, _tok)); if (!env.ANTHROPIC_API_KEY) { return json({ error: 'Server misconfigured: missing ANTHROPIC_API_KEY' }, 500, origin); } const body = await request.json(); const payload = { model: body.model || 'claude-sonnet-4-6', max_tokens: body.max_tokens || 2800, messages: body.messages }; if (body.system) payload.system = body.system; if (body.stream === true) payload.stream = true; const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(payload) }); if (payload.stream && res.ok && res.body) { let _out = _free ? yfsFreeSSE(res.body) : res.body; const _run = yfsRunId(request), _dev = yfsDevId(request); if (_run && _dev && ctx && typeof ctx.waitUntil === 'function' && env.YFS_KV) { const _t = _out.tee(); _out = _t[0]; ctx.waitUntil(yfsCacheRun(env, _dev, _run, _t[1], _free)); } return new Response(_out, { status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-YFS-Free-Cut': _free ? '1' : '0', 'Cache-Control': 'no-cache', ...cors(origin) } }); } const data = await res.json(); if (_free && res.ok && data && Array.isArray(data.content)) { try { for (const b of data.content) if (b && typeof b.text === 'string') b.text = yfsCutText(b.text); } catch (_) {} } return new Response(JSON.stringify(data), { status: res.status, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); } catch (err) { return json({ error: 'Server error', detail: String(err && err.message || err) }, 500, origin); } }
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = request.headers.get('Origin') || '';
     const path = url.pathname;
@@ -2562,7 +2640,7 @@ if (request.method === 'OPTIONS') return new Response(null, { status: 204, heade
     if (gate) return gate;
 
 
-    if (request.method === 'POST' && (path === '/' || path === '')) return handleAnthropicProxy(request, env, origin); // Serve HTML pages
+    if (request.method === 'POST' && (path === '/' || path === '')) return handleAnthropicProxy(request, env, origin, ctx); // Serve HTML pages
     if (request.method === 'GET') {
       if (path === '/' || path === '' || path === '/index.html') {
         return new Response(LANDING_PAGE, {
