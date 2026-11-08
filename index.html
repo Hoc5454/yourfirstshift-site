@@ -94,6 +94,9 @@ h2{font-family:var(--font-d);font-weight:800;text-transform:uppercase;font-size:
 .task b{font-size:19px;line-height:1.25;}
 .task span.d{font-size:15px;color:var(--muted);line-height:1.35;}
 .task span.tag{font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.6px;}
+.ats-note{grid-column:1/-1;margin:0;padding:14px 16px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:12px;font-size:16px;line-height:1.5;color:var(--ink2);}
+.ats-note b{color:var(--ink);}
+@media(min-width:612px){.ats-note{order:10;}}
 .more{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px;font-size:16px;color:var(--muted);}
 .pill-link{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;font-size:16px;font-weight:600;color:var(--blue);background:#EFF6FF;border:1px solid #BFDBFE;border-radius:999px;text-decoration:none;}
 
@@ -212,6 +215,7 @@ footer .wrap{display:flex;flex-direction:column;gap:10px;}
         <span class="ic" style="background:#DBEAFE"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1D4ED8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span>
         <span class="tx"><b>Fix my resume for a job</b><span class="d">See your match score and what to change.</span><span class="tag">Start here if you have a resume</span></span>
       </a>
+      <p class="ats-note"><b>What's ATS?</b> Most companies run resumes through an Applicant Tracking System, software that scans and sorts them before a person ever looks. If it can't read yours, you get skipped. We check that yours makes it through.</p>
       <a class="task" href="app.html#tool-3">
         <span class="ic" style="background:#D1FAE5"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
         <span class="tx"><b>Write a cover letter</b><span class="d">Honest, specific, and not a template.</span></span>
