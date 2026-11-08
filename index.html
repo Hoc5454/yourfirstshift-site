@@ -286,7 +286,7 @@ footer .wrap{display:flex;flex-direction:column;gap:10px;}
         <div class="note">Secure checkout with Stripe · <a href="https://billing.stripe.com/p/login/3cIbIU3p4dJS7zd3BN04800" target="_blank" rel="noopener">Cancel anytime</a></div>
       </div>
 
-      <div class="plan soon" aria-disabled="true">
+      <div class="plan soon" aria-disabled="true" data-plan="pack" data-cta="Get the Job Hunt Pack — $29">
         <div class="plan-top"><span class="plan-name">Job Hunt Pack</span><span class="badge soon">Available soon</span></div>
         <div class="price"><b>$29</b><span>one time · 30 days</span></div>
         <ul><li>Everything in Pro for 30 days</li><li>No subscription, nothing to cancel</li></ul>
@@ -294,7 +294,7 @@ footer .wrap{display:flex;flex-direction:column;gap:10px;}
         <span class="btn btn-off" aria-disabled="true">Available soon</span>
       </div>
 
-      <div class="plan soon" aria-disabled="true">
+      <div class="plan soon" aria-disabled="true" data-plan="pro_year" data-cta="Get Pro yearly — $59/year">
         <div class="plan-top"><span class="plan-name">Pro — yearly</span><span class="badge soon">Available soon</span></div>
         <div class="price"><b>$59</b><span>/ year</span></div>
         <ul><li>Everything in Pro</li><li>Paid once a year — save 45%</li></ul>
@@ -347,11 +347,23 @@ footer .wrap{display:flex;flex-direction:column;gap:10px;}
 </footer>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-async function yfsLandCheckout(ev){if(ev&&ev.preventDefault)ev.preventDefault();
+async function yfsLandCheckout(ev,plan){if(ev&&ev.preventDefault)ev.preventDefault();
 try{fetch('https://yourfirstshift.culpepperhunter.workers.dev/api/metrics/pay_tap',{method:'POST',keepalive:true}).catch(()=>{});}catch(_){}
-try{const r=await fetch('https://yourfirstshift.culpepperhunter.workers.dev/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+try{const r=await fetch('https://yourfirstshift.culpepperhunter.workers.dev/api/pro/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(plan?{plan:plan}:{})});
 const d=await r.json().catch(()=>({}));if(r.ok&&d.url&&/^https:\/\/checkout\.stripe\.com\//.test(d.url)){window.location.href=d.url;return false;}}catch(_){}
 alert('Checkout is unavailable right now. Please try again in a minute. You have not been charged.');return false;}
+</script>
+<script>
+/* home-plans: turn on the Pack / Yearly cards only when the Worker says they're on sale (same check the app uses). Otherwise they stay "Available soon". */
+(function(){var c=(typeof AbortController==='function')?new AbortController():null;var t=setTimeout(function(){try{c&&c.abort();}catch(_){}},5000);
+fetch('https://yourfirstshift.culpepperhunter.workers.dev/api/pro/plans',{method:'GET',signal:c?c.signal:undefined}).then(function(r){return r.ok?r.json():null;}).then(function(d){clearTimeout(t);
+ var on=d&&d.plans;if(!on)return;
+ document.querySelectorAll('.plan[data-plan]').forEach(function(card){var id=card.getAttribute('data-plan');if(on[id]!==true)return;
+  card.classList.remove('soon');card.removeAttribute('aria-disabled');
+  var b=card.querySelector('.badge');if(b){b.className='badge go';b.textContent='Available now';}
+  var off=card.querySelector('.btn-off');if(off){var a=document.createElement('a');a.href='/app.html';a.className='btn btn-amber';a.textContent=card.getAttribute('data-cta');
+   a.addEventListener('click',function(e){return yfsLandCheckout(e,id);});off.replaceWith(a);}});
+}).catch(function(){clearTimeout(t);});})();
 </script>
 </body>
 </html>
