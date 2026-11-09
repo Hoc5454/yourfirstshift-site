@@ -3746,11 +3746,13 @@ function matches(rec){if(!rec||!rec.text)return true;var a=active();if(!a)return
 function staleNote(rec){var ac=document.getElementById('appContent');if(!ac||document.getElementById('yfsStaleNote'))return;var a=active();var tl=TOOLS[activeTool]?TOOLS[activeTool].label:'result';
   var d=document.createElement('div');d.id='yfsStaleNote';d.className='yfs-using';d.style.background='#FFFBEB';d.style.borderColor='#FCD34D';d.style.color='#78350F';
   d.innerHTML='<span>Your last '+yfsEsc(tl)+' result was for a different resume. Run it again to get one for <b style="color:#92400E">'+yfsEsc(a?a.name:'this resume')+'</b>.</span><button type="button" style="color:#92400E" data-a="old">view the old one</button>';
-  d.querySelector('[data-a=old]').onclick=function(){d.remove();try{LS('yfs_last_tool',String(activeTool));window.__yfsTeaseSrc=rec.src||'';showResult(rec.text,!!rec.free&&!isPro,true);}catch(_){}finally{window.__yfsTeaseSrc=null;}var os=document.getElementById('outputSection');if(os)os.scrollIntoView({block:'start'});};
+  d.querySelector('[data-a=old]').onclick=function(){d.remove();reshow(rec);var os=document.getElementById('outputSection');if(os)os.scrollIntoView({block:'start'});};
   var us=document.getElementById('yfsUsing');if(us&&us.parentNode)us.parentNode.insertBefore(d,us.nextSibling);else ac.insertBefore(d,ac.firstChild);}
+function reshow(rec){try{LS('yfs_last_tool',String(activeTool));window.__yfsTeaseSrc=rec.src||'';showResult(rec.text,!!rec.free&&!isPro,true);}catch(_){}finally{window.__yfsTeaseSrc=null;}}
 function hideStale(){try{var old=document.getElementById('yfsStaleNote');if(old)old.remove();if(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder)return;
   var rec=recFor(activeTool);var os=document.getElementById('outputSection');
   if(rec&&!matches(rec)){if(os&&os.style.display!=='none'){try{clearOutput();}catch(_){os.style.display='none';}try{yfsTeaseClear();}catch(_){}}staleNote(rec);}
+  else if(rec&&rec.text&&os&&os.style.display==='none'&&!(rec.free&&isPro)){reshow(rec);}
   var chip=document.querySelector('#appContent .yfs-last-chip');if(chip){var lt=+(LS('yfs_last_tool')||-1);var r2=recFor(lt);if(r2&&!matches(r2))chip.textContent='📄 Your last '+(TOOLS[lt]?TOOLS[lt].label:'')+' result was for a different resume. Tap to view it';}}catch(_){}}
 if(typeof renderTool==='function'){var _rt2=renderTool;renderTool=function(){var r=_rt2.apply(this,arguments);hideStale();return r;};}
 if(typeof yfsVaultUse==='function'){var _vu2=yfsVaultUse;yfsVaultUse=function(){var r=_vu2.apply(this,arguments);if(!adopting)hideStale();return r;};}

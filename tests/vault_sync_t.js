@@ -192,4 +192,25 @@ const words=s=>String(s||'').replace(/[•·|–—\-]/g,' ').replace(/[^\w@.()'
    const r=await p.evaluate(()=>({n:window.__adopts,len:yfsVaultList().length,act:yfsVaultActive(),out:getComputedStyle(document.getElementById('outputSection')).display}));
    ok(r.n===0&&r.len===1&&r.act==='vJ'&&r.out!=='none','F9 restoring a saved result never adopts a resume ('+JSON.stringify(r)+')');await c.close();}
  }
+
+ // G. Liz preview checklist items not covered above
+ {const GAV='Gavin Price\nLaunch Pad Technician\nMelbourne, FL · (321) 555-0100 · gavin@example.com\n\nSummary\nMechanic and fabricator with six years of welding, rigging and hydraulic work on heavy equipment along the Space Coast.\n\nExperience\nMechanic | Space Coast Fab | 2020 – Present\n- Fabricated and welded structural steel\n- Rigged and set heavy equipment\n\nSkills\nWelding, rigging, hydraulics\n';
+  const DD='Delivery Driver\nSam Ortiz\nOrlando, FL · (407) 555-0101 · sam.ortiz@example.com\n\nSummary\nRoute delivery driver with 3 years of on-time residential and business stops across Orange County and the delivery side of the business.\n\nExperience\nDelivery Driver | Fast Couriers, Orlando FL | 2021 – Present\n- Delivered 80 packages a day\n\nSkills\nClass C license\n';
+  const {c,p,errs,log}=await ctx(b,{pro:true,used:true,vault:{active:'vG',list:[{id:'vG',name:'Gavin',text:GAV,ts:1},{id:'vD',name:'DeliveryDriver',text:DD,ts:2}]}});
+  await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(300);await p.fill('#xrayJd','Blue Origin Launch Pad Technician. GSE, hydraulics, rigging, welding.');await p.evaluate(()=>{try{xrayCheck();}catch(_){}updateRunBtn();runTool();});await p.waitForTimeout(2500);
+  await p.evaluate(()=>{const r=JSON.parse(localStorage.getItem('yfs_res'));r['1'].text=r['1'].text.replace('VERDICT:','VERDICT: Gavin is a delivery-ready resume —');localStorage.setItem('yfs_res',JSON.stringify(r));});
+  await p.evaluate(()=>yfsVaultUse('vD',true));await p.waitForTimeout(400);
+  let r=await p.evaluate(()=>({out:getComputedStyle(document.getElementById('outputSection')).display,txt:document.getElementById('outputBox').innerText,note:!!document.getElementById('yfsStaleNote')}));
+  ok(r.out==='none'&&r.note&&!/Gavin/i.test(r.txt),'G1 first line "Delivery Driver" (old write-up says "delivery" + "resume") → Gavin stays hidden');
+  await p.evaluate(()=>yfsVaultUse('vG',true));await p.waitForTimeout(400);
+  r=await p.evaluate(()=>({out:getComputedStyle(document.getElementById('outputSection')).display,note:!!document.getElementById('yfsStaleNote')}));ok(r.out!=='none'&&!r.note,'G2 switch back to Gavin → his result is back, no note');
+  ok(!errs.length,'G no page errors '+errs.join('|'));await c.close();}
+ {const {c,p}=await ctx(b);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(300);fs.writeFileSync('/tmp/Sam-Ortiz-Resume.txt',SAM);
+  await p.setInputFiles('#fileInput','/tmp/Sam-Ortiz-Resume.txt');await p.waitForTimeout(900);
+  await p.evaluate(()=>{document.querySelectorAll('.yfs-up-hidden').forEach(x=>x.classList.remove('yfs-up-hidden'));try{clearFile();}catch(_){}});await p.setInputFiles('#fileInput','/tmp/Sam-Ortiz-Resume.txt');await p.waitForTimeout(900);
+  ok(await p.evaluate(()=>yfsVaultList().length)===1,'G3 uploading the same file twice → still one Vault entry');
+  await c.close();}
+ {const vault={active:'vJ',list:[{id:'vJ',name:'JordanReyesResume',text:F.RESUME,ts:1}]};const {c,p}=await ctx(b,{pro:true,used:true,vault});
+  await run(p,0,SAM);await run(p,0,SAM);const n=await p.evaluate(()=>({len:yfsVaultList().length,act:yfsVaultList().find(x=>x.id===yfsVaultActive()).text.split('\n')[0]}));
+  ok(n.len===2&&n.act==='Sam Ortiz','G4 paste a different resume in Translator and run (twice) → ACTIVE, no duplicate ('+JSON.stringify(n)+')');await c.close();}
  await b.close();console.log(fails?fails+' FAILED':'ALL PASS');process.exit(fails?1:0);})();
