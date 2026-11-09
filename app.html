@@ -1076,6 +1076,12 @@ OUTPUT RULES: Always start directly with the AI MATCH ESTIMATE heading and alway
 ## 📝 REWRITTEN EXPERIENCE SECTION
 [Rewrite their top 3-5 bullets to close the gaps. Do not fabricate anything.]
 
+## 📝 REWRITTEN SUMMARY
+[2-3 sentence Professional Summary aimed at this job, using only facts the resume shows. No new numbers.]
+
+## 🧰 SKILLS TO LIST
+[One comma-separated line: this job's keywords the resume already shows first, then their other real skills. Never list a skill, tool or cert the resume does not show.]
+
 ## 📊 HIRING PROBABILITY
 [Honest assessment: what are their real chances and what would change them?]
 
@@ -2782,7 +2788,7 @@ window.addEventListener('storage',q);document.addEventListener('DOMContentLoaded
 </script>
 <script>/* Delete my data (device) */
 function yfsDeleteMyData(){if(!confirm('Delete your saved resume (Vault), last result, and builder draft from this device?\n\nYour Pro access stays. Your free-run count stays so the free limit is fair.'))return;
-['yfs_resume','yfs_vault','yfs_vault_active','yfs_last_output','yfs_last_tool','yfs_res','yfs_rb_draft','yfs_rb_summary'].forEach(function(k){try{localStorage.removeItem(k);}catch(_){}});
+['yfs_resume','yfs_vault','yfs_vault_active','yfs_last_output','yfs_last_tool','yfs_res','yfs_rb_draft','yfs_rb_summary','yfs_handoff','yfs_rb_src'].forEach(function(k){try{localStorage.removeItem(k);}catch(_){}});
 try{Object.keys(sessionStorage).forEach(function(k){if(k.indexOf('yfs_')===0)sessionStorage.removeItem(k);});}catch(_){}
 alert('Done — your resume and results are deleted from this device. We never stored them on our servers.');location.reload();}
 </script>
@@ -2950,14 +2956,22 @@ window.yfsTeasePaint=function(text,partial,fromStore){
     if(rw){const job=(document.getElementById('xrayJd')?.value||'');let blk='## EXPERIENCE\n'+rw;
       try{blk=tlQuietStrip(blk,raw+'\n'+job,1);}catch(_){} try{blk=pvClean(blk,raw+'\n'+job);}catch(_){}
       const parts=md.split(/^(?=##\s)/m);const k=parts.findIndex(p=>EXP_RE.test(p.split('\n')[0]));
-      if(k>=0)parts[k]=blk.trim()+'\n\n';else parts.splice(Math.min(2,parts.length),0,blk.trim()+'\n\n');md=parts.join('');}}
+      if(k>=0)parts[k]=blk.trim()+'\n\n';else parts.splice(Math.min(2,parts.length),0,blk.trim()+'\n\n');md=parts.join('');}
+    try{const G=window.yfsHandoffTest;if(G){const parts2=md.split(/^(?=##\s)/m);
+      const sm=G.summary(String(sectionOf(text,/REWRITTEN SUMMARY/i)).replace(/\n+/g,' '),raw);
+      if(sm){const i=parts2.findIndex(p=>/SUMMARY|PROFILE|OBJECTIVE/i.test(p.split('\n')[0]));const b='## PROFESSIONAL SUMMARY\n'+sm+'\n\n';if(i>=0)parts2[i]=b;else parts2.splice(1,0,b);}
+      const sl=sectionOf(text,/SKILLS TO LIST/i);
+      if(sl){const i=parts2.findIndex(p=>/^##\s+.*SKILL/i.test(p.split('\n')[0]));const orig=i>=0?parts2[i].split('\n').slice(1).join('\n'):'';const sk=G.skills(sl,raw,orig);
+        if(sk.length){const b='## SKILLS\n'+sk.join(', ')+'\n\n';if(i>=0)parts2[i]=b;else parts2.push(b);}}
+      md=parts2.join('');}}catch(_){}}
   const h=host();
   const head=document.createElement('div');head.className='yt-head';
-  head.innerHTML='<div class="yt-h">'+yfsEsc(pro?'Your resume with the rewritten Experience':C.h)+'</div><div class="yt-looks" role="group" aria-label="Resume look"></div>';
+  head.innerHTML='<div class="yt-h">'+yfsEsc(pro?'Your resume, matched to this job':C.h)+'</div><div class="yt-looks" role="group" aria-label="Resume look"></div>';
   const paper=document.createElement('div');h.appendChild(head);h.appendChild(paper);
   try{yfsModernPaint(paper,md,pro,raw);}catch(e){h.remove();return;}
   paper.removeAttribute('data-md');
   const pg=paper.querySelector('.rb-page');if(pg){pg.classList.remove('ym-page');pg.removeAttribute('contenteditable');}
+  if(pro&&tool===1&&typeof window.yfsXrayToEditor==='function'){const eb=document.createElement('button');eb.type='button';eb.className='yfs-xr-edit';eb.textContent='✏️ Edit this resume live + Download PDF';const _md=md;eb.onclick=function(){window.yfsXrayToEditor(_md);};h.appendChild(eb);}
   const ot=paper.querySelector('.ym-over .t'),os=paper.querySelector('.ym-over .s');if(ot)ot.textContent=C.t;if(os)os.textContent=C.s;
   /* look chips: free can try every look on screen (fun + shows what Pro downloads) */
   const looks=head.querySelector('.yt-looks');
@@ -3285,7 +3299,8 @@ function finish(answer){try{localStorage.setItem('yfs_heard_done','1');}catch(_)
   if(answer){try{localStorage.setItem('yfs_heard',JSON.stringify({a:answer,s:src(),t:Date.now()}));}catch(_){}
     try{fetch(YFS_API+'/api/metrics/heard_about',{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({answer:answer,src:src()})}).catch(function(){});}catch(_){}}
   else{try{yfsMetric('heard_skip');}catch(_){}}}
-window.yfsShowThankYou=function(){
+window.yfsShowThankYou=function(force){
+  if(force!==true){try{if(window.yfsProHandoff&&window.yfsProHandoff()){try{sessionStorage.removeItem('yfs_ty_pending');}catch(_){}return;}}catch(_){}}
   if(document.getElementById('yfsThankYou'))return;
   var pro=false;try{pro=localStorage.getItem('yfs_pro')==='1';}catch(_){}
   if(!pro)return;
@@ -3423,5 +3438,240 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 <script id="yfs-polish-js">(function(){function f(){var t=document.querySelector('.tabs');if(!t)return;var e=t.scrollLeft+t.clientWidth>=t.scrollWidth-4;t.classList.toggle('at-end',e);}
 var t=document.querySelector('.tabs');if(t){t.addEventListener('scroll',f,{passive:true});window.addEventListener('resize',f);setTimeout(f,300);}})();</script>
+<style id="yfs-handoff-css">
+.yfs-using{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 12px;padding:10px 12px;border:1px solid rgba(16,185,129,.35);background:rgba(16,185,129,.08);border-radius:8px;font-size:14px;line-height:1.4;color:var(--light,#e5e7eb);}
+.yfs-using b{color:#10B981;word-break:break-word;}
+.yfs-using button{background:none;border:0;padding:0;color:#10B981;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;}
+.yfs-using .yu-alt{color:var(--gray,#9ca3af);font-weight:600;}
+.yfs-up-hidden{display:none !important;}
+#yfsProBanner{margin:0 0 12px;padding:14px 16px;border:2px solid #10B981;border-radius:10px;background:#ECFDF5;color:#064E3B;font-size:15px;line-height:1.45;scroll-margin-top:84px;}
+#yfsProBanner .pb-h{font-weight:800;font-size:16px;margin-bottom:2px;}
+#yfsProBanner .pb-busy{margin-top:8px;font-weight:700;color:#047857;}
+#yfsProBanner .pb-busy:before{content:'';display:inline-block;width:12px;height:12px;margin-right:8px;border:2px solid #10B981;border-right-color:transparent;border-radius:50%;vertical-align:-1px;animation:yfsSpin .8s linear infinite;}
+@keyframes yfsSpin{to{transform:rotate(360deg)}}
+#yfsProBanner details{margin-top:10px;}
+#yfsProBanner summary{cursor:pointer;font-weight:800;color:#047857;}
+#yfsProBanner ul{margin:6px 0 0 18px;padding:0;}
+#yfsProBanner li{margin:3px 0;}
+#yfsProBanner .pb-row{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:13px;}
+#yfsProBanner .pb-row button{background:none;border:0;padding:0;color:#047857;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;}
+#yfsProBanner .pb-warn{margin-top:8px;color:#92400E;font-weight:600;}
+.yfs-xr-edit{display:block;width:100%;max-width:420px;margin:12px auto 0;padding:12px 16px;border:0;border-radius:8px;background:#10B981;color:#fff;font-weight:800;font-size:15px;cursor:pointer;}
+@media(min-width:901px){@supports(height:100dvh){.rb-scale{max-height:calc(100dvh - 80px);}}}
+</style>
+<script id="yfs-pro-handoff">
+/* pro-handoff (P0): free → Pro lands on the SAME resume, upgraded for the job, in the live editor; one resume (Vault ACTIVE) feeds every tool.
+   Never invents: name/contact/education come from the user's own resume; AI summary/skills/bullets are kept only when grounded in it. */
+(function(){
+var LS=function(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+var BUILDER=5;
+function proNow(){return LS('yfs_pro')==='1';}
+function active(){try{var l=yfsVaultList(),a=yfsVaultActive();return l.find(function(x){return x.id===a;})||null;}catch(_){return null;}}
+
+/* ── raw resume → builder fields (no AI, nothing invented) ── */
+var HEAD_MAP=[[/SUMMARY|PROFILE|OBJECTIVE|ABOUT/,'summary'],[/EXPERIENCE|EMPLOY|WORK HISTORY/,'experience'],[/SKILL|COMPETENC|QUALIFICATION|CERT|LICENSE/,'skills'],[/EDUCATION|TRAINING|SCHOOL/,'education']];
+function fieldOf(h){h=String(h||'').toUpperCase();for(var i=0;i<HEAD_MAP.length;i++)if(HEAD_MAP[i][0].test(h))return HEAD_MAP[i][1];return 'extra';}
+function contactSplit(lines){var o={email:'',phone:'',links:'',location:''},rest=[];
+  lines.join(' · ').split(/\s*[|·•]\s*|\s{3,}/).map(function(x){return x.trim();}).filter(Boolean).forEach(function(p){
+    if(!o.email&&/@/.test(p)&&/\.[a-z]{2,}/i.test(p))o.email=p;
+    else if(!o.phone&&/(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/.test(p)&&p.replace(/\D/g,'').length<=11)o.phone=p;
+    else if(/linkedin|github|https?:|www\.|\.com\/|\.io\b/i.test(p))o.links=o.links?o.links+' · '+p:p;
+    else if(!o.location&&/,\s*[A-Z]{2}\b|\b[A-Z]{2}\s+\d{5}\b|,\s*[A-Za-z]+$/.test(p)&&p.length<60)o.location=p;
+    else rest.push(p);});
+  return {c:o,rest:rest};}
+function isContactish(l){return /@|\d{3}[\s.)-]+\d{3}[\s.-]\d{4}|linkedin|https?:|,\s*[A-Z]{2}\b/.test(l);}
+function expToField(body){return String(body||'').split('\n').map(function(l){var t=l.trim();if(!t)return '';
+  var h=t.match(/^#{2,4}\s+(.+)$/);if(h)return h[1].replace(/\*\*/g,'').replace(/((?:19|20)\d{2})\s*\|\s*(present|current|now|(?:19|20)\d{2})\b/i,'$1 – $2').trim();
+  var b=t.match(/^[-*•●▪◦–]\s*(.+)$/);if(b)return '• '+b[1].replace(/\*\*/g,'');return t.replace(/\*\*/g,'');}).join('\n').replace(/\n{3,}/g,'\n\n').trim();}
+function plainField(body){return String(body||'').split('\n').map(function(l){var t=l.trim();var b=t.match(/^[-*•●▪◦–]\s*(.+)$/);return b?'• '+b[1]:t;}).join('\n').replace(/\*\*/g,'').replace(/\n{3,}/g,'\n\n').trim();}
+window.yfsResumeFields=function(raw){
+  var md='';try{md=yfsRawToMd(raw)||'';}catch(_){}
+  if(!md)return null;
+  var f={name:'',target:'',email:'',phone:'',location:'',links:'',summary:'',experience:'',skills:'',education:'',extra:''};
+  var parts=md.replace(/\r/g,'').split(/^(?=##\s)/m);var head=parts.shift()||'';
+  var hl=head.split('\n').map(function(x){return x.trim();}).filter(Boolean);
+  if(hl[0]&&/^#\s/.test(hl[0])){var n=hl.shift().replace(/^#\s+/,'').replace(/\*\*/g,'').trim();if(n&&!/^your name$/i.test(n))f.name=n;}
+  var cl=[],tl=[];hl.forEach(function(l){l=l.replace(/\*\*/g,'');(isContactish(l)?cl:tl).push(l);});
+  var cs=contactSplit(cl);['email','phone','location','links'].forEach(function(k){f[k]=cs.c[k];});
+  if(tl.length)f.target=tl[0].replace(/^[#*\s]+/,'').slice(0,90);
+  var extra=[];if(tl.length>1)f.summary=tl.slice(1).join(' ');
+  parts.forEach(function(p){var nl=p.indexOf('\n');var h=(nl<0?p:p.slice(0,nl)).replace(/^##\s+/,'').replace(/[*#:]/g,'').trim();var body=nl<0?'':p.slice(nl+1).trim();if(!body)return;
+    var k=fieldOf(h);
+    if(k==='experience')f.experience=(f.experience?f.experience+'\n\n':'')+expToField(body);
+    else if(k==='summary')f.summary=(f.summary?f.summary+' ':'')+plainField(body).replace(/\n+/g,' ');
+    else if(k==='extra')extra.push(h.replace(/\b\w+/g,function(w){return w[0].toUpperCase()+w.slice(1).toLowerCase();})+': '+plainField(body).replace(/\n+/g,' · '));
+    else f[k]=(f[k]?f[k]+'\n':'')+plainField(body);});
+  f.extra=extra.join('\n');
+  return f;};
+window.yfsFieldsToMd=function(f){var o=['# '+(f.name||'')];if(f.target)o.push(f.target);
+  var c=['location','phone','email','links'].map(function(k){return f[k];}).filter(Boolean);if(c.length)o.push(c.join(' · '));
+  var sec=function(h,v,exp){if(!v||!String(v).trim())return;o.push('');o.push('## '+h);
+    String(v).split('\n').forEach(function(l){var t=l.trim();if(!t){o.push('');return;}var b=t.match(/^[•\-*]\s*(.+)$/);if(b){o.push('- '+b[1]);return;}o.push(exp&&/\|/.test(t)?'### '+t:t);});};
+  sec('PROFESSIONAL SUMMARY',f.summary);sec('EXPERIENCE',f.experience,true);sec('SKILLS',f.skills);sec('EDUCATION & TRAINING',f.education);sec('ADDITIONAL',f.extra);
+  return o.join('\n').replace(/\n{3,}/g,'\n\n').trim()+'\n';};
+function curFields(){var f={};(typeof RB_FIELDS!=='undefined'?RB_FIELDS:[]).forEach(function(k){f[k]=rbVal(k);});f.summary=typeof rbSummary!=='undefined'?rbSummary:'';return f;}
+function fillBuilder(f){if(!f)return false;var pg=document.getElementById('rbPage');if(!pg)return false;
+  try{if(pg.contains(document.activeElement))document.activeElement.blur();}catch(_){}
+  (typeof RB_FIELDS!=='undefined'?RB_FIELDS:[]).forEach(function(k){var el=document.getElementById('b_'+k);if(el)el.value=f[k]||'';});
+  rbSummary=f.summary||'';try{rbSave();}catch(_){}try{rbRender();}catch(_){}try{updateRunBtn();}catch(_){}return true;}
+function builderEmpty(){return !['name','target','experience','skills'].some(function(k){try{return rbVal(k).trim();}catch(_){return false;}});}
+
+/* ── truth guards for AI text (only the user's real info) ── */
+function lc(s){return String(s||'').toLowerCase();}
+function nums(s){return (String(s||'').match(/\d[\d,.]*/g)||[]).map(function(n){return n.replace(/[,]/g,'').replace(/\.+$/,'');}).filter(Boolean);}
+function numsOk(line,R){var have=nums(R);return nums(line).every(function(n){return have.indexOf(n)>=0;});}
+var GENERIC=/^(and|or|of|the|a|an|with|in|on|for|to|&|operation|operations|operating|handling|management|skills?|procedures|practices|basic|advanced|general|equipment|systems?|tools?|experience|knowledge|proficient|proficiency|strong|excellent|use|using|work|working|team|level|class)$/;
+function grounded(item,R){var r=lc(R);var t=lc(item).replace(/[()]/g,' ');if(!t.trim())return false;if(r.indexOf(t.trim())>=0)return true;
+  if(!numsOk(item,R))return false;
+  var w=t.split(/[^a-z0-9+#.\/-]+/).map(function(x){return x.replace(/^[.\/-]+|[.\/-]+$/g,'');}).filter(function(x){return x&&x.length>1&&!GENERIC.test(x);});
+  if(!w.length)return false;
+  return w.every(function(x){if(r.indexOf(x)>=0)return true;var s=x.replace(/(ing|ed|es|s)$/,'');return s.length>=4&&r.indexOf(s)>=0;});}
+function splitItems(v){return String(v||'').split(/\n|,|·|•|;|\s\|\s/).map(function(x){return x.replace(/^[-*\s]+/,'').replace(/\*\*/g,'').trim();}).filter(Boolean);}
+function guardSkills(aiSkills,R,origSkills){var out=[],seen={};
+  splitItems(aiSkills).forEach(function(x){var k=lc(x);if(seen[k]||x.length>60)return;if(grounded(x,R)){seen[k]=1;out.push(x);}});
+  splitItems(origSkills).forEach(function(x){var k=lc(x);if(!seen[k]){seen[k]=1;out.push(x);}}); /* never lose a real skill */
+  return out;}
+function guardSummary(s,R){return (String(s||'').replace(/\s+/g,' ').match(/[^.!?]+[.!?]*/g)||[]).filter(function(x){return x.trim()&&numsOk(x,R);}).map(function(x){return x.trim();}).join(' ').trim();}
+function jobsOf(exp){var jobs=[],cur=null;String(exp||'').split('\n').forEach(function(l){var t=l.trim();if(!t)return;
+  if(/^[•\-*]/.test(t)){if(!cur){cur={h:'',b:[]};jobs.push(cur);}cur.b.push(t.replace(/^[•\-*]\s*/,''));}
+  else if(/\|/.test(t)||/\b(19|20)\d{2}\b/.test(t)||/present/i.test(t)){cur={h:t,b:[]};jobs.push(cur);}
+  else{if(!cur){cur={h:'',b:[]};jobs.push(cur);}cur.b.push(t);}});return jobs;}
+function keyParts(h){return String(h||'').split(/\s*[|·–—]\s*|\s+-\s+|,\s*/).map(function(x){return lc(x).trim();}).filter(function(x){return x.length>2&&!/^((19|20)\d{2}|present|current|now|today|\d{1,2}\/\d{2,4}|[a-z]{3,9}\.?\s*(19|20)\d{2}|[a-z]{2}|[a-z]+\s+[a-z]{2})$/.test(x);});}
+function sameJob(a,b){var A=keyParts(a),B=keyParts(b);return A.some(function(x){return B.some(function(y){return x===y||(x.length>4&&(x.indexOf(y)>=0||y.indexOf(x)>=0));});});}
+function guardExperience(aiExp,origExp,R){var orig=jobsOf(origExp),ai=jobsOf(aiExp).filter(function(j){return j.h;});
+  if(!orig.length||!orig.some(function(j){return j.h;}))return {text:origExp||'',changed:0};
+  var changed=0;var out=orig.map(function(o){if(!o.h)return o;var m=ai.find(function(a){return sameJob(a.h,o.h);});
+    if(!m)return o;var bl=m.b.filter(function(b){return numsOk(b,R);});if(!bl.length)return o;
+    if(bl.join('|')!==o.b.join('|'))changed++;return {h:o.h,b:bl};}); /* header (title, company, dates) always the user's own */
+  return {text:out.map(function(j){return (j.h?j.h+'\n':'')+j.b.map(function(b){return '• '+b;}).join('\n');}).join('\n\n'),changed:changed};}
+function mdSections(t){var o={},parts=String(t||'').replace(/\r/g,'').split(/^(?=#{1,2}\s)/m);
+  parts.forEach(function(p){var nl=p.indexOf('\n');var h=(nl<0?p:p.slice(0,nl)).replace(/^#+\s+/,'').replace(/[*:]/g,'').trim().toUpperCase();var b=nl<0?'':p.slice(nl+1).trim();
+    if(/^#\s/.test(p)&&!/^##/.test(p)){o.__name=h;o.__head=b;return;}o[h]=b;});return o;}
+function pick(o,re){var k=Object.keys(o).find(function(x){return re.test(x);});return k?o[k]:'';}
+function sectionOfMd(text,re){var m=String(text||'').split(/^##\s+/m).find(function(s){return re.test(s.split('\n')[0]);});return m?m.split('\n').slice(1).join('\n').trim():'';}
+
+/* ── handoff record: what the free user was teased (saved on this device only) ── */
+function capture(text){try{
+  if(proNow())return;var tool=activeTool;var g=function(id){var e=document.getElementById(id);return e?(e.value||'').trim():'';};
+  var resume='',job='',find='';
+  if(tool===1){resume=g('xrayResume')||extractedFileText||savedResume||'';job=g('xrayJd');
+    var hits=sectionOfMd(text,/KEYWORD HITS/i),gaps=sectionOfMd(text,/CRITICAL GAPS/i);if(hits||gaps)find=('Keyword hits:\n'+hits+'\n\nGaps:\n'+gaps).slice(0,3000);}
+  else if(tool===BUILDER){resume=yfsFieldsToMd(curFields());}
+  else if(tool===0){resume=extractedFileText||g('userInput')||savedResume||'';}
+  else{resume=(tool===3&&extractedFileText)||savedResume||'';if(tool===3||tool===4)job=g('userInput');}
+  if(!resume||resume.length<40)return;
+  LS('yfs_handoff',JSON.stringify({tool:tool,resume:resume.slice(0,20000),job:job.slice(0,8000),find:find,t:Date.now()}));}catch(_){}}
+if(typeof showResult==='function'){var _sr=showResult;showResult=function(text,partial,fromStore){var r=_sr.apply(this,arguments);if(!fromStore)capture(text);return r;};}
+function handoff(){try{var h=JSON.parse(LS('yfs_handoff')||'null');if(h&&h.resume&&Date.now()-(h.t||0)<14*864e5)return h;}catch(_){}return null;}
+
+/* ── one resume everywhere: "Using: <name> · switch in Vault" on every tool ── */
+function usingChip(){try{
+  var ac=document.getElementById('appContent');if(!ac)return;var old=document.getElementById('yfsUsing');if(old)old.remove();
+  var a=active();var t=TOOLS[activeTool];if(!a||!t||document.querySelector('#appContent .paywall'))return;
+  var d=document.createElement('div');d.id='yfsUsing';d.className='yfs-using';d.setAttribute('role','status');
+  d.innerHTML='<span>📄 Using: <b>'+esc(a.name)+'</b></span><button type="button" data-a="v">switch in Vault</button>'+(t.hasUpload?'<button type="button" class="yu-alt" data-a="u">use a different file</button>':'');
+  d.onclick=function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.a==='v'){openVault();return;}
+    document.querySelectorAll('.yfs-up-hidden').forEach(function(x){x.classList.remove('yfs-up-hidden');});b.remove();};
+  var ex=ac.querySelector('.yfs-ex-row');(ex?ex:ac.firstChild)?ac.insertBefore(d,ex?ex.nextSibling:ac.firstChild):ac.appendChild(d);
+  if(t.hasUpload){var uz=document.getElementById('uploadZone');if(uz){uz.classList.add('yfs-up-hidden');var dv=uz.nextElementSibling;if(dv&&dv.classList.contains('divider-or'))dv.classList.add('yfs-up-hidden');}}
+  if(activeTool===0){var u=document.getElementById('userInput');if(u&&!u.value.trim()){u.value=a.text;u.dispatchEvent(new Event('input',{bubbles:true}));}}
+  if(activeTool===1){var r=document.getElementById('xrayResume');if(r&&!r.value.trim()){r.value=a.text;r.dispatchEvent(new Event('input',{bubbles:true}));}}
+}catch(_){}}
+function builderFromActive(force){try{if(!TOOLS[activeTool]||!TOOLS[activeTool].hasBuilder)return;var a=active();if(!a)return;
+  var src=LS('yfs_rb_src');if(!force&&!builderEmpty()&&(src===a.id||!src))return;
+  if(fillBuilder(yfsResumeFields(a.text)))LS('yfs_rb_src',a.id);}catch(_){}}
+if(typeof renderTool==='function'){var _rt=renderTool;renderTool=function(){var r=_rt.apply(this,arguments);
+  if(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder){var os=document.getElementById('outputSection');if(os)os.style.display='none';builderFromActive(false);}
+  usingChip();return r;};}
+if(typeof yfsVaultUse==='function'){var _vu=yfsVaultUse;yfsVaultUse=function(id){var r=_vu.apply(this,arguments);
+  try{if(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder)builderFromActive(true);}catch(_){}usingChip();try{yfsHomeVault();}catch(_){}return r;};}
+/* Pro edits in the live editor keep the Pro Vault copy current, so every tool uses the edited resume */
+var syncT=null;
+if(typeof rbSave==='function'){var _rs=rbSave;rbSave=function(){var r=_rs.apply(this,arguments);clearTimeout(syncT);syncT=setTimeout(function(){try{
+  var a=active();if(!a||!a.pro||LS('yfs_rb_src')!==a.id)return;var md=yfsFieldsToMd(curFields());if(md===a.text||md.length<40)return;
+  var l=yfsVaultList();l.forEach(function(x){if(x.id===a.id){x.text=md;x.ts=Date.now();}});yfsVaultSet(l);savedResume=md;LS('yfs_resume',md);}catch(_){}},700);return r;};}
+function vaultAddPro(name,md){var l=yfsVaultList();var id='v'+Date.now();l.push({id:id,name:name.slice(0,80),text:md,look:(typeof selectedStyle!=='undefined'&&selectedStyle)||'Modern Professional',ts:Date.now(),pro:1});yfsVaultSet(l);
+  savedResume=md;LS('yfs_resume',md);LS('yfs_vault_active',id);LS('yfs_rb_src',id);try{updateVaultUI();}catch(_){}return id;}
+function ensureInVault(text){var l=yfsVaultList();var t=String(text||'').trim();var e=l.find(function(x){return String(x.text||'').trim()===t;});if(e)return e;
+  var n=yfsVaultDefName(t);var id='v'+(Date.now()-1);l.push({id:id,name:n,text:t,look:(typeof selectedStyle!=='undefined'&&selectedStyle)||'Modern Professional',ts:Date.now()-1});yfsVaultSet(l);return l[l.length-1];}
+
+/* ── the Pro build: rewrite Summary, Skills, bullets for the job with ONLY the user's real info ── */
+function upgradePrompt(R,J,F){return 'Upgrade this person\'s REAL resume for the job below. They just bought Pro after seeing an ATS match check, so the result must visibly use what that check found — but ONLY with facts their resume already shows.\n'+
+'TRUTH RULES (hard): never invent or add experience, employers, job titles, dates, tools, equipment, software, certifications, licenses, schools, numbers, or contact details. A job keyword may appear ONLY if the resume already shows that same skill/tool/cert (plain-word equivalents count, e.g. "drove forklift" = "forklift operation"). Do NOT add the target job as a work history entry. Keep EVERY job from the resume with its exact title, company and dates. Use numbers only if they are in the resume. Plain trades voice: short concrete verbs; no corporate filler.\n'+
+'WHAT TO DO: 1) rewrite the Professional Summary (2-3 sentences) aimed at this job, 2) reorder and reword Skills so the job\'s keywords the person really has come first, 3) rewrite each job\'s bullets with stronger plain verbs and the job\'s words where true.\n'+
+'Output ONLY this markdown, nothing before the name:\n# Full Name\nTarget job title\n\n## PROFESSIONAL SUMMARY\n...\n\n## EXPERIENCE\n### Job Title | Company, City ST | Start – End\n- bullet\n\n## SKILLS\nskill, skill, skill\n\n## WHAT WE IMPROVED\n- 3 to 6 short plain bullets naming what changed and which job keyword it targets. If the resume already matched well, say that honestly in one bullet.\n\n'+
+'Job description:\n'+(J||'(none given — upgrade for the target role shown on the resume)')+'\n\n'+(F?'ATS check findings:\n'+F+'\n\n':'')+'Resume:\n'+R;}
+var running=false;
+function banner(html){var w=document.querySelector('.rb-preview-wrap');if(!w)return null;var b=document.getElementById('yfsProBanner');
+  if(!b){b=document.createElement('div');b.id='yfsProBanner';b.setAttribute('role','status');b.setAttribute('aria-live','polite');w.insertBefore(b,w.firstChild);}b.innerHTML=html;return b;}
+var HEAD='<div class="pb-h">✅ You\'re Pro. Here\'s your full resume.</div><div>Tap any part to edit, then Download PDF.</div>';
+function toTop(){var go=function(){var b=document.getElementById('yfsProBanner')||document.getElementById('rbPage');if(!b)return;
+  var hd=document.querySelector('header,.topbar,.app-header');var off=hd?Math.min(hd.getBoundingClientRect().height,120):64;
+  var y=b.getBoundingClientRect().top+(window.pageYOffset||document.documentElement.scrollTop)-off-8;window.scrollTo(0,Math.max(0,y));
+  var sc=document.querySelector('.rb-scale');if(sc)sc.scrollTop=0;};
+  try{requestAnimationFrame(function(){go();setTimeout(go,120);setTimeout(go,450);});}catch(_){go();}}
+function extras(){var hy='';try{if(LS('yfs_heard_done')!=='1')hy='<button type="button" data-a="heard">How did you hear about us? (optional)</button>';}catch(_){}
+  return '<div class="pb-row">'+hy+'<button type="button" data-a="vault">Saved as your ACTIVE resume · Vault</button></div>';}
+function wire(b){if(!b)return;b.onclick=function(e){var x=e.target.closest('button');if(!x)return;if(x.dataset.a==='heard'){try{window.yfsShowThankYou(true);}catch(_){}x.remove();}
+  if(x.dataset.a==='vault'){try{openVault();}catch(_){}}if(x.dataset.a==='retry'){runUpgrade(handoff()||{resume:savedResume,job:'',find:''},true);}};}
+async function runUpgrade(h,again){if(running)return;running=true;
+  var R=String(h.resume||'').trim();var J=String(h.job||'').trim();var orig=yfsResumeFields(R)||{};
+  fillBuilder(orig); /* their real resume shows right away — never a blank template */
+  wire(banner(HEAD+'<div class="pb-busy">Matching it to '+(J?'this job':'your target role')+' — about 30 seconds. Keep this screen open.</div>'));toTop();
+  var text='';
+  try{var ac=(typeof AbortController==='function')?new AbortController():null;var to=setTimeout(function(){try{ac&&ac.abort();}catch(_){}},90000);
+    var res;try{res=await fetch(YFS_API,{method:'POST',signal:ac?ac.signal:undefined,headers:proHeaders({'X-YFS-Run':yfsNewId(),'X-YFS-Dev':yfsDev()}),
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,system:SYSTEM,stream:true,messages:[{role:'user',content:upgradePrompt(R,J,h.find||'')}]})});}finally{clearTimeout(to);}
+    if(!res.ok)throw new Error('http '+res.status);
+    text=await yfsReadStream(res,false,ac);}catch(e){text='';}
+  var rb=document.getElementById('runBtn');if(rb){try{updateRunBtn();}catch(_){}if(/Writing/.test(rb.textContent))rb.innerHTML='Build My Resume →';}
+  running=false;
+  var nameBase=((active()&&active().name)||yfsVaultDefName(R)).replace(/\s*·\s*Pro.*$/,'');
+  var jt=(J.split('\n').map(function(x){return x.trim();}).find(Boolean)||'').split(/\s+[—–-]\s+|\.\s/)[0].replace(/[^\w &\/,.'-]/g,' ').replace(/\s+/g,' ').trim().slice(0,40);
+  if(!text){var f0=Object.assign({},orig);
+    vaultAddPro(nameBase+' · Pro',yfsFieldsToMd(f0));fillBuilder(f0);
+    wire(banner(HEAD+'<div class="pb-warn">We couldn\'t finish the job-matched rewrite just now (connection). Your full resume is here and editable. <button type="button" data-a="retry" style="background:none;border:0;padding:0;color:#92400E;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer;">Try the job match again</button></div>'+extras()));
+    usingChip();toTop();return;}
+  try{text=tlQuietStrip(text,R+'\n'+J,0);}catch(_){} try{text=pvClean(text,R+'\n'+J);}catch(_){}
+  var s=mdSections(text);var f=Object.assign({},orig);var imp=[];
+  var sum=guardSummary(plainField(pick(s,/SUMMARY|PROFILE/)).replace(/\n+/g,' '),R);if(sum&&sum!==orig.summary){f.summary=sum;}
+  var sk=guardSkills(pick(s,/^SKILLS|SKILL/),R,orig.skills);var newSk=sk.filter(function(x){return lc(orig.skills||'').indexOf(lc(x))<0;});
+  if(sk.length){f.skills=sk.join(', ');}
+  var ex=guardExperience(expToField(pick(s,/EXPERIENCE|EMPLOY|WORK/)),orig.experience,R);f.experience=ex.text;
+  var tgt=(s.__head||'').split('\n').map(function(x){return x.trim();}).find(function(x){return x&&!isContactish(x);});
+  if(tgt&&tgt.length<90&&!/^##/.test(tgt))f.target=tgt.replace(/\*\*/g,'');
+  var dropped=splitItems(pick(s,/^SKILLS|SKILL/)).filter(function(x){return !grounded(x,R);}).map(lc);
+  String(pick(s,/IMPROVED/)).split('\n').map(function(x){return x.replace(/^[-*•\s]+/,'').replace(/\*\*/g,'').trim();}).forEach(function(x){if(x.length>8&&numsOk(x,R)&&!dropped.some(function(d){return d&&lc(x).indexOf(d)>=0;})&&imp.length<6)imp.push(x);});
+  if(newSk.length)imp.push('Listed skills from your resume that this job asks for: '+newSk.slice(0,8).join(', '));
+  if(f.summary!==orig.summary&&!imp.some(function(x){return /summary/i.test(x);}))imp.unshift('Rewrote your Professional Summary for '+(J?'this job':'your target role'));
+  if(ex.changed&&!imp.some(function(x){return /bullet|experience/i.test(x);}))imp.push('Reworded bullets in '+ex.changed+' job'+(ex.changed>1?'s':'')+' with stronger plain verbs');
+  var same=(f.summary===orig.summary&&f.skills===orig.skills&&!ex.changed);
+  if(same)imp=['Your resume already matched this job well — we kept your words and gave it the clean Pro layout.'];
+  fillBuilder(f);
+  vaultAddPro(nameBase+' · Pro'+(jt?' · '+jt:''),yfsFieldsToMd(f));
+  try{LS('yfs_handoff',null);}catch(_){}
+  wire(banner(HEAD+'<details'+(window.innerWidth>600?' open':'')+'><summary>What we improved ('+imp.length+')</summary><ul>'+imp.map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+'</ul><div style="margin-top:6px;font-size:13px;color:#065F46;">Only facts from your own resume — nothing invented.</div></details>'+extras()));
+  usingChip();toTop();
+}
+/* called by the verify success path (Pro, Pro yearly, Job Hunt Pack). Returns true when it took over the landing. */
+var claimed=false;
+window.yfsProHandoff=function(){if(claimed)return true;if(!proNow())return false;
+  var h=handoff();var a=active();if(!h&&!a)return false;claimed=true;
+  try{var oc=document.getElementById('yfsCkCancel');if(oc)oc.remove();}catch(_){}
+  if(h){try{var e=ensureInVault(h.resume);LS('yfs_vault_active',e.id);savedResume=e.text;LS('yfs_resume',e.text);}catch(_){}}
+  try{LS('yfs_last_output',null);LS('yfs_last_tool',null);}catch(_){} /* the free teaser text is redacted — never show it to a Pro user */
+  try{yfsOpenTool(BUILDER);}catch(_){try{switchTool(BUILDER);}catch(__){}}
+  var go=function(){try{var d=document.querySelector('.rb-edit-details');if(d)d.open=false;}catch(_){}if(h)runUpgrade(h);else{fillBuilder(yfsResumeFields(a.text));LS('yfs_rb_src',a.id);wire(banner(HEAD+extras()));toTop();}};
+  if(document.getElementById('rbPage'))go();else setTimeout(go,60);
+  return true;};
+/* X-Ray Pro: send the rewritten page into the live editor (no new AI call) */
+window.yfsXrayToEditor=function(md){var f=yfsResumeFields(md);if(!f)return;var nm=((active()&&active().name)||'My').replace(/\s*·\s*Pro.*$/,'');
+  vaultAddPro(nm+' · Pro · ATS',yfsFieldsToMd(f));yfsOpenTool(BUILDER);setTimeout(function(){fillBuilder(f);wire(banner(HEAD+extras()));toTop();},60);};
+window.yfsHandoffTest={fields:function(r){return yfsResumeFields(r);},skills:guardSkills,exp:guardExperience,summary:guardSummary};
+/* came back to an already-loaded tab via bfcache: refresh the chip + builder */
+window.addEventListener('pageshow',function(e){if(e.persisted){try{usingChip();builderFromActive(false);}catch(_){}}});
+})();
+</script>
 </body>
 </html>
