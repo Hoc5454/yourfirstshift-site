@@ -149,4 +149,47 @@ const words=s=>String(s||'').replace(/[•·|–—\-]/g,' ').replace(/[^\w@.()'
   await p.evaluate(()=>yfsVaultUse('vS',true));await p.waitForTimeout(400);
   r=await p.evaluate(()=>({out:getComputedStyle(document.getElementById('outputSection')).display,note:(document.getElementById('yfsStaleNote')||{}).innerText||''}));ok(r.out==='none'&&/SamOrtizResume/.test(r.note),'E5 switching resumes hides the result made for the other resume');
   ok(!errs.length,'E no page errors '+errs.join('|'));await c.close();}
+
+ // F. Liz FAIL items: no name matching, ids/hash only
+ {const RES1='RESUME\nDana Cole\nWarehouse Lead\nOrlando, FL · (555) 010-0177 · dana@example.com\n\nSummary\nWarehouse lead with five years running pick lines, receiving docks and cycle counts for a grocery distribution center.\n\nExperience\nWarehouse Lead | Sunshine Foods DC | 2021 – Present\n- Ran a 12-person pick line\n- Trained new hires on RF scanners and pallet jacks\n\nSkills\nForklift, RF scanner, inventory\n';
+  const SAMB='Sam Baker\nDelivery Driver\nTampa, FL · (813) 555-0144 · sam.baker@example.com\n\nSummary\nDelivery driver with four years of route work and clean safety record for a regional parcel company in Tampa.\n\nExperience\nDelivery Driver | Bay Parcel | 2022 – Present\n- Ran 110 stops a day on time\n- Loaded and secured the van every morning\n\nSkills\nClass C license, route planning\n';
+  const GAVIN='Gavin Price\nLaunch Pad Technician\nMelbourne, FL\n\nExperience\nMechanic | Space Coast Fab | 2020 – Present\n- Fabricated and welded steel';
+  const XG='## AI MATCH ESTIMATE: 42/100 (vs this job posting)\n## VERDICT: Gavin has the hands-on muscle Blue Origin wants for this resume; a delivery driver background would not help.\n\n## ✅ KEYWORD HITS\n- Forklift\n';
+  const vis=p=>p.evaluate(()=>({out:getComputedStyle(document.getElementById('outputSection')).display,txt:document.getElementById('outputBox').innerText,note:!!document.getElementById('yfsStaleNote')}));
+  const seedRes=(rec)=>p=>p.evaluate(r=>{localStorage.setItem('yfs_res',JSON.stringify({'1':r}));localStorage.setItem('yfs_last_output',r.text);localStorage.setItem('yfs_last_tool','1');},rec);
+  // F1 first line "RESUME" (old fallback would have matched on "resume")
+  {const {c,p,errs}=await ctx(b,{pro:true,used:true,vault:{active:'vD',list:[{id:'vD',name:'Dana',text:RES1,ts:1}]}});await seedRes({text:XG,src:GAVIN,free:false,ts:1})(p);
+   await p.evaluate(()=>yfsOpenTool(0));await p.waitForTimeout(200);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(500);const r=await vis(p);
+   ok(r.out==='none'&&!/Gavin/i.test(r.txt)&&r.note,'F1 resume whose first line is "RESUME" → Gavin\'s old result stays hidden');ok(!errs.length,'F1 no errors');await c.close();}
+  // F2 two resumes share a first name (Sam Ortiz result, Sam Baker active)
+  {const {c,p}=await ctx(b,{pro:true,used:true,vault:{active:'vB',list:[{id:'vO',name:'SamOrtiz',text:SAM,ts:1},{id:'vB',name:'SamBaker',text:SAMB,ts:2}]}});
+   await seedRes({text:'## AI MATCH ESTIMATE: 70/100\n## VERDICT: Sam is a strong driver.\n\n## ✅ KEYWORD HITS\n- Route',src:SAM,vid:'vO',free:false,ts:1})(p);
+   await p.evaluate(()=>yfsOpenTool(0));await p.waitForTimeout(200);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(500);let r=await vis(p);
+   ok(r.out==='none'&&r.note,'F2 shared first name (Sam Ortiz vs Sam Baker) → not shown as yours');
+   await p.evaluate(()=>yfsVaultUse('vO',true));await p.waitForTimeout(400);await p.evaluate(()=>yfsOpenTool(0));await p.waitForTimeout(200);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(500);r=await vis(p);
+   ok(r.out!=='none'&&!r.note&&/Sam is a strong driver/i.test(r.txt),'F3 switch to the resume that made it (Vault id) → it comes back');await c.close();}
+  // F4 old result with no src → treated as a different resume
+  {const {c,p}=await ctx(b,{pro:true,used:true,vault:{active:'vJ',list:[{id:'vJ',name:'JordanReyesResume',text:F.RESUME,ts:1}]}});await seedRes({text:'## AI MATCH ESTIMATE: 55/100\n## VERDICT: Jordan fits.\n\n## ✅ KEYWORD HITS\n- RF',src:'',free:false,ts:1})(p);
+   await p.evaluate(()=>yfsOpenTool(0));await p.waitForTimeout(200);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(500);const r=await vis(p);
+   ok(r.out==='none'&&r.note,'F4 old result with no source resume → yellow note, not shown (even if it names you)');
+   await p.click('#yfsStaleNote [data-a=old]');await p.waitForTimeout(300);ok(/Jordan fits/i.test(await p.evaluate(()=>document.getElementById('outputBox').innerText)),'F5 "view the old one" still opens it (not deleted)');
+   ok(await p.evaluate(()=>yfsVaultList().length)===1,'F6 re-showing a saved result does not adopt/add a Vault resume');await c.close();}
+  // F7 no ACTIVE Vault resume → no auto-show
+  {const {c,p}=await ctx(b,{pro:true,used:true});await seedRes({text:XG,src:GAVIN,free:false,ts:1})(p);await p.evaluate(()=>yfsOpenTool(0));await p.waitForTimeout(200);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(500);const r=await vis(p);
+   ok(r.out==='none'&&r.note,'F7 no ACTIVE Vault resume → old result not auto-shown; note instead');await c.close();}
+  // F8 upload a new resume while the old person's result is ON SCREEN → hidden at once (no tab redraw)
+  {const {c,p,log}=await ctx(b,{pro:true,used:true,vault:{active:'vG',list:[{id:'vG',name:'Gavin',text:GAVIN+'\n- Rigged and set GSE\n- Read hydraulic schematics\n\nSkills\nWelding, rigging, hydraulics, forklift, OSHA 30 and more hands-on work for launch site equipment',ts:1}]}});
+   await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(300);await p.fill('#xrayJd','Blue Origin Launch Pad Technician. GSE, hydraulics, rigging.');await p.evaluate(()=>{try{xrayCheck();}catch(_){}updateRunBtn();runTool();});await p.waitForTimeout(2500);
+   let r=await vis(p);ok(r.out!=='none','F8a Gavin\'s own X-Ray result shows for Gavin');
+   const rid=await p.evaluate(()=>JSON.parse(localStorage.getItem('yfs_res'))['1'].vid);ok(rid==='vG','F8b new results are saved with the Vault resume id ('+rid+')');
+   await p.evaluate(()=>{document.querySelectorAll('.yfs-up-hidden').forEach(x=>x.classList.remove('yfs-up-hidden'));});fs.writeFileSync('/tmp/Dana.txt',RES1);await p.setInputFiles('#fileInput','/tmp/Dana.txt');await p.waitForTimeout(900);
+   r=await vis(p);ok(r.out==='none'&&r.note&&!/Gavin/i.test(r.txt),'F8c upload Dana while Gavin\'s result is on screen → hidden right away, note shown');await shot(p,'7-upload-hides-old');await c.close();}
+  // F9 a matching saved result re-shown by restore does NOT run "adopt pasted resume"
+  {const {c,p}=await ctx(b,{pro:true,used:true,vault:{active:'vJ',list:[{id:'vJ',name:'JordanReyesResume',text:F.RESUME,ts:1}]}});
+   await seedRes({text:'## AI MATCH ESTIMATE: 64/100\n## VERDICT: Close.\n\n## ✅ KEYWORD HITS\n- RF',src:SAMB,vid:'vJ',free:false,ts:1})(p);
+   await p.evaluate(()=>{window.__adopts=0;const o=window.yfsAdoptResume;window.yfsAdoptResume=function(){window.__adopts++;return o.apply(this,arguments);};});
+   await p.evaluate(()=>yfsOpenTool(0));await p.waitForTimeout(200);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(600);
+   const r=await p.evaluate(()=>({n:window.__adopts,len:yfsVaultList().length,act:yfsVaultActive(),out:getComputedStyle(document.getElementById('outputSection')).display}));
+   ok(r.n===0&&r.len===1&&r.act==='vJ'&&r.out!=='none','F9 restoring a saved result never adopts a resume ('+JSON.stringify(r)+')');await c.close();}
+ }
  await b.close();console.log(fails?fails+' FAILED':'ALL PASS');process.exit(fails?1:0);})();

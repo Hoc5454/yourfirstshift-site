@@ -3094,7 +3094,7 @@ function curSrc(t){let r='';try{if(t===1)r=(document.getElementById('xrayResume'
   return r||(typeof extractedFileText!=='undefined'&&extractedFileText)||(typeof savedResume!=='undefined'&&savedResume)||'';}
 /* one-time migration from the old single-slot storage */
 try{if(!localStorage.getItem(KEY)){const lo=localStorage.getItem('yfs_last_output'),lt=localStorage.getItem('yfs_last_tool');
-  if(lo&&lt!==null&&!isNaN(+lt)){const m={};m[lt]={text:lo,src:(typeof savedResume!=='undefined'&&savedResume)||'',free:localStorage.getItem('yfs_pro')!=='1',ts:Date.now()};put(m);}}}catch(_){}
+  if(lo&&lt!==null&&!isNaN(+lt)){const m={};m[lt]={text:lo,src:'',free:localStorage.getItem('yfs_pro')!=='1',ts:Date.now()};put(m);}}}catch(_){}
 let restoring=false;
 /* save on every fresh result (not on restores) */
 if(typeof showResult==='function'){const _s=showResult;showResult=function(text,partial,fromStore){const out=_s.apply(this,arguments);
@@ -3686,22 +3686,27 @@ function active(){try{var a=yfsVaultActive();return yfsVaultList().find(function
 function note(m){try{var t=document.createElement('div');t.setAttribute('role','status');t.className='yfs-vs-toast';t.textContent=m;t.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));z-index:9999;background:#064E3B;color:#fff;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:700;max-width:92vw;box-shadow:0 6px 20px rgba(0,0,0,.25);';document.body.appendChild(t);setTimeout(function(){t.remove();},3200);}catch(_){}}
 var adopting=false;
 /* make this text the ACTIVE Vault resume (reuse an identical saved one) */
-window.yfsAdoptResume=function(text,name,src){if(!looksResume(text))return null;var a=active();if(a&&norm(a.text)===norm(text))return a.id;
+window.yfsAdoptResume=function(text,name,src,quiet){if(!looksResume(text))return null;var a=active();if(a&&norm(a.text)===norm(text))return a.id;
   var l=yfsVaultList();var e=l.find(function(x){return norm(x.text)===norm(text);});
   if(!e){var nm=String(name||'').replace(/\.[a-z0-9]{2,5}$/i,'').replace(/[^\w .'-]/g,' ').replace(/\s+/g,' ').trim().slice(0,60)||yfsVaultDefName(text);
     if(l.some(function(x){return x.name===nm;}))nm=nm+' ('+new Date().toLocaleDateString()+')';
     e={id:'v'+Date.now(),name:nm,text:String(text).trim(),look:(typeof selectedStyle!=='undefined'&&selectedStyle)||'Modern Professional',ts:Date.now(),src:src||'upload'};l.push(e);yfsVaultSet(l);}
   adopting=true;try{yfsVaultUse(e.id,false);}finally{adopting=false;}
+  if(!quiet){try{hideStale();}catch(_){}}
   note('✓ Saved to your Vault as ACTIVE. Every tool uses it now.');return e.id;};
 /* 1) uploads in any tool → ACTIVE */
 if(typeof showFileSuccess==='function'){var _sf=showFileSuccess;showFileSuccess=function(filename,fullText){var vaultUp=false;try{vaultUp=!!yfsVaultUp;}catch(_){}
   var r=_sf.apply(this,arguments);if(!vaultUp){try{yfsAdoptResume(fullText,filename,'upload');}catch(_){}}return r;};}
 /* 2) a resume pasted into Translator / X-Ray → ACTIVE after a successful run; Builder results keep their own Vault copy */
-if(typeof showResult==='function'){var _sr=showResult;showResult=function(text,partial,fromStore){var r=_sr.apply(this,arguments);if(fromStore)return r;
+if(typeof showResult==='function'){var _sr=showResult;showResult=function(text,partial,fromStore){
+  /* a saved result being re-shown (restore / "view the old one") is never a new run: no adopting, no re-stamping */
+  var reshow=!!fromStore||window.__yfsTeaseSrc!=null;var r=_sr.apply(this,arguments);if(reshow)return r;
   try{var g=function(id){var x=document.getElementById(id);return x?(x.value||'').trim():'';};
-    if(activeTool===0){var t0=g('userInput');if(t0)yfsAdoptResume(t0,'','paste');}
-    else if(activeTool===1){var t1=g('xrayResume');if(t1)yfsAdoptResume(t1,'','paste');}
+    if(activeTool===0){var t0=g('userInput');if(t0)yfsAdoptResume(t0,'','paste',true);}
+    else if(activeTool===1){var t1=g('xrayResume');if(t1)yfsAdoptResume(t1,'','paste',true);}
     else if(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder){builderKeep();}}catch(_){}
+  try{if(!(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder)){var k='yfs_res',m=JSON.parse(LS(k)||'{}')||{},rec=m[String(activeTool)],a=active();
+    if(rec&&a){rec.vid=a.id;rec.vh=rh(a.text);LS(k,JSON.stringify(m));}}}catch(_){}
   return r;};}
 function builderMd(){try{var f={};RB_FIELDS.forEach(function(k){f[k]=rbVal(k);});f.summary=typeof rbSummary!=='undefined'?rbSummary:'';return yfsFieldsToMd(f);}catch(_){return '';}}
 function builderKeep(){var md=builderMd();if(!looksResume(md))return;var src=LS('yfs_rb_src');var l=yfsVaultList();var e=l.find(function(x){return x.id===src;});
@@ -3732,11 +3737,12 @@ function domModel(pg){var t=function(sel){var e=pg.querySelector(sel);return e?(
 /* 5) a saved result only comes back for the resume it was made from (fixes X-Ray re-showing another person's old result).
    Uses the per-tool record (yfs_res) and the resume it was made from; nothing is deleted. */
 function rh(t){t=norm(t).toLowerCase();var h=5381;for(var i=0;i<t.length;i++){h=((h<<5)+h+t.charCodeAt(i))|0;}return h>>>0;}
-function firstName(t){var l=String(t||'').split('\n').map(function(x){return x.replace(/^#+\s*/,'').trim();}).filter(Boolean)[0]||'';var w=l.split(/\s+/)[0]||'';return /^[A-Za-z][A-Za-z'-]{1,}$/.test(w)?w:'';}
 function recFor(t){try{return typeof yfsResGet==='function'?yfsResGet(t):null;}catch(_){return null;}}
-function matches(rec){var a=active();if(!a||!rec||!rec.text)return true;if(rec.src&&rh(rec.src)===rh(a.text))return true;
-  var fn=firstName(a.text);if(fn&&new RegExp('\\b'+fn+'\\b','i').test(rec.text+'\n'+(rec.src||'')))return true;
-  if(!rec.src)return !fn;return false;}
+function matches(rec){if(!rec||!rec.text)return true;var a=active();if(!a)return false;
+  if(rec.vid&&rec.vid===a.id)return true;
+  if(rec.src&&rh(rec.src)===rh(a.text))return true;
+  if(rec.vh&&rec.vh===rh(a.text))return true;
+  return false;}
 function staleNote(rec){var ac=document.getElementById('appContent');if(!ac||document.getElementById('yfsStaleNote'))return;var a=active();var tl=TOOLS[activeTool]?TOOLS[activeTool].label:'result';
   var d=document.createElement('div');d.id='yfsStaleNote';d.className='yfs-using';d.style.background='#FFFBEB';d.style.borderColor='#FCD34D';d.style.color='#78350F';
   d.innerHTML='<span>Your last '+yfsEsc(tl)+' result was for a different resume. Run it again to get one for <b style="color:#92400E">'+yfsEsc(a?a.name:'this resume')+'</b>.</span><button type="button" style="color:#92400E" data-a="old">view the old one</button>';
