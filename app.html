@@ -3673,5 +3673,87 @@ window.yfsHandoffTest={fields:function(r){return yfsResumeFields(r);},skills:gua
 window.addEventListener('pageshow',function(e){if(e.persisted){try{usingChip();builderFromActive(false);}catch(_){}}});
 })();
 </script>
+<script id="yfs-vault-sync">
+/* vault-sync: ONE resume everywhere.
+   - Any resume uploaded or pasted into a resume tool (free or Pro) becomes the ACTIVE Vault resume, so every tool uses it now and after an upgrade.
+   - Switching resumes in the Vault updates every tool at once (stale uploads in other tools are dropped).
+   - Word and Text downloads are built from the resume exactly as it shows on screen (including tap-to-edit changes), like the PDF. */
+(function(){
+var LS=function(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;};
+function norm(t){return String(t||'').replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').trim();}
+function looksResume(t){t=String(t||'');return t.trim().length>=200&&t.split(/\s+/).length>=40;}
+function active(){try{var a=yfsVaultActive();return yfsVaultList().find(function(x){return x.id===a;})||null;}catch(_){return null;}}
+function note(m){try{var t=document.createElement('div');t.setAttribute('role','status');t.className='yfs-vs-toast';t.textContent=m;t.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));z-index:9999;background:#064E3B;color:#fff;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:700;max-width:92vw;box-shadow:0 6px 20px rgba(0,0,0,.25);';document.body.appendChild(t);setTimeout(function(){t.remove();},3200);}catch(_){}}
+var adopting=false;
+/* make this text the ACTIVE Vault resume (reuse an identical saved one) */
+window.yfsAdoptResume=function(text,name,src){if(!looksResume(text))return null;var a=active();if(a&&norm(a.text)===norm(text))return a.id;
+  var l=yfsVaultList();var e=l.find(function(x){return norm(x.text)===norm(text);});
+  if(!e){var nm=String(name||'').replace(/\.[a-z0-9]{2,5}$/i,'').replace(/[^\w .'-]/g,' ').replace(/\s+/g,' ').trim().slice(0,60)||yfsVaultDefName(text);
+    if(l.some(function(x){return x.name===nm;}))nm=nm+' ('+new Date().toLocaleDateString()+')';
+    e={id:'v'+Date.now(),name:nm,text:String(text).trim(),look:(typeof selectedStyle!=='undefined'&&selectedStyle)||'Modern Professional',ts:Date.now(),src:src||'upload'};l.push(e);yfsVaultSet(l);}
+  adopting=true;try{yfsVaultUse(e.id,false);}finally{adopting=false;}
+  note('✓ Saved to your Vault as ACTIVE. Every tool uses it now.');return e.id;};
+/* 1) uploads in any tool → ACTIVE */
+if(typeof showFileSuccess==='function'){var _sf=showFileSuccess;showFileSuccess=function(filename,fullText){var vaultUp=false;try{vaultUp=!!yfsVaultUp;}catch(_){}
+  var r=_sf.apply(this,arguments);if(!vaultUp){try{yfsAdoptResume(fullText,filename,'upload');}catch(_){}}return r;};}
+/* 2) a resume pasted into Translator / X-Ray → ACTIVE after a successful run; Builder results keep their own Vault copy */
+if(typeof showResult==='function'){var _sr=showResult;showResult=function(text,partial,fromStore){var r=_sr.apply(this,arguments);if(fromStore)return r;
+  try{var g=function(id){var x=document.getElementById(id);return x?(x.value||'').trim():'';};
+    if(activeTool===0){var t0=g('userInput');if(t0)yfsAdoptResume(t0,'','paste');}
+    else if(activeTool===1){var t1=g('xrayResume');if(t1)yfsAdoptResume(t1,'','paste');}
+    else if(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder){builderKeep();}}catch(_){}
+  return r;};}
+function builderMd(){try{var f={};RB_FIELDS.forEach(function(k){f[k]=rbVal(k);});f.summary=typeof rbSummary!=='undefined'?rbSummary:'';return yfsFieldsToMd(f);}catch(_){return '';}}
+function builderKeep(){var md=builderMd();if(!looksResume(md))return;var src=LS('yfs_rb_src');var l=yfsVaultList();var e=l.find(function(x){return x.id===src;});
+  if(e&&(e.pro||e.src==='builder')){if(norm(e.text)!==norm(md)){e.text=md;e.ts=Date.now();yfsVaultSet(l);}if(yfsVaultActive()!==e.id){adopting=true;try{yfsVaultUse(e.id,false);}finally{adopting=false;}}return;}
+  var nm=(rbVal('name')||'My').replace(/[^A-Za-z\s'-]/g,'').trim().replace(/\s+/g,'')||'My';var ne={id:'v'+Date.now(),name:nm+'Resume · Built',text:md,look:(typeof selectedStyle!=='undefined'&&selectedStyle)||'Modern Professional',ts:Date.now(),src:'builder'};
+  l.push(ne);yfsVaultSet(l);LS('yfs_rb_src',ne.id);adopting=true;try{yfsVaultUse(ne.id,false);}finally{adopting=false;}LS('yfs_rb_src',ne.id);note('✓ Your built resume is saved in the Vault as ACTIVE.');}
+/* Builder edits keep a Built/Pro Vault copy current (originals you uploaded are never overwritten) */
+if(typeof rbSave==='function'){var _rs=rbSave,bt=null;rbSave=function(){var r=_rs.apply(this,arguments);clearTimeout(bt);bt=setTimeout(function(){try{var a=active();if(!a||a.src!=='builder'||LS('yfs_rb_src')!==a.id)return;var md=builderMd();if(!looksResume(md)||norm(md)===norm(a.text))return;
+    var l=yfsVaultList();l.forEach(function(x){if(x.id===a.id){x.text=md;x.ts=Date.now();}});yfsVaultSet(l);savedResume=md;LS('yfs_resume',md);}catch(_){}},700);return r;};}
+/* 3) Vault switch → drop a stale per-tool upload and refresh the tool on screen */
+if(typeof yfsVaultUse==='function'){var _vu=yfsVaultUse;yfsVaultUse=function(id){var r=_vu.apply(this,arguments);
+  try{var a=active();if(a&&typeof extractedFileText!=='undefined'&&extractedFileText&&norm(extractedFileText)!==norm(a.text)){extractedFileText='';try{renderUploadZone();}catch(_){}}
+    var u=document.getElementById('userInput');if(activeTool===0&&u&&a&&!adopting){u.value=a.text;u.dispatchEvent(new Event('input',{bubbles:true}));}
+    if(!adopting){var s=document.getElementById('yfsUsing');if(s)note('✓ Switched to '+(a?a.name:'your resume')+' in every tool.');}
+    try{updateRunBtn();}catch(_){}}catch(_){}
+  return r;};}
+/* 4) downloads = the page on screen. Read the model from the painted resume (edits included) instead of the original AI text. */
+function domModel(pg){var t=function(sel){var e=pg.querySelector(sel);return e?(e.innerText||e.textContent||'').replace(/\s+/g,' ').trim():'';};
+  var secs=[];pg.querySelectorAll('.rb-sec').forEach(function(s){if(s.closest('.ym-lock,.ym-tips'))return;var h=s.querySelector('.rb-h');var head=h?(h.innerText||h.textContent).trim():'';var lines=[];
+    Array.prototype.forEach.call(s.children,function(ch){if(ch===h)return;
+      (function walk(n){if(n.nodeType!==1)return;if(n.classList.contains('rb-jh')){var jt=n.querySelector('.rb-jt'),je=n.querySelector('.rb-je'),jd=n.querySelector('.rb-jd');lines.push([jt&&jt.textContent.trim(),je&&je.textContent.replace(/^[·\s]+/,'').trim(),jd&&jd.textContent.replace(/\s*·\s*/g,' – ').trim()].filter(Boolean).join(' | '));return;}
+        if(n.tagName==='LI'){lines.push('• '+n.textContent.replace(/\s+/g,' ').trim());return;}
+        if(n.tagName==='UL'||n.tagName==='OL'||n.tagName==='DIV'&&n.children.length&&!n.classList.contains('rb-fmt-line')){Array.prototype.forEach.call(n.children,walk);if(n.tagName==='DIV'&&!n.children.length&&n.textContent.trim())lines.push(n.textContent.trim());return;}
+        var tx=(n.innerText||n.textContent||'').replace(/[ \t]+/g,' ').trim();if(tx)tx.split(/\n+/).forEach(function(x){x=x.trim();if(x)lines.push(/^[•\-*]\s/.test(x)?'• '+x.replace(/^[•\-*]\s*/,''):x);});})(ch);});
+    if(head&&lines.length)secs.push([head,lines.join('\n')]);});
+  return {name:t('.rb-name'),target:t('.rb-target'),contact:t('.rb-contact').replace(/\s*·\s*/g,'  ·  '),secs:secs};}
+
+/* 5) a saved result only comes back for the resume it was made from (fixes X-Ray re-showing another person's old result).
+   Uses the per-tool record (yfs_res) and the resume it was made from; nothing is deleted. */
+function rh(t){t=norm(t).toLowerCase();var h=5381;for(var i=0;i<t.length;i++){h=((h<<5)+h+t.charCodeAt(i))|0;}return h>>>0;}
+function firstName(t){var l=String(t||'').split('\n').map(function(x){return x.replace(/^#+\s*/,'').trim();}).filter(Boolean)[0]||'';var w=l.split(/\s+/)[0]||'';return /^[A-Za-z][A-Za-z'-]{1,}$/.test(w)?w:'';}
+function recFor(t){try{return typeof yfsResGet==='function'?yfsResGet(t):null;}catch(_){return null;}}
+function matches(rec){var a=active();if(!a||!rec||!rec.text)return true;if(rec.src&&rh(rec.src)===rh(a.text))return true;
+  var fn=firstName(a.text);if(fn&&new RegExp('\\b'+fn+'\\b','i').test(rec.text+'\n'+(rec.src||'')))return true;
+  if(!rec.src)return !fn;return false;}
+function staleNote(rec){var ac=document.getElementById('appContent');if(!ac||document.getElementById('yfsStaleNote'))return;var a=active();var tl=TOOLS[activeTool]?TOOLS[activeTool].label:'result';
+  var d=document.createElement('div');d.id='yfsStaleNote';d.className='yfs-using';d.style.background='#FFFBEB';d.style.borderColor='#FCD34D';d.style.color='#78350F';
+  d.innerHTML='<span>Your last '+yfsEsc(tl)+' result was for a different resume. Run it again to get one for <b style="color:#92400E">'+yfsEsc(a?a.name:'this resume')+'</b>.</span><button type="button" style="color:#92400E" data-a="old">view the old one</button>';
+  d.querySelector('[data-a=old]').onclick=function(){d.remove();try{LS('yfs_last_tool',String(activeTool));window.__yfsTeaseSrc=rec.src||'';showResult(rec.text,!!rec.free&&!isPro,true);}catch(_){}finally{window.__yfsTeaseSrc=null;}var os=document.getElementById('outputSection');if(os)os.scrollIntoView({block:'start'});};
+  var us=document.getElementById('yfsUsing');if(us&&us.parentNode)us.parentNode.insertBefore(d,us.nextSibling);else ac.insertBefore(d,ac.firstChild);}
+function hideStale(){try{var old=document.getElementById('yfsStaleNote');if(old)old.remove();if(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder)return;
+  var rec=recFor(activeTool);var os=document.getElementById('outputSection');
+  if(rec&&!matches(rec)){if(os&&os.style.display!=='none'){try{clearOutput();}catch(_){os.style.display='none';}try{yfsTeaseClear();}catch(_){}}staleNote(rec);}
+  var chip=document.querySelector('#appContent .yfs-last-chip');if(chip){var lt=+(LS('yfs_last_tool')||-1);var r2=recFor(lt);if(r2&&!matches(r2))chip.textContent='📄 Your last '+(TOOLS[lt]?TOOLS[lt].label:'')+' result was for a different resume. Tap to view it';}}catch(_){}}
+if(typeof renderTool==='function'){var _rt2=renderTool;renderTool=function(){var r=_rt2.apply(this,arguments);hideStale();return r;};}
+if(typeof yfsVaultUse==='function'){var _vu2=yfsVaultUse;yfsVaultUse=function(){var r=_vu2.apply(this,arguments);if(!adopting)hideStale();return r;};}
+window.yfsDomModel=domModel;
+if(typeof window.yfsResumeModel==='function'){var _rm=window.yfsResumeModel;window.yfsResumeModel=function(){
+  try{var builder=TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder&&document.getElementById('rbPage')&&document.getElementById('rbPage').offsetParent!==null;
+    if(!builder){var pg=document.querySelector('#outputBox .rb-page');if(pg&&pg.querySelector('.rb-name')&&!pg.querySelector('.ym-lock')){var m=domModel(pg);if(m.name&&m.secs.length)return m;}}}catch(_){}
+  return _rm.apply(this,arguments);};}
+})();
+</script>
 </body>
 </html>
