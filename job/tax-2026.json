@@ -1,0 +1,58 @@
+{
+  "year": 2026,
+  "checked": "2026-11-09",
+  "label": "2026 IRS + SSA tables, checked Nov 9, 2026",
+  "next_review": ["2027-01 (new Pub 15-T + SSA wage base)", "2027-07 (mid-year check)"],
+  "sources": {
+    "federal": "https://www.irs.gov/pub/irs-pdf/p15t.pdf",
+    "worksheet": "IRS Pub 15-T (2026) Section 1, Worksheet 1A, Percentage Method Tables for Automated Payroll Systems",
+    "fica": "https://www.irs.gov/taxtopics/tc751",
+    "additional_medicare": "https://www.irs.gov/taxtopics/tc560",
+    "ss_wage_base": "https://www.ssa.gov/news/en/cola/factsheets/2026.html",
+    "no_wage_tax_states": "https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/"
+  },
+  "pay_periods": {"weekly": 52, "biweekly": 26, "semimonthly": 24, "monthly": 12},
+  "worksheet_1a_line_1g": {"mfj": 12900, "other": 8600},
+  "federal_standard_annual": {
+    "mfj": [
+      [0, 19300, 0.00, 0.00],
+      [19300, 44100, 0.00, 0.10],
+      [44100, 120100, 2480.00, 0.12],
+      [120100, 230700, 11600.00, 0.22],
+      [230700, 422850, 35932.00, 0.24],
+      [422850, 531750, 82048.00, 0.32],
+      [531750, 788000, 116896.00, 0.35],
+      [788000, null, 206583.50, 0.37]
+    ],
+    "single": [
+      [0, 7500, 0.00, 0.00],
+      [7500, 19900, 0.00, 0.10],
+      [19900, 57900, 1240.00, 0.12],
+      [57900, 113200, 5800.00, 0.22],
+      [113200, 209275, 17966.00, 0.24],
+      [209275, 263725, 41024.00, 0.32],
+      [263725, 648100, 58448.00, 0.35],
+      [648100, null, 192979.25, 0.37]
+    ],
+    "hoh": [
+      [0, 15550, 0.00, 0.00],
+      [15550, 33250, 0.00, 0.10],
+      [33250, 83000, 1770.00, 0.12],
+      [83000, 121250, 7740.00, 0.22],
+      [121250, 217300, 16155.00, 0.24],
+      [217300, 271750, 39207.00, 0.32],
+      [271750, 656150, 56631.00, 0.35],
+      [656150, null, 191171.00, 0.37]
+    ]
+  },
+  "ss_rate": 0.062,
+  "ss_wage_base": 184500,
+  "medicare_rate": 0.0145,
+  "additional_medicare_rate": 0.009,
+  "additional_medicare_threshold": 200000,
+  "no_wage_tax_states": ["AK", "FL", "NV", "NH", "SD", "TN", "TX", "WA", "WY"],
+  "state_notes": {
+    "WA": "No state income tax on wages. Other paycheck deductions (like WA Paid Family & Medical Leave) come in Phase 3, so take-home may run a bit high.",
+    "NH": "No state income tax on wages."
+  }
+}
