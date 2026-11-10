@@ -171,7 +171,17 @@ function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isAr
   if(o(j.clock)&&num(j.clock.start)){j.clock.breaks=arr(j.clock.breaks);}else j.clock=null;
   return j;}
 function load(){try{var j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.app==='yfs-on-the-job')return clean(j);}catch(_){}return blank();}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('Phone storage is full. Make a Backup, then free up space.');}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true;}catch(e){toast('Phone storage is full. Make a Backup, then free up space.');return false;}}
+/* safety copy made by Restore: kept 14 days, then dropped */
+var PREV=KEY+'_prev',PREV_T=KEY+'_prev_t',PREV_DAYS=14;
+function prevCopy(){try{var t=+localStorage.getItem(PREV_T)||0,raw=localStorage.getItem(PREV);if(!raw)return null;if(!t||Date.now()-t>PREV_DAYS*86400000){ /* no timestamp = treat as expired */localStorage.removeItem(PREV);localStorage.removeItem(PREV_T);return null;}var d=JSON.parse(raw);return d&&typeof d==='object'?{t:t,data:d}:null;}catch(_){return null;}}
+function undoRestore(){var pc=prevCopy();if(!pc){toast('Nothing to undo.');return;}var back;try{back=clean(pc.data);}catch(_){alert('The safety copy can\'t be read. Your records were not changed.');return;}
+  var n=back.entries.length;if(!confirm('Undo the last restore? This brings back the records you had before it ('+n+(n===1?' entry':' entries')+').'))return;
+  var cur=S,curRaw=null;try{curRaw=JSON.stringify(cur);}catch(_){}
+  S=back;log('backup','(restore undone)','',n+(n===1?' entry':' entries'));
+  if(!save()){S=cur;render();alert('Undo failed. Your records were not changed.');return;}
+  try{if(curRaw){localStorage.setItem(PREV,curRaw);localStorage.setItem(PREV_T,String(Date.now()));}}catch(_){}
+  render();toast('Undone. Your earlier records are back.');}
 function log(entryId,field,oldV,newV,reason){S.log.push({t:Date.now(),id:entryId,field:field,old:oldV==null?'':String(oldV),new:newV==null?'':String(newV),reason:reason||''});}
 
 /* ── hours + pay engine (pure; exposed as OTJ for tests) ── */
@@ -367,7 +377,7 @@ function codesHTML(){var pro=isPro();var h='<div class="card"><h2>Jobs</h2><ul c
 
 function moreHTML(){var pro=isPro();var h='<div class="card"><h2>Pay setup</h2><div class="fine">'+esc(S.settings.state)+' · '+esc(S.settings.period)+' · '+esc(filingText(S.settings.filing))+' · '+money(+S.settings.rate)+'/hr</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="setup">Edit pay setup</button></div>';
   h+='<div class="card"><h2>Backup + restore</h2><div class="fine">Last backup: <b id="lastBk">'+(S.lastBackup?new Date(S.lastBackup).toLocaleString():'never')+'</b>. A backup is one file with all your hours, codes, PTO and change history. Keep it in Files, iCloud Drive, Google Drive or email it to yourself.</div>'+
-    '<div class="row wrap" style="margin-top:10px"><button type="button" class="btn go grow" data-a="backup">Back up now</button><button type="button" class="btn ghost grow" data-a="restore">Restore</button></div><input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="Choose backup file"></div>';
+    '<div class="row wrap" style="margin-top:10px"><button type="button" class="btn go grow" data-a="backup">Back up now</button><button type="button" class="btn ghost grow" data-a="restore">Restore</button></div>'+(prevCopy()?'<button type="button" class="link" data-a="undorestore" style="margin-top:8px">Undo last restore</button>':'')+'<input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="Choose backup file"></div>';
   h+='<div class="card"><h2>Export</h2><div class="fine">CSV opens in Excel, Google Sheets or Numbers. Exporting your own records is always free.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="csv">Export CSV</button></div>';
   h+='<div class="card"><h2>Change history</h2><div class="fine">Every change to an entry is saved with the time, the old value and the new value. Nothing is silently overwritten. '+S.log.length+' changes saved.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="logview">View change history'+(pro?'':' <span class="lock">PRO</span>')+'</button></div>';
   h+='<div class="card"><h2>Keep it on your phone</h2><div class="fine">On iPhone: Safari → Share → <b>Add to Home Screen</b>. Home Screen apps keep their data; Safari can erase website data after 7 days without a visit. Works with no signal once it\'s opened.</div>'+(BIP?'<button type="button" class="btn ghost block" style="margin-top:10px" data-a="install">Install app</button>':'')+'</div>';
@@ -446,6 +456,7 @@ function act(a,el){
   if(a==='setup'){$('#view').innerHTML=setupHTML(false);wireSetup(false);return;}
   if(a==='backup')return backup();
   if(a==='restore'){$('#restoreFile').click();return;}
+  if(a==='undorestore'){undoRestore();return;}
   if(a==='csv')return csvModal();
   if(a==='logview'){if(!isPro())return upsell('See every change with the time, the old value and the new value. Your history is always saved (free) and included in your Backup; viewing it here is Pro.');return logModal();}}
 
@@ -617,9 +628,10 @@ function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;
     var skipped=Math.max(0,rawN-next.entries.length),curN=(S.entries||[]).length;
     var note=next.entries.length+(next.entries.length===1?' entry':' entries')+(skipped?' · '+skipped+' damaged skipped':'');
     if(!confirm('Restore this backup from '+when+'? It replaces what\'s on this phone now ('+curN+(curN===1?' entry':' entries')+') with the backup ('+next.entries.length+(next.entries.length===1?' entry':' entries')+(skipped?'; '+skipped+' damaged record'+(skipped===1?'':'s')+' will be skipped':'')+').'))return;
-    var prev=S;try{localStorage.setItem(KEY+'_prev',JSON.stringify(prev));}catch(_){}
-    try{S=next;log('backup','(restored)','',stamp+' · '+note);save();render();toast('Restored'+(skipped?' ('+skipped+' damaged record'+(skipped===1?'':'s')+' skipped)':'')+'. Your records are back.');}
-    catch(_){S=prev;try{save();render();}catch(__){}alert('Restore failed. Your records were not changed.');}};
+    var prev=S;try{localStorage.setItem(PREV,JSON.stringify(prev));localStorage.setItem(PREV_T,String(Date.now()));}catch(_){}
+    var okSave=false;try{S=next;log('backup','(restored)','',stamp+' · '+note);okSave=save();}catch(_){okSave=false;}
+    if(!okSave){S=prev;try{localStorage.setItem(KEY,JSON.stringify(prev));}catch(_){}try{localStorage.removeItem(PREV);localStorage.removeItem(PREV_T);}catch(_){}try{render();}catch(_){}alert('Restore failed. Your records were not changed.');return;}
+    try{render();}catch(_){}toast('Restored'+(skipped?' ('+skipped+' damaged record'+(skipped===1?'':'s')+' skipped)':'')+'. Your records are back.');};
   rd.readAsText(f);ev.target.value='';}
 
 /* ── boot ── */
