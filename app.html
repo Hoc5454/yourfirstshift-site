@@ -840,9 +840,11 @@ window.yfsRunFailed=function(e){
 })();
 </script>
 <style id="yfs-tap-css">
-/* overnight: small text links/buttons get a bigger invisible tap area (no layout change) */
-.yfs-using button,.yfs-pdf-cancel a,.paywall-sub a,.paywall-feat a,.cancel-1click a,#freePdfLine a,#rbFreeUsedBanner a,a[onclick*="yfsOpenCheckout"],#uploadZone .upload-sub span[onclick]{position:relative}
-.yfs-using button::after,.yfs-pdf-cancel a::after,.paywall-sub a::after,.paywall-feat a::after,.cancel-1click a::after,#freePdfLine a::after,#rbFreeUsedBanner a::after,a[onclick*="yfsOpenCheckout"]::after,#uploadZone .upload-sub span[onclick]::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
+/* small text links/buttons get a bigger invisible tap area (no layout change). Big buttons (#yfsPdfCta, .paywall-btn) are never padded,
+   and "manage billing" pads downward only so it cannot cover the Restore button above it. */
+.yfs-using button,.yfs-pdf-cancel a,.paywall-sub a,.paywall-feat a,.cancel-1click a,#freePdfLine a,#rbFreeUsedBanner a,#rbPdfErr a,#uploadZone .upload-sub span[onclick]{position:relative}
+.yfs-using button::after,.paywall-sub a::after,.paywall-feat a::after,.cancel-1click a::after,#freePdfLine a::after,#rbFreeUsedBanner a::after,#rbPdfErr a::after,#uploadZone .upload-sub span[onclick]::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
+.yfs-pdf-cancel a::after{content:"";position:absolute;left:-6px;right:-6px;top:-2px;bottom:-10px}
 /* overnight: free X-Ray shows only score + verdict; don't pad it out with ~150px of blank paper */
 .output-box.yfs-paper:not(:has(p,ul,ol,li,table,div,pre,blockquote,h3,h4)){min-height:0}
 </style>
@@ -2604,7 +2606,7 @@ function truthRender(){
   if(!truthLock.flags.length)return;
   const rb=TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder;
   if(truthLock.tool!==activeTool)return;
-  return; // Hunter/Liz: no confirm/remove UI for free or Pro
+  return; // no confirm/remove UI for free or Pro
   const host=rb?document.querySelector('.rb-preview-wrap'):document.getElementById('outputSection');
   if(!host)return;
   const open=tlOpen().length;
@@ -2861,7 +2863,7 @@ alert('Done — your resume and results are deleted from this device. We never s
 <script>
 // ─── Phase 1: Start screen, labeled bottom nav, Plans + Account sheets ───────
 (function(){
-/* Plans: prices locked by Hunter. live=false → shown but not purchasable (needs Worker + Stripe price for that plan). */
+/* Plans: prices are locked. live=false → shown but not purchasable (needs Worker + Stripe price for that plan). */
 window.YFS_PLANS=[
   {id:'pack',name:'Job Hunt Pack',badge:'Best for one job search',price:'$29',per:'one time · 30 days',desc:'Everything unlocked for 30 days. No subscription, nothing to cancel.',live:false,fine:'One-time charge · no subscription'},
   {id:'pro',name:'Pro',badge:'',price:'$9',per:'/ month',desc:'Unlimited runs on all 6 tools. Clean PDF + Word downloads. Save unlimited resumes.',live:true,fine:'Secure checkout with Stripe · Cancel anytime'},
