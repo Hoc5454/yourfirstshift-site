@@ -1599,7 +1599,10 @@ window.yfsPdfPrep=function(c){/* paginate: letter, real margins, full height, no
    1) if only a sliver (under 15% of a page) spills onto the last page, shrink type a little (3% steps, at most 4) until it fits one page fewer;
    2) padding alone can never add a page: the sheet is clamped to the pages its content really needs. */
 window.yfsPdfFit=function(c){const PH=yfsPdfPH(),root=c.parentNode||c;
- const bottom=()=>{const o=root.getBoundingClientRect();let b=0;c.querySelectorAll('*').forEach(e=>{if(e.children.length||e.classList.contains('yfs-pb-sp')||e.classList.contains('yfs-pdf-tail')||!e.textContent.trim())return;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')return;const r=e.getBoundingClientRect();if(r.height>0)b=Math.max(b,r.bottom-o.top);});return b;};
+ const bottom=()=>{const o=root.getBoundingClientRect();let b=0;c.querySelectorAll('*').forEach(e=>{if(e.classList.contains('yfs-pb-sp')||e.classList.contains('yfs-pdf-tail')||!e.textContent.trim())return;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')return;
+  if(!e.children.length){const r=e.getBoundingClientRect();if(r.height>0)b=Math.max(b,r.bottom-o.top);return;}
+  /* a block that mixes its own words with bold/italic parts ("<b>Lead:</b> ran a crew…"): measure the words themselves, line by line */
+  e.childNodes.forEach(n=>{if(n.nodeType!==3||!n.nodeValue.trim())return;const g=document.createRange();g.selectNodeContents(n);const rs=g.getClientRects();for(let i=0;i<rs.length;i++)if(rs[i].height>0)b=Math.max(b,rs[i].bottom-o.top);});});return b;};
  const px=(e,prop,f)=>{const v=parseFloat(e.style.getPropertyValue(prop));if(v)e.style.setProperty(prop,(v*f).toFixed(2)+'px','important');};
  const shrink=f=>{[c].concat([...c.querySelectorAll('*')]).forEach(e=>{if(e.classList.contains('yfs-pb-sp'))return;['font-size','line-height','margin-top','margin-bottom'].forEach(k=>px(e,k,f));});};
  let b=bottom(),pages=Math.max(1,Math.ceil(b/PH)),n=0;
@@ -2358,6 +2361,7 @@ function yfsMd(md){const L=String(md||'').replace(/\r/g,'').split('\n');let h=''
     if(!l){fp();fl();continue;}
     if(/^([-*_]\s*){3,}$/.test(l)){fp();fl();h+='<hr>';continue;}
     if((m=l.match(/^(#{1,6})\s+(.*?)\s*#*$/))){fp();fl();const n=Math.min(3,m[1].length);h+='<h'+n+'>'+yfsInline(m[2])+'</h'+n+'>';continue;}
+    if(window.yfsNoText&&yfsNoText(l))continue; /* never a bullet or line with no text */
     if((m=l.match(/^[-*+•]\s+(.*)$/))){fp();if(list!=='ul'){fl();h+='<ul>';list='ul';}h+='<li>'+yfsInline(m[1])+'</li>';continue;}
     if((m=l.match(/^\d+[.)]\s+(.*)$/))){fp();if(list!=='ol'){fl();h+='<ol>';list='ol';}h+='<li>'+yfsInline(m[1])+'</li>';continue;}
     if((m=l.match(/^>\s?(.*)$/))){fl();para.push(m[1]);continue;}
@@ -2375,22 +2379,28 @@ function yfsHeadLine(r,l){const parts=l.split(/\s*(?:·|•|\||\s[-–—]\s)\s*
    Display-time only: the text saved in the Vault is never changed.
    Removes ONLY patterns an AI or markdown leaves behind, never a person's own wording:
    - horizontal rules (---), empty bullets ("-", "• —", "* **"), empty/label-only table rows, sections left with no content
-   - advice written TO the reader: a line that starts with ⚠/💡/Note:/Tip:/Reminder:/Recommendation: AND speaks to "you/your"
-     ("⚠ Note: if you hold … list them here"). "Note: Available for travel" or "⚠ Hazmat certified" are kept as written.
+   - advice written TO the reader: a line that starts with ⚠/💡/Note:/Tip:/Reminder:/Recommendation:, speaks to "you/your"
+     AND gives an instruction (add, list, include, consider, "here"…): "⚠ Note: if you hold … list them here".
+     "Note: Available for travel", "⚠ Hazmat certified" and "Note: Happy to relocate to your area" are kept as written.
    - bracket prompts ("[Add graduation date]")
    - markdown emphasis marks (**bold**, *italic*). A lone * in plain text ("rated 5* by customers") is kept. */
+/* A line with no letter and no digit ("•", "-", "* **", "• —", a Word symbol bullet, a zero-width space) is never resume content.
+   One rule, used by every renderer and download, so a bullet with no text can never be drawn. A lone "o" is Word's hollow bullet. */
+window.yfsNoText=function(l){l=String(l==null?'':l);return !/[\p{L}\p{N}]/u.test(l)||/^[\s\u00a0\u200b-\u200d\ufeff]*o[\s\u00a0\u200b-\u200d\ufeff]*$/.test(l);};
 function yfsUnMd(x){var had=/\*\*|(^|[\s(])\*[^\s*][^*]*[^\s*]\*(?=$|[\s.,;:)!?])|(^|[\s(])\*[^\s*]\*(?=$|[\s.,;:)!?])/.test(x);
   x=x.replace(/\*\*/g,'').replace(/(^|[\s(])\*([^\s*](?:[^*]*[^\s*])?)\*(?=$|[\s.,;:)!?])/g,'$1$2');
   if(had)x=x.replace(/([.!?:;,)\w])\*+\s*$/,'$1').replace(/^\*+(?=\S)/,''); /* unbalanced leftover from stripped markdown */
   return x;}
 window.yfsCleanResume=function(text){var LABEL=/^(name|phone|phone number|email|e-?mail|title|job title|company|employer|relationship|contact|contact info|reference|references|address|n\/?a|tbd|—|-)?$/i;
-  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i;
+  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i,TODO=/\b(?:add|adding|list|listing|include|including|consider|insert|inserting|mention|mentioning|update|updating|replace|replacing|remove|removing|fill|tailor|tailoring|customi[sz]e|edit|make sure|be sure|double[- ]check|verify|here)\b/i;
   var out=[];String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){var l=raw.replace(/\s+$/,''),t=l.trim();
     if(!t){out.push('');return;}
     if(/^#{1,4}\s/.test(t)){out.push(yfsUnMd(l));return;}
+    if(yfsNoText(t))return;                                                     /* a bullet mark or separator with no words after it */
+    l=l.replace(/^(\s*)[\uf0a7\uf0b7\uf0d8\uf076\u25cb\u25ef\u27a2\u27a4\u25ba\u25b6\u2713\u2714\u25c6\u25c7\u25a0\u25a1\u2756\u2023\u2043\u2219][\s\u00a0]*(?=\S)/,'$1• ');t=l.trim(); /* Word/PDF bullet symbols become a normal bullet */
     if(/^([-*_—–=]\s*){3,}$/.test(t))return;                                   /* --- *** ___ rules */
     if(/^[-*•●▪◦–—·]\s*[—–\-*_·•\s]*$/.test(t)||/^[—–]+$/.test(t))return;        /* empty bullet */
-    var lead=t.match(ADVICE);if(lead&&lead[0].replace(/^[-*•●▪◦–\s*]+/,'')&&TOYOU.test(t.slice(lead[0].length)))return; /* AI advice addressed to the reader */
+    var lead=t.match(ADVICE);if(lead&&lead[0].replace(/^[-*•●▪◦–\s*]+/,'')&&TOYOU.test(t.slice(lead[0].length))&&TODO.test(t.slice(lead[0].length)))return; /* AI advice: speaks to the reader AND tells them to do something */
     if(/^[\[(](?:add|insert|include|list|your|optional)\b[^\])]*[\])]\.?\*?$/i.test(t))return;
     if(/^\|.*\|$/.test(t)||/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(t)){
       if(/^\|?[\s:|\-]+\|?$/.test(t))return;                                   /* table separator */
@@ -2418,8 +2428,9 @@ function yfsSecHtml(title,body){const b=(/SKILL/i.test(String(title))?String(bod
   const cl=()=>{if(ul){h+='</ul>';ul=false;}};
   const isSkills=/SKILL/i.test(title);
   if(isSkills&&!/^\s*[-*•]/m.test(b))return '<div class="rb-sec"><div class="rb-h">'+yfsEsc(title)+'</div><p>'+yfsInline(b.replace(/\n+/g,' · '))+'</p></div>';
-  if(isSkills){return '<div class="rb-sec"><div class="rb-h">'+yfsEsc(title)+'</div><p>'+L.map(x=>x.trim().replace(/^[-*•]\s+/,'')).filter(Boolean).map(yfsInline).join('  ·  ')+'</p></div>';}
+  if(isSkills){return '<div class="rb-sec"><div class="rb-h">'+yfsEsc(title)+'</div><p>'+L.filter(x=>!yfsNoText(x)).map(x=>x.trim().replace(/^[-*•]\s+/,'')).filter(Boolean).map(yfsInline).join('  ·  ')+'</p></div>';}
   for(const raw of L){const l=raw.trim();let m;if(!l||/^([-*_]\s*){3,}$/.test(l)){cl();continue;}
+    if(yfsNoText(l))continue; /* never a bullet or line with no text */
     if((m=l.match(/^[-*+•]\s+(.*)$/))){if(!ul){h+='<ul>';ul=true;}h+='<li>'+yfsInline(m[1])+'</li>';continue;}
     cl();const hl=l.replace(/^#{3,}\s+/,'');
     if(/^###\s/.test(l)||/^\*\*.+\*\*/.test(l)||(/\|/.test(l)&&/EXPERIENCE|EMPLOY|WORK/i.test(title))){const p=hl.split('|').map(x=>x.replace(/\*\*/g,'').trim()).filter(Boolean);
@@ -2814,7 +2825,7 @@ async function yfsDoRestore(ev){
 // ─── Pro export: Word (.docx) + Text (.txt) — client-side, no CDN ───────────
 (function(){
 function pro(){return localStorage.getItem('yfs_pro')==='1';}
-function clean(s){return String(s||'').replace(/\r/g,'').replace(/^```.*$/gm,'').replace(/\*\*|__/g,'').replace(/`/g,'').replace(/^#{1,6}\s+/gm,'').replace(/^\s*[-*+•]\s+/gm,'• ').replace(/\n{3,}/g,'\n\n').trim();}
+function clean(s){return String(s||'').replace(/\r/g,'').split('\n').filter(function(l){return !l.trim()||!(window.yfsNoText&&yfsNoText(l));}).join('\n') /* Word/Text: never a bullet or line with no text */.replace(/^```.*$/gm,'').replace(/\*\*|__/g,'').replace(/`/g,'').replace(/^#{1,6}\s+/gm,'').replace(/^\s*[-*+•]\s+/gm,'• ').replace(/\n{3,}/g,'\n\n').trim();}
 function rbActive(){const pg=document.getElementById('rbPage');return !!(pg&&pg.offsetParent!==null&&typeof TOOLS!=='undefined'&&TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder);}
 function boxText(){const b=document.getElementById('outputBox');return b?(b.dataset.full||b.dataset.md||''):'';}
 function isResumeResult(){if(rbActive())return true;const t=boxText();return typeof yfsResumeLike==='function'&&yfsResumeLike(t);}
@@ -3107,12 +3118,12 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 function jobLine(l){const p=l.split(/\s*\|\s*/).map(x=>x.trim()).filter(Boolean);
   return '<div class="rb-jh"><span><span class="rb-jt">'+esc(p[0]||'')+'</span>'+(p[1]?' <span class="rb-je">· '+esc(p[1])+'</span>':'')+'</span>'+(p[2]?'<span class="rb-jd">'+esc(p.slice(2).join(' · '))+'</span>':'')+'</div>';}
 function fmtLines(v,jobs,noJoin){v=(!noJoin&&window.yfsJoinWraps?yfsJoinWraps(v):v);let h='',ul=false;const close=()=>{if(ul){h+='</ul>';ul=false;}};
-  String(v).split('\n').forEach(raw=>{const l=raw.trim();if(!l){close();return;}const b=l.match(/^[•●▪◦\-*–]\s*(.+)$/);
+  String(v).split('\n').forEach(raw=>{const l=raw.trim();if(!l){close();return;}if(window.yfsNoText&&yfsNoText(l))return; /* a stray bullet mark is never drawn */const b=l.match(/^[•●▪◦\-*–]\s*(.+)$/);
     if(b){if(!ul){h+='<ul>';ul=true;}h+='<li>'+esc(b[1])+'</li>';return;}close();
     if(jobs&&/\|/.test(l))h+=jobLine(l);else h+='<p>'+esc(l.replace(/\s*\|\s*/g,' · '))+'</p>';});close();return h;}
 window.yfsRbFmt=function(f,v){v=String(v||'');if(!v.trim())return null;
   if(f==='experience')return fmtLines(v,true);
-  if(f==='skills'){if(/^\s*[•●\-*]/m.test(v))return fmtLines(v,false,true);return '<p>'+v.split(/\s*[,\n]\s*/).filter(Boolean).map(esc).join(' · ')+'</p>';}
+  if(f==='skills'){if(/^\s*[•●\-*]/m.test(v))return fmtLines(v,false,true);return '<p>'+v.split(/\s*[,\n]\s*/).filter(x=>x&&!(window.yfsNoText&&yfsNoText(x))).map(esc).join(' · ')+'</p>';}
   if(f==='education'||f==='extra')return fmtLines(v,f==='extra'?false:true);
   return null;};
 function apply(){const pg=document.getElementById('rbPage');if(!pg||pg.contains(document.activeElement))return;
@@ -3553,6 +3564,7 @@ var t=document.querySelector('.tabs');if(t){t.addEventListener('scroll',f,{passi
 .yfs-using b{color:#10B981;word-break:break-word;}
 .yfs-using button{background:none;border:0;padding:0;color:#10B981;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;}
 .yfs-using .yu-alt{color:var(--gray,#9ca3af);font-weight:600;}
+.yfs-using .yu-up{min-height:44px;padding:0 14px;border:2px solid #10B981;border-radius:8px;text-decoration:none;}
 .yfs-up-hidden{display:none !important;}
 #yfsProBanner{margin:0 0 12px;padding:14px 16px;border:2px solid #10B981;border-radius:10px;background:#ECFDF5;color:#064E3B;font-size:15px;line-height:1.45;scroll-margin-top:84px;}
 #yfsProBanner .pb-h{font-weight:800;font-size:16px;margin-bottom:2px;}
@@ -3632,7 +3644,7 @@ window.yfsResumeFields=function(raw){
 window.yfsFieldsToMd=function(f){var o=['# '+(f.name||'')];if(f.target)o.push(f.target);
   var c=['location','phone','email','links'].map(function(k){return f[k];}).filter(Boolean);if(c.length)o.push(c.join(' · '));
   var sec=function(h,v,exp){if(!v||!String(v).trim())return;o.push('');o.push('## '+h);
-    String(v).split('\n').forEach(function(l){var t=l.trim();if(!t){o.push('');return;}var b=t.match(/^[•\-*]\s*(.+)$/);if(b){o.push('- '+b[1]);return;}o.push(exp&&/\|/.test(t)?'### '+t:t);});};
+    String(v).split('\n').forEach(function(l){var t=l.trim();if(!t){o.push('');return;}if(window.yfsNoText&&yfsNoText(t))return;var b=t.match(/^[•\-*]\s*(.+)$/);if(b){o.push('- '+b[1]);return;}o.push(exp&&/\|/.test(t)?'### '+t:t);});};
   sec('PROFESSIONAL SUMMARY',f.summary);sec('EXPERIENCE',f.experience,true);sec('SKILLS',f.skills);sec('EDUCATION & TRAINING',f.education);sec('ADDITIONAL',f.extra);
   return o.join('\n').replace(/\n{3,}/g,'\n\n').trim()+'\n';};
 function curFields(){var f={};(typeof RB_FIELDS!=='undefined'?RB_FIELDS:[]).forEach(function(k){f[k]=rbVal(k);});f.summary=typeof rbSummary!=='undefined'?rbSummary:'';return f;}
@@ -3693,11 +3705,13 @@ function handoff(){try{var h=JSON.parse(LS('yfs_handoff')||'null');if(h&&h.resum
 /* ── one resume everywhere: "Using: <name> · switch in Vault" on every tool ── */
 function usingChip(){try{
   var ac=document.getElementById('appContent');if(!ac)return;var old=document.getElementById('yfsUsing');if(old)old.remove();
-  var a=active();var t=TOOLS[activeTool];if(!a||!t||document.querySelector('#appContent .paywall'))return;
+  var a=active();var t=TOOLS[activeTool];if(!t||document.querySelector('#appContent .paywall'))return;
+  if(!a&&t.hasUpload)return; /* the tool's own upload box is showing */
   var d=document.createElement('div');d.id='yfsUsing';d.className='yfs-using';d.setAttribute('role','status');
-  d.innerHTML='<span>📄 Using: <b>'+esc(a.name)+'</b></span><button type="button" data-a="v">switch in Vault</button>'+(t.hasUpload?'<button type="button" class="yu-alt" data-a="u">use a different file</button>':'');
+  d.innerHTML=a?'<span>📄 Using: <b>'+esc(a.name)+'</b></span><button type="button" data-a="v">switch in Vault</button><button type="button" class="yu-alt" data-a="up">upload a new one</button>'
+    :'<span>📄 '+(t.hasBuilder?'Already have a resume? Upload it and we’ll fill this in for you.':'Have a resume? Upload it so this is written from your real experience.')+'</span><button type="button" class="yu-up" data-a="up">⬆ Upload resume</button>';
   d.onclick=function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.a==='v'){openVault();return;}
-    document.querySelectorAll('.yfs-up-hidden').forEach(function(x){x.classList.remove('yfs-up-hidden');});b.remove();};
+    if(b.dataset.a==='up'){try{window.yfsQuickUpload();}catch(_){}}};
   var ex=ac.querySelector('.yfs-ex-row');(ex?ex:ac.firstChild)?ac.insertBefore(d,ex?ex.nextSibling:ac.firstChild):ac.appendChild(d);
   if(t.hasUpload){var uz=document.getElementById('uploadZone');if(uz){uz.classList.add('yfs-up-hidden');var dv=uz.nextElementSibling;if(dv&&dv.classList.contains('divider-or'))dv.classList.add('yfs-up-hidden');}}
   if(activeTool===0){var u=document.getElementById('userInput');if(u&&!u.value.trim()){u.value=a.text;u.dispatchEvent(new Event('input',{bubbles:true}));}}
@@ -3853,9 +3867,9 @@ function domModel(pg){var t=function(sel){var e=pg.querySelector(sel);return e?(
   var secs=[];pg.querySelectorAll('.rb-sec').forEach(function(s){if(s.closest('.ym-lock,.ym-tips'))return;var h=s.querySelector('.rb-h');var head=h?(h.innerText||h.textContent).trim():'';var lines=[];
     Array.prototype.forEach.call(s.children,function(ch){if(ch===h)return;
       (function walk(n){if(n.nodeType!==1)return;if(n.classList.contains('rb-jh')){var jt=n.querySelector('.rb-jt'),je=n.querySelector('.rb-je'),jd=n.querySelector('.rb-jd');lines.push([jt&&jt.textContent.trim(),je&&je.textContent.replace(/^[·\s]+/,'').trim(),jd&&jd.textContent.replace(/\s*·\s*/g,' – ').trim()].filter(Boolean).join(' | '));return;}
-        if(n.tagName==='LI'){lines.push('• '+n.textContent.replace(/\s+/g,' ').trim());return;}
+        if(n.tagName==='LI'){if(!yfsNoText(n.textContent))lines.push('• '+n.textContent.replace(/\s+/g,' ').trim());return;}
         if(n.tagName==='UL'||n.tagName==='OL'||n.tagName==='DIV'&&n.children.length&&!n.classList.contains('rb-fmt-line')){Array.prototype.forEach.call(n.children,walk);if(n.tagName==='DIV'&&!n.children.length&&n.textContent.trim())lines.push(n.textContent.trim());return;}
-        var tx=(n.innerText||n.textContent||'').replace(/[ \t]+/g,' ').trim();if(tx)tx.split(/\n+/).forEach(function(x){x=x.trim();if(x)lines.push(/^[•\-*]\s/.test(x)?'• '+x.replace(/^[•\-*]\s*/,''):x);});})(ch);});
+        var tx=(n.innerText||n.textContent||'').replace(/[ \t]+/g,' ').trim();if(tx)tx.split(/\n+/).forEach(function(x){x=x.trim();if(x&&!yfsNoText(x))lines.push(/^[•\-*]\s/.test(x)?'• '+x.replace(/^[•\-*]\s*/,''):x);});})(ch);});
     if(head&&lines.length)secs.push([head,lines.join('\n')]);});
   return {name:t('.rb-name'),target:t('.rb-target'),contact:t('.rb-contact').replace(/\s*·\s*/g,'  ·  '),secs:secs};}
 
@@ -3929,6 +3943,125 @@ function place(){try{
 if(typeof renderTool==='function'){var _r=renderTool;renderTool=function(){
   var old=document.getElementById('yfsPwMoved');if(old)old.remove();
   var out=_r.apply(this,arguments);place();setTimeout(place,400);return out;};}
+})();
+</script>
+<style id="yfs-layout-css">
+/* layout pass: Edit / Rebuild first, downloads under the result, upload everywhere, one-tap update after a resume switch */
+.yfs-rb-top{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.yfs-rb-top button{min-height:52px;border-radius:10px;border:2px solid #F59E0B;background:#FFFBEB;color:#78350F;font:800 15px/1.2 system-ui,sans-serif;cursor:pointer;padding:6px 10px}
+.yfs-rb-top button.go{background:#F59E0B;color:#111827}
+.yfs-rb-top button[disabled]{opacity:.7;cursor:default}
+.yfs-rb-top-note{grid-column:1/-1;font:600 13px/1.4 system-ui,sans-serif;color:#92400E;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:8px 10px}
+.rb-split.yfs-lay .rb-edit-details>summary{display:none}
+@media(max-width:900px){.rb-split.is-pro.yfs-lay .rb-form{order:-1}.rb-split.is-pro.yfs-lay .rb-preview-wrap{order:0}}
+.yfs-rb-dl{margin:12px 0 4px}
+.yfs-rb-dl-h{font:800 12px/1.3 system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--gray,#64748b);margin:0 0 8px}
+.yfs-rb-dl>span{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px !important}
+.yfs-rb-dl .rb-print-btn{width:100%;min-height:48px}
+.yfs-rb-dl .yfs-rb-restore{display:block;margin:10px auto 0;min-height:44px;background:none;border:0;color:#B45309;font:700 14px/1.3 system-ui,sans-serif;text-decoration:underline;cursor:pointer}
+.yfs-up-status{margin:0 0 12px;padding:10px 12px;border:1px dashed #10B981;border-radius:8px;font:600 14px/1.4 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}
+.yfs-up-status .upload-icon{font-size:20px;margin:0}.yfs-up-status .upload-types{display:none}
+#yfsStaleNote{display:block}
+#yfsStaleNote .yfs-stale-go{display:block;width:100%;min-height:48px;margin:8px 0 4px;border:0;border-radius:10px;background:#F59E0B;color:#111827;font:800 15px/1.2 system-ui,sans-serif;text-decoration:none;cursor:pointer}
+#yfsStaleNote .yfs-stale-hint{display:block;font-weight:700;margin:6px 0 0}
+#yfsStaleNote [data-a=old]{min-height:32px}
+</style>
+<script id="yfs-layout">
+(function(){
+var LS=function(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(_){}return null;};
+function $(id){return document.getElementById(id);}
+function isBuilder(){return !!(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder);}
+function locked(){return !isPro&&usageCount>=FREE_LIMIT;}
+function activeRes(){try{var a=yfsVaultActive();return yfsVaultList().find(function(x){return x.id===a;})||null;}catch(_){return null;}}
+
+/* ── 1. upload a resume from any tool; it is saved to the Vault and becomes the one every tool uses ── */
+window.yfsQuickUpload=function(){var inp=$('yfsQuickFile');
+  if(!inp){inp=document.createElement('input');inp.type='file';inp.id='yfsQuickFile';inp.accept='.pdf,.doc,.docx,.txt,.rtf,.odt,.png,.jpg,.jpeg,.webp,.heic';inp.style.display='none';inp.setAttribute('aria-hidden','true');inp.tabIndex=-1;
+    inp.addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];e.target.value='';if(f)quickStart(f);});document.body.appendChild(inp);}
+  inp.click();};
+/* the little "Reading your resume…" box under the Using bar. While a quick upload is running it owns the id "uploadZone"
+   (that is where the file reader paints progress); the tool's own upload box, if any, is parked as "uploadZoneHold". */
+function mountStatus(){var st=null;try{st=yfsVaultUp;}catch(_){}if(!st||!st.quick)return null;
+  if(st.z&&st.z.isConnected)return st.z;
+  var old=$('yfsUpStatus');if(old)old.remove();
+  var z=document.createElement('div');z.className='yfs-up-status';z.setAttribute('role','status');z.textContent='⏳ Reading your resume… keep this screen open.';
+  var host=$('yfsUsing'),ac=$('appContent');if(host&&host.parentNode)host.parentNode.insertBefore(z,host.nextSibling);else if(ac)ac.insertBefore(z,ac.firstChild);else return null;
+  var real=$('uploadZone');if(real&&real!==z)real.id='uploadZoneHold';z.id='uploadZone';st.z=z;st.tz=real||null;return z;}
+function quickStart(f){try{if(yfsVaultUp)return;}catch(_){}
+  yfsVaultUp={tz:null,z:null,ex:extractedFileText,tool:activeTool,quick:true,name:f.name};
+  if(!mountStatus()){yfsVaultUp=null;return;}
+  try{processFile(f);}catch(_){yfsVaultDone(null,'Could not read that file.');}}
+if(typeof yfsVaultDone==='function'){var _vd=yfsVaultDone;yfsVaultDone=function(text,err){var st=null;try{st=yfsVaultUp;}catch(_){}
+  if(!st||!st.quick)return _vd.apply(this,arguments);
+  yfsVaultUp=null;var z=(st.z&&st.z.isConnected)?st.z:null;if(z)z.id='yfsUpStatus';
+  var held=$('uploadZoneHold');if(held&&!$('uploadZone'))held.id='uploadZone';
+  extractedFileText=(st.tool===activeTool)?st.ex:''; /* the file reader parks its text here; this upload goes to the Vault instead */
+  /* the user may have changed tools while the file was being read: only put back what belongs to the screen they are on now */
+  if(!text){if(z)z.textContent='⚠️ '+(err||'Could not read that file. Try a PDF, a Word file or a clear photo.');return;}
+  var id=null;try{id=yfsAdoptResume(text,st.name,'upload');}catch(_){}
+  if(!id){if(z)z.textContent='⚠️ That file doesn’t look like a resume (it’s very short). Try another file, or paste your resume.';return;}
+  if(z)z.remove();try{syncXray(true);}catch(_){}try{updateRunBtn();}catch(_){}};}
+/* X-Ray shows the resume it will use: keep that box on the active resume after a switch or upload */
+function syncXray(force){if(activeTool!==1)return;var a=activeRes(),rs=$('xrayResume');if(!a||!rs)return;if(force||!rs.value.trim()){rs.value=a.text;rs.dispatchEvent(new Event('input',{bubbles:true}));}}
+if(typeof yfsVaultUse==='function'){var _vu=yfsVaultUse;yfsVaultUse=function(){var r=_vu.apply(this,arguments);try{syncXray(true);}catch(_){}return r;};}
+
+/* ── 2. Build Resume: Edit / Rebuild first; Build button right under the form; downloads under the page ── */
+function hasDraft(){try{return ['name','target','experience','skills'].some(function(k){return rbVal(k).trim();});}catch(_){return false;}}
+function reqOk(){try{return !!(rbVal('name').trim()&&rbVal('target').trim()&&rbVal('experience').trim());}catch(_){return false;}}
+function topNote(m){var b=$('yfsRbTop');if(!b)return;var n=b.querySelector('.yfs-rb-top-note');if(!m){if(n)n.remove();return;}if(!n){n=document.createElement('div');n.className='yfs-rb-top-note';n.setAttribute('role','status');b.appendChild(n);}n.textContent=m;}
+function openForm(focusFirstEmpty){var det=document.querySelector('.rb-edit-details');if(!det)return;det.open=true;var eb=$('yfsRbEdit');if(eb){eb.setAttribute('aria-expanded','true');eb.textContent='✏️ Hide fields';}
+  var el=null;if(focusFirstEmpty)['name','target','experience'].some(function(k){var x=$('b_'+k);if(x&&!x.value.trim()){el=x;return true;}return false;});
+  try{(el||det).scrollIntoView({behavior:'smooth',block:el?'center':'start'});if(el)el.focus({preventScroll:true});}catch(_){}}
+function closeForm(){var det=document.querySelector('.rb-edit-details');if(det)det.open=false;var eb=$('yfsRbEdit');if(eb){eb.setAttribute('aria-expanded','false');eb.textContent='✏️ Edit fields';}}
+function rebuild(){topNote('');if(locked()){try{yfsOpenCheckout();}catch(_){}return;}
+  if(!reqOk()){openForm(true);topNote('Add your name, the job you want and your work experience, then tap Rebuild with AI.');return;}
+  if(window.yfsRunBusy)return;var b=$('yfsRbAi'),label=b?b.textContent:'';
+  try{updateRunBtn();runTool();}catch(_){}
+  if(b){b.disabled=true;b.textContent='Building… keep this open';var n=0,t=setInterval(function(){n++;if(!window.yfsRunBusy||n>300||!document.body.contains(b)){clearInterval(t);b.disabled=false;b.textContent=label;if(!window.yfsRunBusy)closeForm();}},400);}}
+function arrangeBuilder(){var sp=document.querySelector('#appContent .rb-split');if(!sp||sp.classList.contains('yfs-arr'))return;sp.classList.add('yfs-arr');
+  var det=sp.querySelector('.rb-edit-details'),pv=sp.querySelector('.rb-preview-wrap'),run=$('runBtn'),price=$('priceLine');
+  /* Build button + price line live at the end of the form, not under the whole page */
+  if(det&&run){if(price)det.appendChild(price);det.appendChild(run);}
+  /* downloads under the page */
+  var tb=pv&&pv.querySelector('.rb-toolbar'),scale=pv&&pv.querySelector('.rb-scale');var btns=tb&&$('rbDlBtn')?$('rbDlBtn').parentNode:null;
+  if(btns&&scale&&tb.contains(btns)){var dl=document.createElement('div');dl.id='yfsRbDl';dl.className='yfs-rb-dl';var h=document.createElement('div');h.className='yfs-rb-dl-h';h.textContent=isPro?'Download your resume':'Download (clean files are Pro)';var help=tb.nextElementSibling;dl.appendChild(h);dl.appendChild(btns);if(help&&help.tagName==='DIV'&&!help.className&&/Download PDF|PDF/.test(help.textContent)&&help!==scale){help.style.margin='8px 0 0';dl.appendChild(help);}
+    if(isPro){var notes=pv.querySelectorAll('.rb-ai-note');notes.forEach(function(n){if(/Clean PDF is Pro/.test(n.textContent))n.style.display='none';});}
+    if(!isPro){var rl=document.createElement('button');rl.type='button';rl.className='yfs-rb-restore';rl.textContent='Already Pro? Restore it on this device';rl.onclick=function(){try{yfsOpenRestore();}catch(_){}};dl.appendChild(rl);}
+    var after=scale.nextElementSibling&&scale.nextElementSibling.classList.contains('rb-wm-note')?scale.nextElementSibling:scale;after.parentNode.insertBefore(dl,after.nextSibling);}
+  /* with a resume already on the page: fields fold away behind two big buttons at the very top */
+  sp.classList.add('yfs-lay');if(det&&!hasDraft())det.open=true; /* nothing filled in yet: the form is simply open, first */
+  if(det&&hasDraft()){det.open=false;
+    var bar=document.createElement('div');bar.id='yfsRbTop';bar.className='yfs-rb-top';
+    bar.innerHTML='<button type="button" id="yfsRbEdit" aria-expanded="false" aria-controls="yfsRbForm">✏️ Edit fields</button><button type="button" id="yfsRbAi" class="go">'+(locked()?'🔒 Rebuild with AI (Pro)':'✨ Rebuild with AI')+'</button>';
+    det.id='yfsRbForm';sp.parentNode.insertBefore(bar,sp);
+    $('yfsRbEdit').onclick=function(){topNote('');if(det.open)closeForm();else openForm(false);};$('yfsRbAi').onclick=rebuild;}}
+
+/* ── 3. results: Copy / Print / downloads sit right under the result, then the upgrade button and Restore link ── */
+function arrangeOutput(){try{var os=$('outputSection');if(!os)return;var ar=os.querySelector('.action-row'),cta=$('yfsPdfCta');if(!ar||!cta)return;
+  var tease=$('yfsTease');var anchor=(tease&&tease.parentNode===os)?tease.nextSibling:cta;if(ar.nextSibling!==anchor&&ar!==anchor)os.insertBefore(ar,anchor);
+  var fp=$('freePdfLine');if(fp&&fp.parentNode===os&&ar.nextSibling!==fp)os.insertBefore(fp,ar.nextSibling);}catch(_){}}
+
+/* ── 4. after a resume switch: one tap updates this tool for the new resume (one AI run, never automatic) ── */
+function jobBox(){return activeTool===1?$('xrayJd'):(activeTool>=2&&activeTool<=4?$('userInput'):null);}
+function saveJob(){try{var b=jobBox();if(!b||!b.value.trim())return;var m=JSON.parse(LS('yfs_jobtext')||'{}')||{};m[String(activeTool)]=b.value.slice(0,8000);LS('yfs_jobtext',JSON.stringify(m));}catch(_){}}
+function savedJob(){try{return (JSON.parse(LS('yfs_jobtext')||'{}')||{})[String(activeTool)]||'';}catch(_){return '';}}
+if(typeof runTool==='function'){var _run=runTool;runTool=function(){try{saveJob();}catch(_){}return _run.apply(this,arguments);};}
+function upgradeStale(){var d=$('yfsStaleNote');if(!d||d.querySelector('.yfs-stale-go'))return;var a=activeRes(),old=d.querySelector('[data-a=old]');
+  var go=document.createElement('button');go.type='button';go.className='yfs-stale-go';go.dataset.a='go';go.textContent=locked()?'🔒 Unlock Pro to update it':'Update for '+(a?a.name:'this resume')+' →';
+  d.insertBefore(go,old||null);if(old)old.textContent='or view the old one';
+  go.onclick=function(){if(locked()){try{yfsOpenCheckout();}catch(_){}return;}
+    try{syncXray(false);}catch(_){}var jb=jobBox();if(jb&&!jb.value.trim()){var sv=savedJob();if(sv){jb.value=sv;jb.dispatchEvent(new Event('input',{bubbles:true}));}}
+    try{updateRunBtn();}catch(_){}var rb=$('runBtn');
+    if(rb&&rb.classList.contains('ready')&&!rb.classList.contains('yfs-upgrade-cta')&&!window.yfsRunBusy){d.remove();runTool();return;}
+    var hint=d.querySelector('.yfs-stale-hint');if(!hint){hint=document.createElement('span');hint.className='yfs-stale-hint';hint.setAttribute('role','status');d.appendChild(hint);}
+    hint.textContent=jb&&!jb.value.trim()?(activeTool===1?'Paste the job description below, then tap Run.':'Add the job details below, then tap Run.'):'Fill in the box below, then tap Run.';
+    try{(jb||rb).scrollIntoView({behavior:'smooth',block:'center'});if(jb)jb.focus({preventScroll:true});}catch(_){}};}
+
+function arrange(){try{if(isBuilder())arrangeBuilder();}catch(_){}arrangeOutput();try{upgradeStale();}catch(_){}}
+if(typeof renderTool==='function'){var _rt=renderTool;renderTool=function(){var o=$('yfsRbTop');if(o)o.remove();var r=_rt.apply(this,arguments);arrange();try{mountStatus();}catch(_){}return r;};}
+if(typeof showResult==='function'){var _sr=showResult;showResult=function(){var r=_sr.apply(this,arguments);arrangeOutput();return r;};}
+if(typeof yfsVaultUse==='function'){var _vu2=yfsVaultUse;yfsVaultUse=function(){var r=_vu2.apply(this,arguments);try{upgradeStale();}catch(_){}return r;};}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(arrange,0);});else setTimeout(arrange,0);
 })();
 </script>
 </body>

@@ -1,0 +1,2 @@
+# Clocked In lives in the /job/ folder. Both /job and /job/ must open it.
+/job /job/index.html 200

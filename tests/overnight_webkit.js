@@ -32,6 +32,14 @@ const UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605
   ok(n2==='1:true:false','tool without a result: one card, normal spot ('+n2+')');
   const tap=await js("var a=document.querySelector('#appContent .paywall a, #yfsPwMoved a');if(!a)return 'none';a.scrollIntoView({block:'center'});var r=a.getBoundingClientRect(),x=r.left+r.width/2,u=document.elementFromPoint(x,r.top-9);return (u===a||a.contains(u))?'ok':'miss'");
   ok(tap==='ok','small "Cancel anytime" link has a bigger tap area ('+tap+')');
-  const errs=await js("return (window.__yfsErrs||[]).length");
+  // layout pass on WebKit
+  await js('yfsOpenTool(1)');await wait(900);
+  const lo=await js("function y(s){var e=document.querySelector(s);return e&&e.offsetParent?e.getBoundingClientRect().top+scrollY:-1}return {copy:y('#copyBtn'),cta:y('#yfsPdfCta'),rest:y('#yfsRestoreLink')}");
+  ok(lo.copy>0&&lo.copy<lo.cta&&lo.cta<lo.rest,'layout: result buttons → clean-PDF button → Restore link '+JSON.stringify(lo));
+  await js('yfsOpenTool(5)');await wait(900);
+  const lb=await js("function y(s){var e=document.querySelector(s);return e&&e.offsetParent?e.getBoundingClientRect().top+scrollY:-1}return {use:y('#yfsUsing [data-a=up]'),top:y('#yfsRbTop'),page:y('#rbPage'),dl:y('#yfsRbDl'),form:document.querySelector('.rb-edit-details').open}");
+  ok(lb.use>0&&lb.top>lb.use&&lb.page>lb.top&&lb.dl>lb.page&&lb.form===false,'layout: Build Resume = upload → Edit/Rebuild → page → downloads, form folded '+JSON.stringify(lb));
+  await js("document.getElementById('yfsRbEdit').click()");await wait(500);
+  ok(await js("var d=document.querySelector('.rb-edit-details'),n=document.getElementById('b_name');return d.open&&n.getBoundingClientRect().height>20&&n.getBoundingClientRect().top+scrollY<document.getElementById('rbPage').getBoundingClientRect().top+scrollY"),'layout: Edit fields opens the form above the page');
  }catch(e){ok(false,'threw: '+e.message);}
  await d.quit();srv.close();console.log(fails?fails+' FAIL':'ALL PASS');process.exit(fails?1:0);})();

@@ -1,0 +1,23 @@
+[
+  ["/index.html", "text/html; charset=utf-8"],
+  ["/app.html", "text/html; charset=utf-8"],
+  ["/legal.html", "text/html; charset=utf-8"],
+  ["/favicon.ico", "image/x-icon"],
+  ["/favicon-16.png", "image/png"],
+  ["/favicon-32.png", "image/png"],
+  ["/favicon-64.png", "image/png"],
+  ["/apple-touch-icon.png", "image/png"],
+  ["/YFS-logo-1024.png", "image/png"],
+  ["/YFS-icon-512.png", "image/png"],
+  ["/YFS-icon.svg", "image/svg+xml"],
+  ["/org-report.html", "text/html; charset=utf-8"],
+  ["/og-image.jpg", "image/jpeg"],
+  ["/favicon-48.png", "image/png"],
+  ["/favicon-96.png", "image/png"],
+  ["/icon-192.png", "image/png"],
+  ["/icon-512.png", "image/png"],
+  ["/robots.txt", "text/plain; charset=utf-8"],
+  ["/site.webmanifest", "application/manifest+json"],
+  ["/sitemap.xml", "application/xml"],
+  ["/og-image-bfd6ac1d.jpg", "image/jpeg"]
+]

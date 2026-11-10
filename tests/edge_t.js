@@ -90,7 +90,7 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
       yfsVaultDel('v1'); out.afterDel = { n: yfsVaultList().length, act: localStorage.getItem('yfs_vault_active'), res: (localStorage.getItem('yfs_resume') || '').length };
       return out; });
     for (const t of [0, 1, 2, 3, 4, 5]) { await p.evaluate(t => yfsOpenTool(t), t); await p.waitForTimeout(150); }
-    const chip = await p.evaluate(() => !!document.getElementById('yfsUsing'));
+    const chip = await p.evaluate(() => /Using:/.test((document.getElementById('yfsUsing') || {}).innerText || ''));
     ok(r.afterDel.n === 0 && !chip && !st.perr.length, 'E8 deleting the only resume: no "Using" bar left behind, tools still open ' + JSON.stringify(r.afterDel) + ' ' + st.perr.join('|').slice(0, 200));
     await p.evaluate(() => yfsOpenTool(3)); await p.waitForTimeout(200);
     const s = await p.evaluate(() => { try { updateRunBtn(); } catch (_) {} const b = document.getElementById('runBtn'); const up = document.getElementById('uploadZone'); return { dis: b && b.disabled, txt: b && b.textContent.trim(), upVisible: !!(up && up.offsetParent) }; });

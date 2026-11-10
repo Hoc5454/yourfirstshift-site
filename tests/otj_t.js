@@ -95,21 +95,19 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
   await p.click('nav.tabs [data-v=today]');await p.click('[data-a=addpto]');await p.waitForTimeout(200);await p.fill('#ePH','4');await p.click('#eSave');await p.waitForTimeout(200);
   ok(await p.evaluate(()=>OTJ.state().entries.filter(e=>e.kind==='pto').length===2),'5e "PTO day" adds PTO from the clock screen');await c.close();}
  // ── 6. Free: 1 job, 3 codes, split one shift across codes; 2nd job → Pro; data never locked ──
- {const {c,p,errs}=await ctx(seed());await p.click('nav.tabs [data-v=codes]');
-  for(const [n,proj] of [['Tie-in Station 9','P-2210'],['Yard + Staging','P-2210'],['Hydrotest','P-2290']]){await p.click('[data-a=addcode]');await p.fill('#cN',n);await p.fill('#cf_proj',proj);await p.fill('#cf_cost','03 30 00');await p.click('#cS');await p.waitForTimeout(150);}
-  ok(await p.evaluate(()=>OTJ.state().codes.length===3),'6a Free saves 3 codes');await shot(p,'6-code-vault');
-  await p.click('[data-a=addcode]');ok(/Pro feature/.test(await p.textContent('.sheet')),'6b 4th code → Pro');await p.click('[data-close]');
-  await p.click('[data-a=addjob]');ok(/Pro feature/.test(await p.textContent('.sheet')),'6c 2nd job → Pro');await p.click('[data-close]');
+ {const {c,p,errs}=await ctx(seed());
+  const tabs=await p.$$eval('nav.tabs [data-v]',a=>a.map(x=>x.dataset.v+':'+x.textContent.trim()));
+  ok(tabs.length===4&&!tabs.some(t=>/codes/i.test(t))&&tabs.some(t=>/^week:Timesheet$/.test(t)),'6a four tabs (Clock, Timesheet, PTO, More); no Codes tab ['+tabs.join(', ')+']');
+  await p.click('nav.tabs [data-v=more]');await p.click('[data-a=addjob]');ok(/Pro feature/.test(await p.textContent('.sheet')),'6c 2nd job → Pro (Jobs now live under More)');await p.click('[data-close]');
   await p.click('nav.tabs [data-v=today]');await p.click('[data-a=add]');await p.waitForTimeout(200);await p.fill('#eStart','06:00');await p.fill('#eEnd','16:30');await p.fill('#eBrk','30');
-  await p.click('#addSplit');await p.waitForTimeout(100);await p.fill('[data-sh="0"]','4');await p.fill('[data-sh="1"]','6');await p.waitForTimeout(100);
-  ok(/Split total: 10 ✓/.test(await p.textContent('#eCalc')),'6d split UI checks the total (10 = 10 ✓)');await shot(p,'7-split-editor');
+  await p.fill('#eC_job','P-2210 Station 9');await p.fill('#eC_task','WELD');await p.fill('#eC_cost','03 30 00');await p.fill('#eC_pay','REG');await p.fill('#eC_po','4500-18 / 10');await shot(p,'7-entry-codes');
   await p.click('#eSave');await p.waitForTimeout(200);const e=await p.evaluate(()=>OTJ.state().entries.slice(-1)[0]);
-  ok(e.splits.length===2&&e.splits[0].hours===4&&e.splits[1].hours===6,'6e Free: one 10-hr day split 4 + 6 across two codes');
-  const day=await p.evaluate(()=>{const k=OTJ.state().entries.slice(-1)[0].date;return k;});await p.click('nav.tabs [data-v=week]');await p.click('[data-day="'+day+'"]');await p.waitForTimeout(200);
-  const dm=await p.textContent('.sheet');ok(/Tie-in Station 9 4h/.test(dm)&&/Yard \+ Staging 6h/.test(dm),'6f the day shows both codes');await shot(p,'8-day-split-2-codes');await p.click('[data-close]');
+  ok(e.codes&&e.codes.job==='P-2210 Station 9'&&e.codes.task==='WELD'&&e.codes.cost==='03 30 00'&&e.codes.pay==='REG'&&e.codes.po==='4500-18 / 10','6e Free: codes are saved on the entry (no limit, no Pro wall)');
+  await p.click('nav.tabs [data-v=week]');await p.waitForTimeout(200);const sh=await p.textContent('#sheet');
+  ok(/6:00am–4:30pm/.test(sh)&&/10 hrs/.test(sh)&&/P-2210 Station 9/.test(sh)&&/WELD/.test(sh)&&/03 30 00/.test(sh)&&/REG/.test(sh)&&/4500-18 \/ 10/.test(sh),'6f the timesheet row shows in/out, hours and every code without opening the entry');await shot(p,'8-timesheet-codes');
   // CSV always free
   await p.click('nav.tabs [data-v=more]');const csv=await p.evaluate(()=>OTJ.buildCSV({}));const lines=csv.trim().split('\r\n');
-  ok(lines.length===3&&/Tie-in Station 9/.test(lines[1])&&/Yard \+ Staging/.test(lines[2])&&lines[0].startsWith('Date,Day,Job'),'6g CSV export works on Free (one row per code split)');
+  ok(lines.length===2&&lines[0].startsWith('Date,Day,Job')&&/,Job #,Task code,Cost code,Pay code,PO #,/.test(lines[0])&&/,P-2210 Station 9,WELD,03 30 00,REG,4500-18 \/ 10,/.test(lines[1]),'6g CSV export works on Free (one row per entry, codes in their own columns)');
   const [dlp]=await Promise.all([p.waitForEvent('download',{timeout:5000}).catch(()=>null),(async()=>{await p.click('[data-a=csv]');await p.click('#xGo');})()]);
   ok(DEV==='desktop'?!!dlp:true,'6h CSV download fires (desktop; phones use the share sheet)');if(dlp)ok(/^yfs-clocked-in-\d{4}-\d\d-\d\d\.csv$/.test(dlp.suggestedFilename()),'6i CSV file is named yfs-clocked-in-<date>.csv ('+dlp.suggestedFilename()+')');await shot(p,'9-more-export');
   ok(!errs.length,'6 no page errors '+errs.join('|'));await c.close();}

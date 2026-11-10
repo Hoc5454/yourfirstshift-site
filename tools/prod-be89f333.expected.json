@@ -1,0 +1,92 @@
+{
+ "bundle": {
+  "sha256": "1a7d3063781c3cb6fec4055246bfe24cabb0392d844960d964e86e3ac59deba3",
+  "bytes": 1009929
+ },
+ "files": {
+  "/index.html": [
+   "2e05337d53e144b724ead36e9b7cc5e04841d2a33adbb3948a6b7edb084e8ce7",
+   25781
+  ],
+  "/app.html": [
+   "e2e45db687ce6032ffb8f1ef0161029339d1ca0d7ea1d8a3aa7d76b3bd6d2db7",
+   348584
+  ],
+  "/legal.html": [
+   "2afacf2e4846a817c51329de502e4d08df4e79092f7679b254dd1ffb7f531e87",
+   41929
+  ],
+  "/favicon.ico": [
+   "2c7bbfc0d19e2e0ab3cd2152a9302c6f6fe9cd5b2fb7cf552151df7eb0a04d0f",
+   6633
+  ],
+  "/favicon-16.png": [
+   "fefb39288c4346cca99e5de20d2305ddcdc88234d8dff928ba3d2fdec821feb8",
+   817
+  ],
+  "/favicon-32.png": [
+   "c63b362129902bc7c20b90b12cd807161ba7af93093226b6d1daef232aaf0e23",
+   2183
+  ],
+  "/favicon-64.png": [
+   "a902e3799f21ae31dfb1c9adf06144ab09af35728e65eb40a06e197998edcb61",
+   450
+  ],
+  "/apple-touch-icon.png": [
+   "9e9fb55207935bdde521f933920e5c0ee7a799fe93ac01f2138e01e15eb82105",
+   10978
+  ],
+  "/YFS-logo-1024.png": [
+   "3171aaddfee67a8e44b263af02a37999f4c35faf87c1ad7012015f466ff482a7",
+   34225
+  ],
+  "/YFS-icon-512.png": [
+   "38976475cac2c7eb0385934765eb73d8783d7377f06114f000aab6bfd7a1382b",
+   7357
+  ],
+  "/YFS-icon.svg": [
+   "290ceb302f7b0335320fd177086cc4a18b8c603bee69f98b2fc139774e4abb18",
+   888
+  ],
+  "/org-report.html": [
+   "59a5f8712347a5e0e80569a2bdc94571550811652d02d44f76bf4cf91a178b81",
+   7364
+  ],
+  "/og-image.jpg": [
+   "bfd6ac1d3c01047a333194078af7aff7510bb5e758c9bc98a59b78afe8a57620",
+   98217
+  ],
+  "/favicon-48.png": [
+   "f3a47e6ce629945ee8860f89e0f013b4a56e3a52ce2766163d85d90fa912f9ec",
+   3579
+  ],
+  "/favicon-96.png": [
+   "33fc202a71639e43f8552775334420453620b65d421aabcdf210f828ff9a03a5",
+   7894
+  ],
+  "/icon-192.png": [
+   "7328406e497976ff4d79c858ad597d43f96e25ebbc6e689687d3cbc5c17d14e5",
+   17891
+  ],
+  "/icon-512.png": [
+   "ac54e11eb0e574b4082593ba802a06bff1953f72d6db89e5caf8af9ace6e4e02",
+   42414
+  ],
+  "/robots.txt": [
+   "4e7370ed50d2c66dd47f73aebba47a0835370358016ec7ff18cf73147165efae",
+   79
+  ],
+  "/site.webmanifest": [
+   "4226f4d5cea8be6ff8306c5b90da2d5e1abf5924be731aedc3b6249114ca8313",
+   313
+  ],
+  "/sitemap.xml": [
+   "2612d1e8ef4d6daeb00e1d73405569b3b13c8f72f77d9dddc9548d81d79497c9",
+   586
+  ],
+  "/og-image-bfd6ac1d.jpg": [
+   "bfd6ac1d3c01047a333194078af7aff7510bb5e758c9bc98a59b78afe8a57620",
+   98217
+  ]
+ }
+}
