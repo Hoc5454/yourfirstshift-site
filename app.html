@@ -3532,6 +3532,7 @@ var t=document.querySelector('.tabs');if(t){t.addEventListener('scroll',f,{passi
 .yfs-using b{color:#10B981;word-break:break-word;}
 .yfs-using button{background:none;border:0;padding:0;color:#10B981;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;}
 .yfs-using .yu-alt{color:var(--gray,#9ca3af);font-weight:600;}
+.yfs-using .yu-up{min-height:44px;padding:0 14px;border:2px solid #10B981;border-radius:8px;text-decoration:none;}
 .yfs-up-hidden{display:none !important;}
 #yfsProBanner{margin:0 0 12px;padding:14px 16px;border:2px solid #10B981;border-radius:10px;background:#ECFDF5;color:#064E3B;font-size:15px;line-height:1.45;scroll-margin-top:84px;}
 #yfsProBanner .pb-h{font-weight:800;font-size:16px;margin-bottom:2px;}
@@ -3672,11 +3673,13 @@ function handoff(){try{var h=JSON.parse(LS('yfs_handoff')||'null');if(h&&h.resum
 /* ── one resume everywhere: "Using: <name> · switch in Vault" on every tool ── */
 function usingChip(){try{
   var ac=document.getElementById('appContent');if(!ac)return;var old=document.getElementById('yfsUsing');if(old)old.remove();
-  var a=active();var t=TOOLS[activeTool];if(!a||!t||document.querySelector('#appContent .paywall'))return;
+  var a=active();var t=TOOLS[activeTool];if(!t||document.querySelector('#appContent .paywall'))return;
+  if(!a&&t.hasUpload)return; /* the tool's own upload box is showing */
   var d=document.createElement('div');d.id='yfsUsing';d.className='yfs-using';d.setAttribute('role','status');
-  d.innerHTML='<span>📄 Using: <b>'+esc(a.name)+'</b></span><button type="button" data-a="v">switch in Vault</button>'+(t.hasUpload?'<button type="button" class="yu-alt" data-a="u">use a different file</button>':'');
+  d.innerHTML=a?'<span>📄 Using: <b>'+esc(a.name)+'</b></span><button type="button" data-a="v">switch in Vault</button><button type="button" class="yu-alt" data-a="up">upload a new one</button>'
+    :'<span>📄 '+(t.hasBuilder?'Already have a resume? Upload it and we’ll fill this in for you.':'Have a resume? Upload it so this is written from your real experience.')+'</span><button type="button" class="yu-up" data-a="up">⬆ Upload resume</button>';
   d.onclick=function(e){var b=e.target.closest('button');if(!b)return;if(b.dataset.a==='v'){openVault();return;}
-    document.querySelectorAll('.yfs-up-hidden').forEach(function(x){x.classList.remove('yfs-up-hidden');});b.remove();};
+    if(b.dataset.a==='up'){try{window.yfsQuickUpload();}catch(_){}}};
   var ex=ac.querySelector('.yfs-ex-row');(ex?ex:ac.firstChild)?ac.insertBefore(d,ex?ex.nextSibling:ac.firstChild):ac.appendChild(d);
   if(t.hasUpload){var uz=document.getElementById('uploadZone');if(uz){uz.classList.add('yfs-up-hidden');var dv=uz.nextElementSibling;if(dv&&dv.classList.contains('divider-or'))dv.classList.add('yfs-up-hidden');}}
   if(activeTool===0){var u=document.getElementById('userInput');if(u&&!u.value.trim()){u.value=a.text;u.dispatchEvent(new Event('input',{bubbles:true}));}}
@@ -3908,6 +3911,117 @@ function place(){try{
 if(typeof renderTool==='function'){var _r=renderTool;renderTool=function(){
   var old=document.getElementById('yfsPwMoved');if(old)old.remove();
   var out=_r.apply(this,arguments);place();setTimeout(place,400);return out;};}
+})();
+</script>
+<style id="yfs-layout-css">
+/* layout pass: Edit / Rebuild first, downloads under the result, upload everywhere, one-tap update after a resume switch */
+.yfs-rb-top{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.yfs-rb-top button{min-height:52px;border-radius:10px;border:2px solid #F59E0B;background:#FFFBEB;color:#78350F;font:800 15px/1.2 system-ui,sans-serif;cursor:pointer;padding:6px 10px}
+.yfs-rb-top button.go{background:#F59E0B;color:#111827}
+.yfs-rb-top button[disabled]{opacity:.7;cursor:default}
+.yfs-rb-top-note{grid-column:1/-1;font:600 13px/1.4 system-ui,sans-serif;color:#92400E;background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;padding:8px 10px}
+.rb-split.yfs-lay .rb-edit-details>summary{display:none}
+@media(max-width:900px){.rb-split.is-pro.yfs-lay .rb-form{order:-1}.rb-split.is-pro.yfs-lay .rb-preview-wrap{order:0}}
+.yfs-rb-dl{margin:12px 0 4px}
+.yfs-rb-dl-h{font:800 12px/1.3 system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--gray,#64748b);margin:0 0 8px}
+.yfs-rb-dl>span{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px !important}
+.yfs-rb-dl .rb-print-btn{width:100%;min-height:48px}
+.yfs-rb-dl .yfs-rb-restore{display:block;margin:10px auto 0;min-height:44px;background:none;border:0;color:#B45309;font:700 14px/1.3 system-ui,sans-serif;text-decoration:underline;cursor:pointer}
+.yfs-up-status{margin:0 0 12px;padding:10px 12px;border:1px dashed #10B981;border-radius:8px;font:600 14px/1.4 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}
+.yfs-up-status .upload-icon{font-size:20px;margin:0}.yfs-up-status .upload-types{display:none}
+#yfsStaleNote{display:block}
+#yfsStaleNote .yfs-stale-go{display:block;width:100%;min-height:48px;margin:8px 0 4px;border:0;border-radius:10px;background:#F59E0B;color:#111827;font:800 15px/1.2 system-ui,sans-serif;text-decoration:none;cursor:pointer}
+#yfsStaleNote .yfs-stale-hint{display:block;font-weight:700;margin:6px 0 0}
+#yfsStaleNote [data-a=old]{min-height:32px}
+</style>
+<script id="yfs-layout">
+(function(){
+var LS=function(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(_){}return null;};
+function $(id){return document.getElementById(id);}
+function isBuilder(){return !!(TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder);}
+function locked(){return !isPro&&usageCount>=FREE_LIMIT;}
+function activeRes(){try{var a=yfsVaultActive();return yfsVaultList().find(function(x){return x.id===a;})||null;}catch(_){return null;}}
+
+/* ── 1. upload a resume from any tool; it is saved to the Vault and becomes the one every tool uses ── */
+window.yfsQuickUpload=function(){var inp=$('yfsQuickFile');
+  if(!inp){inp=document.createElement('input');inp.type='file';inp.id='yfsQuickFile';inp.accept='.pdf,.doc,.docx,.txt,.rtf,.odt,.png,.jpg,.jpeg,.webp,.heic';inp.style.display='none';inp.setAttribute('aria-hidden','true');inp.tabIndex=-1;
+    inp.addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];e.target.value='';if(f)quickStart(f);});document.body.appendChild(inp);}
+  inp.click();};
+function quickStart(f){try{if(yfsVaultUp)return;}catch(_){}
+  var old=$('yfsUpStatus');if(old)old.remove();
+  var z=document.createElement('div');z.className='yfs-up-status';z.setAttribute('role','status');
+  var host=$('yfsUsing'),ac=$('appContent');if(host&&host.parentNode)host.parentNode.insertBefore(z,host.nextSibling);else if(ac)ac.insertBefore(z,ac.firstChild);else return;
+  var real=$('uploadZone');if(real)real.id='uploadZoneHold';z.id='uploadZone';
+  yfsVaultUp={tz:real,ex:extractedFileText,quick:true,name:f.name};
+  try{processFile(f);}catch(_){yfsVaultDone(null,'Could not read that file.');}}
+if(typeof yfsVaultDone==='function'){var _vd=yfsVaultDone;yfsVaultDone=function(text,err){var st=null;try{st=yfsVaultUp;}catch(_){}
+  if(!st||!st.quick)return _vd.apply(this,arguments);
+  yfsVaultUp=null;var z=$('uploadZone');if(z)z.id='yfsUpStatus';if(st.tz)st.tz.id='uploadZone';extractedFileText=st.ex;
+  if(!text){if(z)z.textContent='⚠️ '+(err||'Could not read that file. Try a PDF, a Word file or a clear photo.');return;}
+  var id=null;try{id=yfsAdoptResume(text,st.name,'upload');}catch(_){}
+  if(!id){if(z)z.textContent='⚠️ That file doesn’t look like a resume (it’s very short). Try another file, or paste your resume.';return;}
+  if(z)z.remove();try{syncXray(true);}catch(_){}try{updateRunBtn();}catch(_){}};}
+/* X-Ray shows the resume it will use: keep that box on the active resume after a switch or upload */
+function syncXray(force){if(activeTool!==1)return;var a=activeRes(),rs=$('xrayResume');if(!a||!rs)return;if(force||!rs.value.trim()){rs.value=a.text;rs.dispatchEvent(new Event('input',{bubbles:true}));}}
+if(typeof yfsVaultUse==='function'){var _vu=yfsVaultUse;yfsVaultUse=function(){var r=_vu.apply(this,arguments);try{syncXray(true);}catch(_){}return r;};}
+
+/* ── 2. Build Resume: Edit / Rebuild first; Build button right under the form; downloads under the page ── */
+function hasDraft(){try{return ['name','target','experience','skills'].some(function(k){return rbVal(k).trim();});}catch(_){return false;}}
+function reqOk(){try{return !!(rbVal('name').trim()&&rbVal('target').trim()&&rbVal('experience').trim());}catch(_){return false;}}
+function topNote(m){var b=$('yfsRbTop');if(!b)return;var n=b.querySelector('.yfs-rb-top-note');if(!m){if(n)n.remove();return;}if(!n){n=document.createElement('div');n.className='yfs-rb-top-note';n.setAttribute('role','status');b.appendChild(n);}n.textContent=m;}
+function openForm(focusFirstEmpty){var det=document.querySelector('.rb-edit-details');if(!det)return;det.open=true;var eb=$('yfsRbEdit');if(eb){eb.setAttribute('aria-expanded','true');eb.textContent='✏️ Hide fields';}
+  var el=null;if(focusFirstEmpty)['name','target','experience'].some(function(k){var x=$('b_'+k);if(x&&!x.value.trim()){el=x;return true;}return false;});
+  try{(el||det).scrollIntoView({behavior:'smooth',block:el?'center':'start'});if(el)el.focus({preventScroll:true});}catch(_){}}
+function closeForm(){var det=document.querySelector('.rb-edit-details');if(det)det.open=false;var eb=$('yfsRbEdit');if(eb){eb.setAttribute('aria-expanded','false');eb.textContent='✏️ Edit fields';}}
+function rebuild(){topNote('');if(locked()){try{yfsOpenCheckout();}catch(_){}return;}
+  if(!reqOk()){openForm(true);topNote('Add your name, the job you want and your work experience, then tap Rebuild with AI.');return;}
+  if(window.yfsRunBusy)return;var b=$('yfsRbAi'),label=b?b.textContent:'';
+  try{updateRunBtn();runTool();}catch(_){}
+  if(b){b.disabled=true;b.textContent='Building… keep this open';var n=0,t=setInterval(function(){n++;if(!window.yfsRunBusy||n>300||!document.body.contains(b)){clearInterval(t);b.disabled=false;b.textContent=label;if(!window.yfsRunBusy)closeForm();}},400);}}
+function arrangeBuilder(){var sp=document.querySelector('#appContent .rb-split');if(!sp||sp.classList.contains('yfs-arr'))return;sp.classList.add('yfs-arr');
+  var det=sp.querySelector('.rb-edit-details'),pv=sp.querySelector('.rb-preview-wrap'),run=$('runBtn'),price=$('priceLine');
+  /* Build button + price line live at the end of the form, not under the whole page */
+  if(det&&run){if(price)det.appendChild(price);det.appendChild(run);}
+  /* downloads under the page */
+  var tb=pv&&pv.querySelector('.rb-toolbar'),scale=pv&&pv.querySelector('.rb-scale');var btns=tb&&$('rbDlBtn')?$('rbDlBtn').parentNode:null;
+  if(btns&&scale&&tb.contains(btns)){var dl=document.createElement('div');dl.id='yfsRbDl';dl.className='yfs-rb-dl';var h=document.createElement('div');h.className='yfs-rb-dl-h';h.textContent=isPro?'Download your resume':'Download (clean files are Pro)';var help=tb.nextElementSibling;dl.appendChild(h);dl.appendChild(btns);if(help&&help.tagName==='DIV'&&!help.className&&/Download PDF|PDF/.test(help.textContent)&&help!==scale){help.style.margin='8px 0 0';dl.appendChild(help);}
+    if(isPro){var notes=pv.querySelectorAll('.rb-ai-note');notes.forEach(function(n){if(/Clean PDF is Pro/.test(n.textContent))n.style.display='none';});}
+    if(!isPro){var rl=document.createElement('button');rl.type='button';rl.className='yfs-rb-restore';rl.textContent='Already Pro? Restore it on this device';rl.onclick=function(){try{yfsOpenRestore();}catch(_){}};dl.appendChild(rl);}
+    var after=scale.nextElementSibling&&scale.nextElementSibling.classList.contains('rb-wm-note')?scale.nextElementSibling:scale;after.parentNode.insertBefore(dl,after.nextSibling);}
+  /* with a resume already on the page: fields fold away behind two big buttons at the very top */
+  sp.classList.add('yfs-lay');if(det&&!hasDraft())det.open=true; /* nothing filled in yet: the form is simply open, first */
+  if(det&&hasDraft()){det.open=false;
+    var bar=document.createElement('div');bar.id='yfsRbTop';bar.className='yfs-rb-top';
+    bar.innerHTML='<button type="button" id="yfsRbEdit" aria-expanded="false" aria-controls="yfsRbForm">✏️ Edit fields</button><button type="button" id="yfsRbAi" class="go">'+(locked()?'🔒 Rebuild with AI (Pro)':'✨ Rebuild with AI')+'</button>';
+    det.id='yfsRbForm';sp.parentNode.insertBefore(bar,sp);
+    $('yfsRbEdit').onclick=function(){topNote('');if(det.open)closeForm();else openForm(false);};$('yfsRbAi').onclick=rebuild;}}
+
+/* ── 3. results: Copy / Print / downloads sit right under the result, then the upgrade button and Restore link ── */
+function arrangeOutput(){try{var os=$('outputSection');if(!os)return;var ar=os.querySelector('.action-row'),cta=$('yfsPdfCta');if(!ar||!cta)return;
+  var tease=$('yfsTease');var anchor=(tease&&tease.parentNode===os)?tease.nextSibling:cta;if(ar.nextSibling!==anchor&&ar!==anchor)os.insertBefore(ar,anchor);
+  var fp=$('freePdfLine');if(fp&&fp.parentNode===os&&ar.nextSibling!==fp)os.insertBefore(fp,ar.nextSibling);}catch(_){}}
+
+/* ── 4. after a resume switch: one tap updates this tool for the new resume (one AI run, never automatic) ── */
+function jobBox(){return activeTool===1?$('xrayJd'):(activeTool>=2&&activeTool<=4?$('userInput'):null);}
+function saveJob(){try{var b=jobBox();if(!b||!b.value.trim())return;var m=JSON.parse(LS('yfs_jobtext')||'{}')||{};m[String(activeTool)]=b.value.slice(0,8000);LS('yfs_jobtext',JSON.stringify(m));}catch(_){}}
+function savedJob(){try{return (JSON.parse(LS('yfs_jobtext')||'{}')||{})[String(activeTool)]||'';}catch(_){return '';}}
+if(typeof runTool==='function'){var _run=runTool;runTool=function(){try{saveJob();}catch(_){}return _run.apply(this,arguments);};}
+function upgradeStale(){var d=$('yfsStaleNote');if(!d||d.querySelector('.yfs-stale-go'))return;var a=activeRes(),old=d.querySelector('[data-a=old]');
+  var go=document.createElement('button');go.type='button';go.className='yfs-stale-go';go.dataset.a='go';go.textContent=locked()?'🔒 Unlock Pro to update it':'Update for '+(a?a.name:'this resume')+' →';
+  d.insertBefore(go,old||null);if(old)old.textContent='or view the old one';
+  go.onclick=function(){if(locked()){try{yfsOpenCheckout();}catch(_){}return;}
+    try{syncXray(false);}catch(_){}var jb=jobBox();if(jb&&!jb.value.trim()){var sv=savedJob();if(sv){jb.value=sv;jb.dispatchEvent(new Event('input',{bubbles:true}));}}
+    try{updateRunBtn();}catch(_){}var rb=$('runBtn');
+    if(rb&&rb.classList.contains('ready')&&!rb.classList.contains('yfs-upgrade-cta')&&!window.yfsRunBusy){d.remove();runTool();return;}
+    var hint=d.querySelector('.yfs-stale-hint');if(!hint){hint=document.createElement('span');hint.className='yfs-stale-hint';hint.setAttribute('role','status');d.appendChild(hint);}
+    hint.textContent=jb&&!jb.value.trim()?(activeTool===1?'Paste the job description below, then tap Run.':'Add the job details below, then tap Run.'):'Fill in the box below, then tap Run.';
+    try{(jb||rb).scrollIntoView({behavior:'smooth',block:'center'});if(jb)jb.focus({preventScroll:true});}catch(_){}};}
+
+function arrange(){try{if(isBuilder())arrangeBuilder();}catch(_){}arrangeOutput();try{upgradeStale();}catch(_){}}
+if(typeof renderTool==='function'){var _rt=renderTool;renderTool=function(){var o=$('yfsRbTop');if(o)o.remove();var r=_rt.apply(this,arguments);arrange();return r;};}
+if(typeof showResult==='function'){var _sr=showResult;showResult=function(){var r=_sr.apply(this,arguments);arrangeOutput();return r;};}
+if(typeof yfsVaultUse==='function'){var _vu2=yfsVaultUse;yfsVaultUse=function(){var r=_vu2.apply(this,arguments);try{upgradeStale();}catch(_){}return r;};}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(arrange,0);});else setTimeout(arrange,0);
 })();
 </script>
 </body>

@@ -64,6 +64,7 @@ function bad(k, m) { fails++; issues.push(k + ' ' + m); console.log('FAIL', k, m
         ['xrayJd', 'userInput'].forEach(id => { const e = document.getElementById(id); if (e) e.dispatchEvent(new Event('input', { bubbles: true })); });
         try { updateRunBtn(); } catch (_) {}
         const btn = document.getElementById('runBtn');
+        const ai = document.getElementById('yfsRbAi'); if (ai && ai.offsetParent && !/Pro\)/.test(ai.textContent)) { ai.click(); return 'ran'; }
         if (!btn || !btn.offsetParent) return 'no-run-btn';
         if (btn.disabled) return 'disabled:' + btn.textContent.trim().slice(0, 40);
         try { runTool(); return 'ran'; } catch (e) { return 'threw:' + e.message; }
