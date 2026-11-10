@@ -22,7 +22,7 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
 (async()=>{await new Promise(r=>srv.listen(PORT,r));const b=await chromium.launch();
  async function ctx(state,opt={}){const c=await b.newContext({...DEVS[DEV],deviceScaleFactor:2,serviceWorkers:'allow'});
   if(state!==undefined)await c.addInitScript(([k,v,pro])=>{if(!sessionStorage.getItem('seeded')){sessionStorage.setItem('seeded','1');if(v)localStorage.setItem(k,v);else localStorage.removeItem(k);if(pro)localStorage.setItem('yfs_pro','1');}},['yfs_otj_v1',state?JSON.stringify(state):'',!!opt.pro]);
-  const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());await p.goto(O+'/job/');await p.waitForTimeout(700);return {c,p,errs};}
+  const p=await c.newPage();/* pin the page clock to noon today so 'clocked in 8.5h ago' is always today (test used to fail before 8:30am) */await p.clock.install({time:new Date(new Date().setHours(12,0,0,0))});await p.clock.resume();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.accept());await p.goto(O+'/job/');await p.waitForTimeout(700);return {c,p,errs};}
  const shot=async(p,n)=>{if(SHOTS){await p.evaluate(()=>document.querySelectorAll('.toast').forEach(t=>t.remove()));await p.screenshot({path:path.join(SHOTS,'otj-'+DEV+'-'+n+'.png')});}};
  // ── 1. first run: setup in 30 seconds + iPhone Add to Home Screen prompt ──
  {const c=await b.newContext({...DEVS[DEV],deviceScaleFactor:2});const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));await p.goto(O+'/job/');await p.waitForTimeout(600);
