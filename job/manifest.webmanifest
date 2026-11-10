@@ -1,6 +1,6 @@
 {
-  "name": "YourFirstShift — On the Job",
-  "short_name": "On the Job",
+  "name": "YourFirstShift — Clocked In",
+  "short_name": "Clocked In",
   "description": "Your hours, your paycheck estimate, your PTO, your codes. Your record, on your phone.",
   "id": "/job/",
   "start_url": "/job/?src=homescreen",

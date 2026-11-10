@@ -30,7 +30,7 @@ const BAD=/NaN|undefined|\[object|Infinity|Invalid Date/;
  // A. the 12 damaged sets, as backup files
  for(const [name,data] of Object.entries(CASES)){const r=await tryRestore(name,bk(data));const isBackup=data&&Array.isArray(data.entries);
   const clean=!r.errs.length&&!r.dlg.some(d=>BAD.test(d))&&!BAD.test(r.mid.body)&&!BAD.test(r.after.body);
-  if(!isBackup)ok(clean&&r.kept&&r.clocked&&r.dlg.some(d=>/isn't an On the Job backup/.test(d)),`A [${name}] not a usable backup → refused, the 3 records are untouched, clock-in works ${r.errs.join('|').slice(0,150)}`);
+  if(!isBackup)ok(clean&&r.kept&&r.clocked&&r.dlg.some(d=>/isn't a Clocked In backup/.test(d)),`A [${name}] not a usable backup → refused, the 3 records are untouched, clock-in works ${r.errs.join('|').slice(0,150)}`);
   else ok(clean&&r.clocked&&r.dlg.some(d=>/^confirm/.test(d))&&r.end.n===r.end.saved&&JSON.parse(r.mid.prev||'{}').entries.length===3,`A [${name}] restores cleanly: no error, no NaN/Invalid Date, safety copy of the 3 old records kept, clock-in works (now ${r.end.n} entries) ${r.why} ${BAD.test(r.mid.body)?'mid:'+(r.mid.body.match(/.{0,30}(NaN|undefined|Infinity|Invalid Date).{0,15}/)||[''])[0]:''} ${BAD.test(r.after.body)?'after:'+(r.after.body.match(/.{0,30}(NaN|undefined|Infinity|Invalid Date).{0,15}/)||[''])[0]:''} ${r.errs.join('|').slice(0,150)} ${r.dlg.filter(d=>BAD.test(d)).join('|').slice(0,120)}`);}
 
  // B. missing / bad "exported" date
@@ -40,7 +40,7 @@ const BAD=/NaN|undefined|\[object|Infinity|Invalid Date/;
 
  // C. files that are not backups
  for(const [label,txt] of [['other JSON','{"a":1}'],['a list','[]'],['null','null'],['not JSON','hello there'],['empty file',''],['wrong app',JSON.stringify({app:'something-else',data:{entries:[]}})],['data is a list',JSON.stringify({app:'yfs-on-the-job',data:[]})],['entries not a list',JSON.stringify({app:'yfs-on-the-job',data:{entries:'x'}})],['data null',JSON.stringify({app:'yfs-on-the-job',data:null})]]){
-  const r=await tryRestore(label,txt);ok(!r.errs.length&&r.kept&&r.clocked&&r.mid.prev===null&&r.dlg.length===1&&/isn't an On the Job backup/.test(r.dlg[0]),`C ${label}: refused with a clear message, records untouched, no safety copy written, clock-in works ${r.errs.join('|').slice(0,120)} ${JSON.stringify(r.dlg).slice(0,80)}`);}
+  const r=await tryRestore(label,txt);ok(!r.errs.length&&r.kept&&r.clocked&&r.mid.prev===null&&r.dlg.length===1&&/isn't a Clocked In backup/.test(r.dlg[0]),`C ${label}: refused with a clear message, records untouched, no safety copy written, clock-in works ${r.errs.join('|').slice(0,120)} ${JSON.stringify(r.dlg).slice(0,80)}`);}
 
  // D. worker says No at the confirm
  {const r=await tryRestore('cancel',bk(base({entries:[W({id:'n1'})]})),{accept:false});ok(!r.errs.length&&r.kept&&r.mid.prev===null,'D tapping Cancel on the confirm leaves the 3 records untouched');}

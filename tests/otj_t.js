@@ -145,7 +145,7 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
  // ── 10. resume app: new tab, nothing else ──
  {const c=await b.newContext({...DEVS[DEV]});await c.route(/workers\.dev/,r=>r.fulfill({body:'{}',contentType:'application/json'}));await c.route(/fonts\.g|cdnjs|jsdelivr|unpkg/,r=>r.fulfill({body:'',contentType:'text/plain'}));const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
   await p.goto(O+'/app.html');await p.waitForTimeout(1200);const n=await p.evaluate(()=>{const a=document.getElementById('ybnJob');const r=a.getBoundingClientRect();return {href:a.getAttribute('href'),w:r.width,txt:a.innerText.trim(),cols:getComputedStyle(document.getElementById('yfsBottomNav')).gridTemplateColumns.split(' ').length};});
-  ok(n.href==='/job/'&&n.txt==='On the Job'&&n.cols===5&&n.w>50,'10a resume app bottom nav has the new "On the Job" tab '+JSON.stringify(n));
+  ok(n.href==='/job/'&&n.txt==='Clocked In'&&n.cols===5&&n.w>50,'10a resume app bottom nav has the "Clocked In" tab '+JSON.stringify(n));
   const p2=await c.newPage();await p2.goto(O+'/job/');await p2.goto(O+'/app.html#plans');await p2.waitForTimeout(2500);ok(await p2.evaluate(()=>document.getElementById('yfsPlans').classList.contains('open')),'10b "See Pro plans" opens the plans sheet');
   ok(!errs.filter(e=>!/Unexpected token/.test(e)).length,'10 no page errors '+errs.join('|'));await c.close();}
  await b.close();srv.close();console.log(fails?fails+' FAILED':'ALL PASS');process.exit(fails?1:0);})();
