@@ -33,6 +33,9 @@ const BLOCKED=new Set([
 '65b58547c7da39d89c2a7f9939432ef5b045f73a829cd8c923007a65ac378411',
 'c4a0fba229529c70edef3e30e9fb880b35fcdc997dde4f2fae68a1da5b0d0dd6',
 '7de90b42f31a9aaab997d430e318bb0a46c5742d0e597080c685c7493623869b',
+'50ea01ba1e8296aa41fe3810e87b099a8da3d518a6f76bf77959ea79fd45d847',
+'11ebb685a26ea2813cf78ec50b2483d9f4fdce8fff940f4396c8f84a4d1a7227',
+'0af1be88c0ee213610e34ea9f558fef301db7a66e6a00d78758545b9797051b5',
 ]);
 const ROOT=path.resolve(process.argv[2]||path.join(__dirname,'..'));
 const files=cp.execSync('git ls-files',{cwd:ROOT,maxBuffer:1<<26}).toString().split('\n').filter(Boolean)
