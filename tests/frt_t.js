@@ -5,7 +5,7 @@ const H=process.argv[2]||'../app.html',SHOT=process.argv[3]||'';
 const RAW=fs.readFileSync('raw_resume.txt','utf8');
 const PDF=Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
 let fails=0;const ok=(c,m)=>{console.log((c?'  PASS ':'  FAIL ')+m);if(!c)fails++;};
-const LETTER='Dear Hiring Manager,\n\nI ran final grade on three subdivisions last year.\n\nJeffery Johnson';
+const LETTER='Dear Hiring Manager,\n\nI ran final grade on three subdivisions last year.\n\nJordan Hayes';
 
 async function setup(b,{used=false,pro=false,plan}){
   const ctx=await b.newContext({viewport:{width:390,height:844}});const p=await ctx.newPage();
@@ -35,7 +35,7 @@ const hide=p=>p.evaluate(()=>{window.__vis='hidden';document.dispatchEvent(new E
 const show=p=>p.evaluate(()=>{window.__vis='visible';document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('focus'));});
 const zone=p=>p.evaluate(()=>{const z=document.getElementById('uploadZone');return z?z.innerText.replace(/\s+/g,' ').trim():'';});
 const btn=p=>p.evaluate(()=>{const b=document.getElementById('runBtn');return {cls:b.className,txt:b.textContent,dis:b.disabled,bg:getComputedStyle(b).backgroundColor};});
-const upload=p=>p.setInputFiles('#fileInput',{name:'Jeffery_Resume.pdf',mimeType:'application/pdf',buffer:PDF});
+const upload=p=>p.setInputFiles('#fileInput',{name:'Jordan_Resume.pdf',mimeType:'application/pdf',buffer:PDF});
 const isOrange=bg=>{const m=bg.match(/\d+/g);if(!m)return false;const [r,g,bb]=m.map(Number);return r>200&&g>100&&g<190&&bb<90;};
 
 (async()=>{const b=await chromium.launch();

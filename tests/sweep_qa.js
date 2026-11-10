@@ -15,7 +15,7 @@ for(const W of [390,360])for(const pro of [false,true]){
   if(u.startsWith('http://yfs.local/'))return r.fulfill({status:404,body:''});
   if(/cdnjs|jsdelivr|unpkg/.test(u))return r.continue().catch(()=>r.abort());
   return r.abort();});
- await ctx.addInitScript(([raw,pro])=>{localStorage.setItem('yfs_vault',JSON.stringify([{id:'v1',name:'JEFFERYJOHNSONResume',text:raw,look:'Bold Trades',ts:Date.now()}]));localStorage.setItem('yfs_vault_active','v1');localStorage.setItem('yfs_resume',raw);if(pro)localStorage.setItem('yfs_pro','1');},[RES,pro]);
+ await ctx.addInitScript(([raw,pro])=>{localStorage.setItem('yfs_vault',JSON.stringify([{id:'v1',name:'JORDANHAYESResume',text:raw,look:'Bold Trades',ts:Date.now()}]));localStorage.setItem('yfs_vault_active','v1');localStorage.setItem('yfs_resume',raw);if(pro)localStorage.setItem('yfs_pro','1');},[RES,pro]);
  const p=await ctx.newPage();const tag=`${W}${pro?'P':'F'}`;
  p.on('pageerror',e=>add(W,tag,'PAGE ERROR: '+e.message));
  p.on('console',m=>{if(m.type()==='error'&&!/net::ERR|Failed to load resource|ERR_FAILED/.test(m.text()))add(W,tag,'console error: '+m.text().slice(0,160));});

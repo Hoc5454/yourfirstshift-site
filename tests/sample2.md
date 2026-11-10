@@ -1,12 +1,12 @@
-# Jeffery Johnson
+# Jordan Hayes
 Site Foreman · Heavy Equipment Operator
-Lehigh Acres, FL · 239-321-4129 · jeffery05johnson@gmail.com
+Cape Coral, FL · 555-010-0199 · jordan.hayes@example.com
 
 ## PROFESSIONAL SUMMARY
 Site foreman with years of civil construction experience across site development, underground utilities, and earthwork. Runs crews, reads blueprints, executes final grading, and keeps projects on schedule while holding OSHA safety standards on every job. FILLER
 
 ## EXPERIENCE
-### Site Foreman / Operator | Back Bay Construction | 2021 – Present
+### Site Foreman / Operator | Harbor Line Builders | 2021 – Present
 - Led crews on site development, grading, and underground utility installs
 - Ran motor grader, dozer, and excavator for final grade on subdivisions
 - Trained new hires on machine safety, operating techniques, and site standards
@@ -35,5 +35,5 @@ Site foreman with years of civil construction experience across site development
 Motor Grader · Dozer · Skid Loader · Mini Excavator · Front End Loader · Dump Truck · Roller · Off-Road Truck · Final Grading · Blueprint Reading · Civil Surveying · Pipe Laying · Jack and Bore · Hand Mining · Erosion Control · OSHA Compliance · Crew Supervision · Schluter Systems · Sandblasting & Coating · Microsoft Office Suite
 
 ## CERTIFICATIONS & TRAINING
-- Competent Person — site hazard assessment and safety controls (Back Bay Construction, Shane Urban Land Development, Sunnyland Energy Service)
-- High School Diploma — Riverdale High School, Fort Myers, FL (2018)
+- Competent Person — site hazard assessment and safety controls (Harbor Line Builders, Shane Urban Land Development, Sunnyland Energy Service)
+- High School Diploma — Seagrape High School, Fort Myers, FL (2018)

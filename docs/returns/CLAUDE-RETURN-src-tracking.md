@@ -2,7 +2,7 @@
 Base: LIVE tip d613ae0a · app.html sha256 7dc7461f53c4564ae02bdc15651d88b96aefc74089a72e48ad1d434fd9376600 · 265045 B (verified, matches ticket; = branch claude/file-reader-retry)
 Return: app.html · sha256 c9622d1272a8304523df84dc26af7e96407be31b8387a63e83e4c4737bdcacc9 · 266803 bytes · Scope: app.html only (+1 small script)
 Branch: claude/src-tracking · PR: https://github.com/Hoc5454/yourfirstshift-site/pull/2
-Screenshot (390x844, `app.html?src=tiktok#tool-1` → ATS X-Ray): docs/returns/src-tracking-390x844.png
+Screenshot (390x844, `app.html?src=tiktok#tool-1` → ATS X-Ray): removed (it showed real test data)
 **DO NOT MERGE until Liz PASS + Shift ships + Hunter phone PASS.**
 
 ## Summary (plain English)

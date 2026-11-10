@@ -22,7 +22,7 @@ let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
  const hide=p=>p.evaluate(()=>{window.__vis='hidden';document.dispatchEvent(new Event('visibilitychange'));});
  const show=p=>p.evaluate(()=>{window.__vis='visible';document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('focus'));});
  const zone=p=>p.evaluate(()=>{const z=document.getElementById('uploadZone');return z?z.innerText.replace(/\s+/g,' ').trim():'';});
- const upload=p=>p.setInputFiles('#fileInput',{name:'Jeffery_Resume.pdf',mimeType:'application/pdf',buffer:PDF});
+ const upload=p=>p.setInputFiles('#fileInput',{name:'Jordan_Resume.pdf',mimeType:'application/pdf',buffer:PDF});
 
  // T1 — Hunter's case in ATS X-Ray: leave while reading, read dies, come back → "Reconnecting", ONE retry after ~1.5s, success, no error
  let {ctx,p,st}=await setup(['hold','ok'],1);await upload(p);await p.waitForTimeout(400);
@@ -33,7 +33,7 @@ let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
  ok(/Reconnecting/i.test(await zone(p)),'T1 on return: "Reconnecting — picking your document back up"');
  await p.waitForTimeout(2200);const z1=await zone(p);
  ok(st.extract===2&&st.times[1]-tBack>=1300,'T1 exactly one retry, ~1.5s after coming back (network has time to wake)');
- ok(/Jeffery_Resume\.pdf/.test(z1)&&!/couldn.t|Reconnecting/i.test(z1),'T1 document read successfully, no error: '+z1.slice(0,60));
+ ok(/Jordan_Resume\.pdf/.test(z1)&&!/couldn.t|Reconnecting/i.test(z1),'T1 document read successfully, no error: '+z1.slice(0,60));
  ok(await p.evaluate(()=>localStorage.getItem('yfs_usage')||'0')==='0','T1 no free run used');ok(st.errs.length===0,'T1 no page errors');await ctx.close();
 
  // T2 — back but still offline → waits for the connection, then retries
@@ -41,7 +41,7 @@ let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
  await p.evaluate(()=>{window.__online=false;});await show(p);await p.waitForTimeout(2500);
  ok(st.extract===1&&/Reconnecting/i.test(await zone(p)),'T2 still offline → waits (no wasted retry), shows Reconnecting');
  await p.evaluate(()=>{window.__online=true;window.dispatchEvent(new Event('online'));});await p.waitForTimeout(2200);
- ok(st.extract===2&&/Jeffery_Resume\.pdf/.test(await zone(p)),'T2 connection back → one retry → success');await ctx.close();
+ ok(st.extract===2&&/Jordan_Resume\.pdf/.test(await zone(p)),'T2 connection back → one retry → success');await ctx.close();
 
  // T3 — retry also fails → the error shows once, no loop
  ({ctx,p,st}=await setup(['hold','abort','ok'],1));await upload(p);await p.waitForTimeout(300);await hide(p);st.gate&&st.gate();await p.waitForTimeout(300);await show(p);await p.waitForTimeout(3500);
@@ -55,6 +55,6 @@ let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
  ({ctx,p,st}=await setup(['hold','ok'],3));await upload(p);await p.waitForTimeout(300);
  await p.evaluate(()=>document.dispatchEvent(new Event('freeze')));st.gate&&st.gate();await p.waitForTimeout(300);
  await p.evaluate(()=>document.dispatchEvent(new Event('resume')));await p.waitForTimeout(2600);
- ok(st.extract===2&&/Jeffery_Resume\.pdf/.test(await zone(p)),'T5 freeze → resume → one retry → success (Cover Letter tool)');await ctx.close();
+ ok(st.extract===2&&/Jordan_Resume\.pdf/.test(await zone(p)),'T5 freeze → resume → one retry → success (Cover Letter tool)');await ctx.close();
 
  await b.close();console.log(fails?('FAILED '+fails):'ALL PASS');process.exit(fails?1:0);})();

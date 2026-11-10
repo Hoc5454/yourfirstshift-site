@@ -8,11 +8,11 @@ async function ctxFor(b,pro,hangRun,hangExtract,state){const ctx=await b.newCont
   if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:RAW,contentType:'text/html'});
   if(u===API||u===API+'/'){const ex=(h['x-yfs-kind']==='extract');state.calls.push(ex?'extract':'run');
     if((ex&&hangExtract)||(!ex&&hangRun))return; /* never answer */
-    return r.fulfill({body:JSON.stringify({content:[{type:'text',text:ex?RES:'Dear Hiring Manager,\n\nTest.\n\nJeffery'}]}),contentType:'application/json'});}
+    return r.fulfill({body:JSON.stringify({content:[{type:'text',text:ex?RES:'Dear Hiring Manager,\n\nTest.\n\nJordan'}]}),contentType:'application/json'});}
   if(u.startsWith(API))return r.fulfill({body:'{}',contentType:'application/json'});
   if(u.startsWith('http://yfs.local/'))return r.fulfill({status:404,body:''});
   return r.abort();});
- await ctx.addInitScript(([raw,pro])=>{if(raw){localStorage.setItem('yfs_vault',JSON.stringify([{id:'v1',name:'Jeffery Resume',text:raw,look:'Bold Trades',ts:Date.now()}]));localStorage.setItem('yfs_vault_active','v1');localStorage.setItem('yfs_resume',raw);}if(pro)localStorage.setItem('yfs_pro','1');},[pro?RES:'',pro]);
+ await ctx.addInitScript(([raw,pro])=>{if(raw){localStorage.setItem('yfs_vault',JSON.stringify([{id:'v1',name:'Jordan Resume',text:raw,look:'Bold Trades',ts:Date.now()}]));localStorage.setItem('yfs_vault_active','v1');localStorage.setItem('yfs_resume',raw);}if(pro)localStorage.setItem('yfs_pro','1');},[pro?RES:'',pro]);
  return ctx;}
 (async()=>{const b=await chromium.launch();
  // T1: AI run never answers → after 45s a clear error with Try again, button usable, nothing burned
