@@ -3968,16 +3968,24 @@ window.yfsQuickUpload=function(){var inp=$('yfsQuickFile');
   if(!inp){inp=document.createElement('input');inp.type='file';inp.id='yfsQuickFile';inp.accept='.pdf,.doc,.docx,.txt,.rtf,.odt,.png,.jpg,.jpeg,.webp,.heic';inp.style.display='none';inp.setAttribute('aria-hidden','true');inp.tabIndex=-1;
     inp.addEventListener('change',function(e){var f=e.target.files&&e.target.files[0];e.target.value='';if(f)quickStart(f);});document.body.appendChild(inp);}
   inp.click();};
-function quickStart(f){try{if(yfsVaultUp)return;}catch(_){}
+/* the little "Reading your resume…" box under the Using bar. While a quick upload is running it owns the id "uploadZone"
+   (that is where the file reader paints progress); the tool's own upload box, if any, is parked as "uploadZoneHold". */
+function mountStatus(){var st=null;try{st=yfsVaultUp;}catch(_){}if(!st||!st.quick)return null;
+  if(st.z&&st.z.isConnected)return st.z;
   var old=$('yfsUpStatus');if(old)old.remove();
-  var z=document.createElement('div');z.className='yfs-up-status';z.setAttribute('role','status');
-  var host=$('yfsUsing'),ac=$('appContent');if(host&&host.parentNode)host.parentNode.insertBefore(z,host.nextSibling);else if(ac)ac.insertBefore(z,ac.firstChild);else return;
-  var real=$('uploadZone');if(real)real.id='uploadZoneHold';z.id='uploadZone';
-  yfsVaultUp={tz:real,ex:extractedFileText,quick:true,name:f.name};
+  var z=document.createElement('div');z.className='yfs-up-status';z.setAttribute('role','status');z.textContent='⏳ Reading your resume… keep this screen open.';
+  var host=$('yfsUsing'),ac=$('appContent');if(host&&host.parentNode)host.parentNode.insertBefore(z,host.nextSibling);else if(ac)ac.insertBefore(z,ac.firstChild);else return null;
+  var real=$('uploadZone');if(real&&real!==z)real.id='uploadZoneHold';z.id='uploadZone';st.z=z;st.tz=real||null;return z;}
+function quickStart(f){try{if(yfsVaultUp)return;}catch(_){}
+  yfsVaultUp={tz:null,z:null,ex:extractedFileText,tool:activeTool,quick:true,name:f.name};
+  if(!mountStatus()){yfsVaultUp=null;return;}
   try{processFile(f);}catch(_){yfsVaultDone(null,'Could not read that file.');}}
 if(typeof yfsVaultDone==='function'){var _vd=yfsVaultDone;yfsVaultDone=function(text,err){var st=null;try{st=yfsVaultUp;}catch(_){}
   if(!st||!st.quick)return _vd.apply(this,arguments);
-  yfsVaultUp=null;var z=$('uploadZone');if(z)z.id='yfsUpStatus';if(st.tz)st.tz.id='uploadZone';extractedFileText=st.ex;
+  yfsVaultUp=null;var z=(st.z&&st.z.isConnected)?st.z:null;if(z)z.id='yfsUpStatus';
+  var held=$('uploadZoneHold');if(held&&!$('uploadZone'))held.id='uploadZone';
+  extractedFileText=(st.tool===activeTool)?st.ex:''; /* the file reader parks its text here; this upload goes to the Vault instead */
+  /* the user may have changed tools while the file was being read: only put back what belongs to the screen they are on now */
   if(!text){if(z)z.textContent='⚠️ '+(err||'Could not read that file. Try a PDF, a Word file or a clear photo.');return;}
   var id=null;try{id=yfsAdoptResume(text,st.name,'upload');}catch(_){}
   if(!id){if(z)z.textContent='⚠️ That file doesn’t look like a resume (it’s very short). Try another file, or paste your resume.';return;}
@@ -4039,7 +4047,7 @@ function upgradeStale(){var d=$('yfsStaleNote');if(!d||d.querySelector('.yfs-sta
     try{(jb||rb).scrollIntoView({behavior:'smooth',block:'center'});if(jb)jb.focus({preventScroll:true});}catch(_){}};}
 
 function arrange(){try{if(isBuilder())arrangeBuilder();}catch(_){}arrangeOutput();try{upgradeStale();}catch(_){}}
-if(typeof renderTool==='function'){var _rt=renderTool;renderTool=function(){var o=$('yfsRbTop');if(o)o.remove();var r=_rt.apply(this,arguments);arrange();return r;};}
+if(typeof renderTool==='function'){var _rt=renderTool;renderTool=function(){var o=$('yfsRbTop');if(o)o.remove();var r=_rt.apply(this,arguments);arrange();try{mountStatus();}catch(_){}return r;};}
 if(typeof showResult==='function'){var _sr=showResult;showResult=function(){var r=_sr.apply(this,arguments);arrangeOutput();return r;};}
 if(typeof yfsVaultUse==='function'){var _vu2=yfsVaultUse;yfsVaultUse=function(){var r=_vu2.apply(this,arguments);try{upgradeStale();}catch(_){}return r;};}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(arrange,0);});else setTimeout(arrange,0);

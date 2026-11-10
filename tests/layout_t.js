@@ -9,11 +9,11 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
 (async () => { const b = await chromium.launch();
   const mk = async (opt = {}) => { const ctx = await b.newContext({ viewport: opt.vp || { width: 390, height: 844 }, isMobile: !opt.vp, hasTouch: !opt.vp }); const p = await ctx.newPage(); const st = { perr: [], ai: 0, extract: 0, co: 0, out: opt.out || XRAY, fileText: opt.fileText || RES2 };
     p.on('pageerror', e => st.perr.push(e.message)); p.on('dialog', d => d.dismiss());
-    await ctx.route('**/*', r => { const u = r.request().url();
+    await ctx.route('**/*', async r => { const u = r.request().url();
       if (u.startsWith('http://yfs.local/app.html')) return r.fulfill({ body: fs.readFileSync(H), contentType: 'text/html' });
       if (/html2pdf/.test(u)) return r.fulfill({ body: 'window.html2pdf=function(){};', contentType: 'application/javascript' });
       if (/\/api\/pro\/checkout/.test(u)) { st.co++; return r.fulfill({ status: 502, body: '{"error":"test"}', contentType: 'application/json' }); }
-      if (/workers\.dev\/?$/.test(u)) { if (r.request().headers()['x-yfs-kind'] === 'extract') { st.extract++; return r.fulfill({ body: JSON.stringify({ content: [{ text: st.fileText }] }), contentType: 'application/json' }); }
+      if (/workers\.dev\/?$/.test(u)) { if (r.request().headers()['x-yfs-kind'] === 'extract') { st.extract++; if (st.slow) await new Promise(z => setTimeout(z, st.slow)); return r.fulfill({ body: JSON.stringify({ content: [{ text: st.fileText }] }), contentType: 'application/json' }); }
         st.ai++; return r.fulfill({ body: JSON.stringify({ content: [{ text: st.out }] }), contentType: 'application/json' }); }
       if (/workers\.dev/.test(u)) return r.fulfill({ body: '{}', contentType: 'application/json' }); return r.abort(); });
     await p.addInitScript(([raw, pro, vault, used]) => { if (sessionStorage.getItem('x')) return; sessionStorage.setItem('x', 1); if (vault) { localStorage.setItem('yfs_vault', JSON.stringify([{ id: 'v1', name: 'JordanHayesResume', text: raw, look: 'Modern Professional', ts: 1 }])); localStorage.setItem('yfs_vault_active', 'v1'); localStorage.setItem('yfs_resume', raw); } if (pro) localStorage.setItem('yfs_pro', '1'); if (used) localStorage.setItem('yfs_usage', '1'); }, [RAW, !!opt.pro, opt.vault !== false, !!opt.used]);
@@ -85,6 +85,29 @@ let fails = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); 
     const r = await p.evaluate(() => ({ n: yfsVaultList().length, msg: (document.getElementById('yfsUpStatus') || {}).innerText || '', act: yfsVaultActive() }));
     ok(r.n === 1 && r.act === 'v1' && /doesn’t look like a resume|Could not|too short|couldn|scanned/i.test(r.msg), 'C10 a file that is not a resume: clear message, Vault unchanged ("' + r.msg.slice(0, 70) + '")');
     await open(p, 3); ok(await p.evaluate(() => document.querySelectorAll('#uploadZone').length === 1 && !document.getElementById('uploadZoneHold')), 'C11 the tool’s own upload box is intact afterwards'); await ctx.close(); }
+
+  // switching tools while a quick upload is still being read
+  for (const [from, to] of [[4, 3], [3, 5], [5, 1], [2, 0]]) { const { ctx, p, st } = await mk({ pro: true }); st.slow = 1500; await open(p, from);
+    const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click('#yfsUsing [data-a=up]')]); await fc.setFiles(PDF); await p.waitForTimeout(350);
+    const during = await p.evaluate(() => ({ status: (document.querySelector('.yfs-up-status') || {}).innerText || '' }));
+    await p.evaluate(t => yfsOpenTool(t), to); await p.waitForTimeout(400);
+    const mid = await p.evaluate(() => ({ status: !!document.querySelector('.yfs-up-status'), zones: document.querySelectorAll('#uploadZone').length }));
+    await p.waitForTimeout(2600);
+    const r = await p.evaluate(() => { const l = yfsVaultList(), a = l.find(x => x.id === yfsVaultActive()); const uz = document.getElementById('uploadZone');
+      return { n: l.length, act: a && a.name, chip: (document.getElementById('yfsUsing') || {}).innerText || '', status: !!document.querySelector('.yfs-up-status'), hold: !!document.getElementById('uploadZoneHold'), zones: document.querySelectorAll('#uploadZone').length, realZone: uz ? uz.classList.contains('upload-zone') : null, zoneTxt: uz ? uz.innerText.replace(/\s+/g, ' ').slice(0, 40) : '', xr: (document.getElementById('xrayResume') || {}).value || '', ui: (document.getElementById('userInput') || {}).value || '', page: (document.getElementById('rbPage') || {}).innerText || '' }; });
+    const hasZone = [0, 1, 3].includes(to);
+    ok(/reading/i.test(during.status) && mid.status && mid.zones === 1, `C12 [${from}→${to}] the "Reading your resume…" box follows you to the new tool (one upload zone id on the page) ` + JSON.stringify({ during, mid }));
+    ok(st.extract === 1 && r.n === 2 && /RileyCarterResume/.test(r.act) && /RileyCarterResume/.test(r.chip), `C13 [${from}→${to}] the upload still lands in the Vault as ACTIVE and the Using bar on the new tool shows it`);
+    ok(!r.status && !r.hold && (hasZone ? (r.zones === 1 && r.realZone === true && !/Reading/.test(r.zoneTxt)) : r.zones === 0), `C14 [${from}→${to}] nothing left behind: no status box, no parked zone, the new tool’s own upload box is intact ` + JSON.stringify({ zones: r.zones, real: r.realZone, txt: r.zoneTxt }));
+    if (to === 1) ok(/Riley Carter/.test(r.xr), `C15 [${from}→${to}] X-Ray’s resume box holds the uploaded resume`);
+    if (to === 0) ok(/Riley Carter/.test(r.ui), `C15 [${from}→${to}] Translator’s box holds the uploaded resume`);
+    if (to === 5) ok(/Riley Carter/.test(r.page), `C15 [${from}→${to}] Build Resume shows the uploaded resume`);
+    ok(await p.evaluate(() => extractedFileText === '') && !st.perr.length, `C16 [${from}→${to}] no stale per-tool upload text, no page errors ` + st.perr.join('|').slice(0, 150)); await ctx.close(); }
+  // a second upload tapped while one is still being read is ignored (no double read)
+  { const { ctx, p, st } = await mk({ pro: true }); st.slow = 1200; await open(p, 2);
+    const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.click('#yfsUsing [data-a=up]')]); await fc.setFiles(PDF); await p.waitForTimeout(250);
+    const [fc2] = await Promise.all([p.waitForEvent('filechooser'), p.click('#yfsUsing [data-a=up]')]); await fc2.setFiles(PDF); await p.waitForTimeout(3000);
+    ok(st.extract === 1 && await p.evaluate(() => yfsVaultList().length === 2 && !document.querySelector('.yfs-up-status')), 'C17 a second upload tapped mid-read is ignored: one read, one new Vault entry (' + st.extract + ' reads)'); await ctx.close(); }
 
   // ── D. after a resume switch: one tap to update ──
   { const { ctx, p, st } = await mk({ pro: true }); await open(p, 1);
