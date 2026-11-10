@@ -1535,8 +1535,8 @@ function rbRender(){
   if(pg.contains(document.activeElement)) return; // don't clobber in-place editing
   const contactParts=['location','phone','email','links'].map(f=>rbVal(f).trim()).filter(Boolean);
   const sec=(title,f,ph,always)=>{const v=f==='summary'?rbSummary:rbVal(f); if(!always&&!v.trim()) return ''; return `<div class="rb-sec"><div class="rb-h">${title}</div>${rbBlock(f,ph)}</div>`;};
-  pg.innerHTML=`<div class="rb-head">${rbBlock('name','Your Name','rb-name')}${rbBlock('target','Target Job Title','rb-target')}
-    ${isPro?`<div class="rb-contact">${[['location','City, ST'],['phone','(555) 123-4567'],['email','you@email.com'],['links','linkedin.com/in/you']].map(([f,ph])=>rbBlock(f,ph,'rb-c',true)).join('<span aria-hidden="true">  ·  </span>')}</div>`:`<div class="rb-contact${contactParts.length?'':' rb-ph'}" data-jump="b_location">${rbEsc(contactParts.length?contactParts.join('  ·  '):'City, ST  ·  (555) 123-4567  ·  you@email.com')}</div>`}</div>
+  pg.innerHTML=`<div class="rb-head">${rbBlock('name','Your Name','rb-name')}${rbBlock('target',isPro?'+ Add the job title you want':'Target Job Title','rb-target')}
+    ${isPro?`<div class="rb-contact">${[['location','+ Add city, state'],['phone','+ Add phone'],['email','+ Add email'],['links','+ Add LinkedIn (optional)']].map(([f,ph])=>rbBlock(f,ph,'rb-c',true)).join('<span aria-hidden="true">  ·  </span>')}</div>`:`<div class="rb-contact${contactParts.length?'':' rb-ph'}" data-jump="b_location">${rbEsc(contactParts.length?contactParts.join('  ·  '):'City, ST  ·  (555) 123-4567  ·  you@email.com')}</div>`}</div>
     ${sec('Professional Summary','summary','A short summary appears here after you click Build My Resume.',false)}
     ${sec('Experience','experience','Job Title | Company | Dates\n• What you did and the result\n• Another thing you are proud of',true)}
     ${sec('Skills','skills','Tools, equipment, software, certifications, languages…',true)}
@@ -1593,8 +1593,21 @@ window.yfsPdfPrep=function(c){/* paginate: letter, real margins, full height, no
  c.style.paddingBottom='24px';if(!c.classList.contains('tpl-trades'))c.style.paddingTop='8px';
  c.querySelectorAll('*').forEach(x=>{const cs=getComputedStyle(x);if(cs.overflow==='hidden'&&!x.classList.contains('rb-cert-chip'))x.style.overflow='visible';if(cs.maxHeight!=='none')x.style.maxHeight='none';});
  c.querySelectorAll('.yfs-pb-sp').forEach(x=>x.remove());
- const sp=document.createElement('div');sp.style.cssText='height:12px';c.appendChild(sp);
- yfsPdfBreaks(c);};
+ const sp=document.createElement('div');sp.className='yfs-pdf-tail';sp.style.cssText='height:12px';c.appendChild(sp);
+ yfsPdfBreaks(c);try{yfsPdfFit(c);}catch(_){}};
+/* last-page fit: a PDF must never end on a blank or nearly empty page.
+   1) if only a sliver (under 15% of a page) spills onto the last page, shrink type a little (3% steps, at most 4) until it fits one page fewer;
+   2) padding alone can never add a page: the sheet is clamped to the pages its content really needs. */
+window.yfsPdfFit=function(c){const PH=yfsPdfPH(),root=c.parentNode||c;
+ const bottom=()=>{const o=root.getBoundingClientRect();let b=0;c.querySelectorAll('*').forEach(e=>{if(e.children.length||e.classList.contains('yfs-pb-sp')||e.classList.contains('yfs-pdf-tail')||!e.textContent.trim())return;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')return;const r=e.getBoundingClientRect();if(r.height>0)b=Math.max(b,r.bottom-o.top);});return b;};
+ const px=(e,prop,f)=>{const v=parseFloat(e.style.getPropertyValue(prop));if(v)e.style.setProperty(prop,(v*f).toFixed(2)+'px','important');};
+ const shrink=f=>{[c].concat([...c.querySelectorAll('*')]).forEach(e=>{if(e.classList.contains('yfs-pb-sp'))return;['font-size','line-height','margin-top','margin-bottom'].forEach(k=>px(e,k,f));});};
+ let b=bottom(),pages=Math.max(1,Math.ceil(b/PH)),n=0;
+ while(pages>1&&b-(pages-1)*PH<PH*0.15&&n<4){n++;shrink(0.97);c.querySelectorAll('.yfs-pb-sp').forEach(x=>x.remove());yfsPdfBreaks(c);b=bottom();pages=Math.max(1,Math.ceil(b/PH));}
+ const maxH=pages*PH-2;
+ if(root.getBoundingClientRect().height>maxH){c.style.paddingBottom='0px';c.querySelectorAll('.yfs-pdf-tail').forEach(x=>x.remove());
+  if(root.getBoundingClientRect().height>maxH){c.style.height=Math.floor(maxH-(c.getBoundingClientRect().top-root.getBoundingClientRect().top))+'px';c.style.overflow='hidden';}}
+ c.setAttribute('data-pdf-pages',String(pages));};
 /* smart pagebreaks: only nudge small atoms across page edges; headers kept with next line; never push whole sections (no dead bands) */
 window.yfsPdfBreaks=function(c){
  const PH=yfsPdfPH();const SEL='.rb-head,.rb-h,.rb-jh,.rb-jt,.rb-je,li,p,.rb-name,.rb-contact,h1,h2,h3';
@@ -2358,7 +2371,40 @@ function yfsHeadLine(r,l){const parts=l.split(/\s*(?:·|•|\||\s[-–—]\s)\s*
   const c=[],t=[];parts.forEach(p=>(yfsIsContactPart(p)?c:t).push(p));
   if(c.length)r.contact=r.contact?r.contact+' · '+c.join(' · '):c.join(' · ');
   if(t.length){const tt=t.join(' · ');if(!r.target)r.target=tt;else if(!c.length&&r.target.indexOf(tt)<0)r.target+=' · '+tt;}}
-function yfsParseResume(text,src){const t=String(text||'').replace(/\r/g,'');const L=t.split('\n');const r={name:'',target:'',contact:'',sec:{},tips:''};
+/* ── resume clean-up: AI leftovers must never reach the page or a download ──
+   Display-time only: the text saved in the Vault is never changed.
+   Removes ONLY patterns an AI or markdown leaves behind, never a person's own wording:
+   - horizontal rules (---), empty bullets ("-", "• —", "* **"), empty/label-only table rows, sections left with no content
+   - advice written TO the reader: a line that starts with ⚠/💡/Note:/Tip:/Reminder:/Recommendation: AND speaks to "you/your"
+     ("⚠ Note: if you hold … list them here"). "Note: Available for travel" or "⚠ Hazmat certified" are kept as written.
+   - bracket prompts ("[Add graduation date]")
+   - markdown emphasis marks (**bold**, *italic*). A lone * in plain text ("rated 5* by customers") is kept. */
+function yfsUnMd(x){var had=/\*\*|(^|[\s(])\*[^\s*][^*]*[^\s*]\*(?=$|[\s.,;:)!?])|(^|[\s(])\*[^\s*]\*(?=$|[\s.,;:)!?])/.test(x);
+  x=x.replace(/\*\*/g,'').replace(/(^|[\s(])\*([^\s*](?:[^*]*[^\s*])?)\*(?=$|[\s.,;:)!?])/g,'$1$2');
+  if(had)x=x.replace(/([.!?:;,)\w])\*+\s*$/,'$1').replace(/^\*+(?=\S)/,''); /* unbalanced leftover from stripped markdown */
+  return x;}
+window.yfsCleanResume=function(text){var LABEL=/^(name|phone|phone number|email|e-?mail|title|job title|company|employer|relationship|contact|contact info|reference|references|address|n\/?a|tbd|—|-)?$/i;
+  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i;
+  var out=[];String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){var l=raw.replace(/\s+$/,''),t=l.trim();
+    if(!t){out.push('');return;}
+    if(/^#{1,4}\s/.test(t)){out.push(yfsUnMd(l));return;}
+    if(/^([-*_—–=]\s*){3,}$/.test(t))return;                                   /* --- *** ___ rules */
+    if(/^[-*•●▪◦–—·]\s*[—–\-*_·•\s]*$/.test(t)||/^[—–]+$/.test(t))return;        /* empty bullet */
+    var lead=t.match(ADVICE);if(lead&&lead[0].replace(/^[-*•●▪◦–\s*]+/,'')&&TOYOU.test(t.slice(lead[0].length)))return; /* AI advice addressed to the reader */
+    if(/^[\[(](?:add|insert|include|list|your|optional)\b[^\])]*[\])]\.?\*?$/i.test(t))return;
+    if(/^\|.*\|$/.test(t)||/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(t)){
+      if(/^\|?[\s:|\-]+\|?$/.test(t))return;                                   /* table separator */
+      var cells=t.replace(/^\||\|$/g,'').split('|').map(function(c){return yfsUnMd(c).trim();});
+      if(cells.every(function(c){return LABEL.test(c);}))return;               /* header / empty row */
+      out.push(cells.filter(Boolean).join(' · '));return;}
+    if(/^[·|]\s*(?:[A-Za-z\/ -]{0,18}\s*[·|]\s*)+$/.test(t)&&t.replace(/[·|]/g,' ').split(/\s{2,}|\s[·|]\s/).every(function(c){return LABEL.test(c.trim());}))return; /* "· Name · Phone ·" */
+    if(/^-{3,}\s*[·|]\s*-{3,}/.test(t))return;                                 /* "--- · ---" */
+    var m=l.match(/^(\s*[-*•●▪◦–]\s+)(.*)$/);
+    out.push(m?m[1]+yfsUnMd(m[2]).trim():yfsUnMd(l));});
+  /* drop sections that are now empty */
+  var res=[],i=0;while(i<out.length){if(/^##\s/.test(out[i].trim())){var j=i+1;while(j<out.length&&!out[j].trim())j++;if(j>=out.length||/^##\s/.test(out[j].trim())){i=j;continue;}}res.push(out[i]);i++;}
+  return res.join('\n').replace(/\n{3,}/g,'\n\n').replace(/^\n+|\n+$/g,'');};
+function yfsParseResume(text,src){const t=yfsCleanResume(String(text||'').replace(/\r/g,''));const L=t.split('\n');const r={name:'',target:'',contact:'',sec:{},tips:''};
   let i=0;while(i<L.length&&!/^#\s+\S/.test(L[i].trim()))i++;
   if(i<L.length){r.name=L[i].trim().replace(/^#\s+/,'').replace(/\*\*/g,'').trim();i++;}
   for(;i<L.length&&!/^##\s/.test(L[i].trim());i++){const l=L[i].trim().replace(/\*\*/g,'');if(!l||/^([-*_]\s*){3,}$/.test(l))continue;
@@ -3537,21 +3583,36 @@ function active(){try{var l=yfsVaultList(),a=yfsVaultActive();return l.find(func
 var HEAD_MAP=[[/SUMMARY|PROFILE|OBJECTIVE|ABOUT/,'summary'],[/EXPERIENCE|EMPLOY|WORK HISTORY/,'experience'],[/SKILL|COMPETENC|QUALIFICATION|CERT|LICENSE/,'skills'],[/EDUCATION|TRAINING|SCHOOL/,'education']];
 function fieldOf(h){h=String(h||'').toUpperCase();for(var i=0;i<HEAD_MAP.length;i++)if(HEAD_MAP[i][0].test(h))return HEAD_MAP[i][1];return 'extra';}
 function contactSplit(lines){var o={email:'',phone:'',links:'',location:''},rest=[];
-  lines.join(' · ').split(/\s*[|·•]\s*|\s{3,}/).map(function(x){return x.trim();}).filter(Boolean).forEach(function(p){
-    if(!o.email&&/@/.test(p)&&/\.[a-z]{2,}/i.test(p))o.email=p;
-    else if(!o.phone&&/(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/.test(p)&&p.replace(/\D/g,'').length<=11)o.phone=p;
-    else if(/linkedin|github|https?:|www\.|\.com\/|\.io\b/i.test(p))o.links=o.links?o.links+' · '+p:p;
+  var all=lines.join(' · ');
+  var em=all.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);if(em){o.email=em[0];all=all.replace(em[0],' · ');}
+  var ph=all.match(/(?:^|[^\d])((?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})(?!\d)/);
+  if(ph&&ph[1].replace(/\D/g,'').length<=12){o.phone=ph[1].trim();all=all.replace(ph[1],' · ');}
+  all.split(/\s*[|·•]\s*|\s{3,}/).map(function(x){return x.replace(/^[\s,;:-]+|[\s,;:-]+$/g,'').trim();}).filter(Boolean).forEach(function(p){
+    if(/linkedin|github|https?:|www\.|\.com\/|\.io\b/i.test(p))o.links=o.links?o.links+' · '+p:p;
     else if(!o.location&&/,\s*[A-Z]{2}\b|\b[A-Z]{2}\s+\d{5}\b|,\s*[A-Za-z]+$/.test(p)&&p.length<60)o.location=p;
     else rest.push(p);});
   return {c:o,rest:rest};}
 function isContactish(l){return /@|\d{3}[\s.)-]+\d{3}[\s.-]\d{4}|linkedin|https?:|,\s*[A-Z]{2}\b/.test(l);}
-function expToField(body){return String(body||'').split('\n').map(function(l){var t=l.trim();if(!t)return '';
-  var h=t.match(/^#{2,4}\s+(.+)$/);if(h)return h[1].replace(/\*\*/g,'').replace(/((?:19|20)\d{2})\s*\|\s*(present|current|now|(?:19|20)\d{2})\b/i,'$1 – $2').trim();
-  var b=t.match(/^[-*•●▪◦–]\s*(.+)$/);if(b)return '• '+b[1].replace(/\*\*/g,'');return t.replace(/\*\*/g,'');}).join('\n').replace(/\n{3,}/g,'\n\n').trim();}
+function expToField(body){var L=String(body||'').split('\n'),out=[];
+  var DATE=/\b(?:19|20)\d{2}\b|present|current/i,BUL=/^[-*•●▪◦–]\s*(.+)$/;
+  for(var i=0;i<L.length;i++){var t=L[i].trim();if(!t){out.push('');continue;}
+    var h=t.match(/^#{2,4}\s+(.+)$/);
+    if(h){var head=h[1].replace(/\*\*/g,'').replace(/((?:19|20)\d{2})\s*\|\s*(present|current|now|(?:19|20)\d{2})\b/i,'$1 – $2').trim();
+      /* "### Title — Company" with the city and dates on their own lines → the standard one-line "Title | Company | City | Dates" header */
+      if(!/\|/.test(head)){var parts=head.split(/\s+[—–]\s+|\s+-\s+|\s+@\s+|\s+at\s+(?=[A-Z])/).map(function(x){return x.trim();}).filter(Boolean);
+        var take=0,extra=[];
+        for(var j=i+1;j<L.length&&take<2;j++){var n=L[j].trim();if(!n)break;if(BUL.test(n)||/^#{1,4}\s/.test(n)||n.length>48||/[.!?]$/.test(n))break;
+          if(!(DATE.test(n)||/,\s*[A-Z]{2}\b/.test(n)||/^[A-Z][A-Za-z .'-]+,\s*[A-Za-z .]+$/.test(n)))break;extra.push(n.replace(/\*\*/g,''));take++;}
+        if(parts.length>=2||extra.length){head=parts.concat(extra).join(' | ');i+=take;}}
+      out.push(head);continue;}
+    var bm=t.match(BUL);if(bm){out.push('• '+bm[1].replace(/\*\*/g,''));continue;}
+    out.push(t.replace(/\*\*/g,''));}
+  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();}
 function plainField(body){return String(body||'').split('\n').map(function(l){var t=l.trim();var b=t.match(/^[-*•●▪◦–]\s*(.+)$/);return b?'• '+b[1]:t;}).join('\n').replace(/\*\*/g,'').replace(/\n{3,}/g,'\n\n').trim();}
 window.yfsResumeFields=function(raw){
-  var md='';try{md=yfsRawToMd(raw)||'';}catch(_){}
+  var md='';try{md=yfsRawToMd(yfsCleanResume(raw))||'';}catch(_){}
   if(!md)return null;
+  try{md=yfsCleanResume(md);}catch(_){}
   var f={name:'',target:'',email:'',phone:'',location:'',links:'',summary:'',experience:'',skills:'',education:'',extra:''};
   var parts=md.replace(/\r/g,'').split(/^(?=##\s)/m);var head=parts.shift()||'';
   var hl=head.split('\n').map(function(x){return x.trim();}).filter(Boolean);
