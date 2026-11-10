@@ -129,5 +129,46 @@ function csvParse(t){const rows=[];let r=[],c='',q=false;for(let i=0;i<t.length;
    ok(s.entries.length===3&&!s.entries[0].codes&&JSON.stringify(s.entries[1].codes)==='{"cost":"42"}'&&!s.entries[2].codes&&!/undefined|NaN|\[object/.test(tx),'6a '+T0+'damaged code values are repaired on load; every entry is kept; nothing odd on screen');
    await p.click('[data-edit="d2"]');await p.waitForTimeout(150);ok(await p.inputValue('#eC_cost')==='42'&&await p.inputValue('#eC_job')==='','6b '+T0+'a repaired entry opens and can be edited');
    ok(!errs.length,'6 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
+  // ── 7. recent code sets: tap to fill, no retyping when switching jobs ──
+  {const B={job:'5530 Yard',task:'RIG-01',cost:'01-500',pay:'REG',po:'7700-02'};
+   const {c,p,errs}=await open(seed());
+   for(const set of [A,B]){await p.click('[data-a=add]');await p.waitForTimeout(150);await p.click('#eClr');await fillCodes(p,'eC_',set);await p.fill('#eStart',set===A?'06:00':'09:00');await p.fill('#eEnd',set===A?'08:00':'10:00');await p.fill('#eBrk','0');await p.click('#eSave');await p.waitForTimeout(250);}
+   let s=await st(p);ok(s.ui.recentCodes.length===2&&s.ui.recentCodes[0].job===B.job&&s.ui.recentCodes[1].job===A.job,'7a '+T0+'the last code sets are remembered, newest first');
+   await p.click('[data-a=add]');await p.waitForTimeout(150);
+   const rr=await p.evaluate(()=>[...document.querySelectorAll('#eC_recent .rcf')].map(b=>{const r=b.getBoundingClientRect();return {t:b.textContent,h:r.height,in:r.left>=0&&r.right<=innerWidth};}));
+   ok(rr.length===2&&/5530 Yard/.test(rr[0].t)&&/4471 Station 9/.test(rr[1].t)&&rr.every(x=>x.h>=44&&x.in),'7b '+T0+'"+ Add hours" lists them as big tap targets ('+rr.map(x=>Math.round(x.h)+'px').join(', ')+')');if(SHOTS)await p.screenshot({path:path.join(SHOTS,dev+'-3-recent.png')});
+   ok(await p.inputValue('#eC_job')===B.job,'7c '+T0+'the boxes start with the most recent set');
+   await p.click('#eC_recent [data-rc="1"]');ok(await p.inputValue('#eC_job')===A.job&&await p.inputValue('#eC_task')===A.task&&await p.inputValue('#eC_cost')===A.cost&&await p.inputValue('#eC_pay')===A.pay&&await p.inputValue('#eC_po')===A.po,'7d '+T0+'one tap on an older set fills all five boxes');
+   await p.fill('#eStart','11:00');await p.fill('#eEnd','12:00');await p.fill('#eBrk','0');await p.click('#eSave');await p.waitForTimeout(250);s=await st(p);
+   ok(s.entries.length===3&&JSON.stringify(s.entries[2].codes)===JSON.stringify(A)&&s.ui.recentCodes.length===2&&s.ui.recentCodes[0].job===A.job,'7e '+T0+'saved with that set; it moves to the top; no duplicate is added');
+   await p.click('[data-a=clkcodes]');await p.waitForTimeout(150);ok(await p.evaluate(()=>document.querySelectorAll('#kC_recent .rcf').length===2),'7f '+T0+'the Clock tab codes screen offers the same sets');
+   await p.click('#kC_recent [data-rc="1"]');await p.click('#kSave');await p.waitForTimeout(200);s=await st(p);ok(s.ui.lastCodes.job===B.job&&/5530 Yard/.test(await p.textContent('#clkCodes')),'7g '+T0+'switching jobs before clock-in is two taps');
+   await p.click('[data-a=clkcodes]');await p.waitForTimeout(150);await p.click('#kC_recent [data-rx="1"]');await p.waitForTimeout(100);s=await st(p);
+   ok(s.ui.recentCodes.length===1&&s.ui.recentCodes[0].job===B.job&&s.entries.filter(e=>e.codes&&e.codes.job===A.job).length===2,'7h '+T0+'✕ forgets a set; entries that used it keep their codes');await p.click('[data-close]');
+   await p.evaluate(()=>{const s=OTJ.state();s.ui.recentCodes=[1,2,3,4,5].map(i=>({job:'J'+i}));localStorage.setItem('yfs_otj_v1',JSON.stringify(s));OTJ.reload();});
+   await p.click('[data-a=add]');await p.waitForTimeout(150);await p.click('#eClr');await p.fill('#eC_job','J6');await p.fill('#eStart','13:00');await p.fill('#eEnd','14:00');await p.fill('#eBrk','0');await p.click('#eSave');await p.waitForTimeout(250);s=await st(p);
+   ok(s.ui.recentCodes.length===5&&s.ui.recentCodes[0].job==='J6'&&!s.ui.recentCodes.some(x=>x.job==='J5'),'7i '+T0+'only the last 5 sets are kept');
+   await p.click('[data-a=add]');await p.waitForTimeout(150);ok(await p.evaluate(()=>{const i=document.getElementById('eC_pay');const d=document.getElementById(i.getAttribute('list'));return !!d&&[...d.options].map(o=>o.value).join()==='REG,OT,DT,PTO,HOL,SICK';}),'7j '+T0+'Pay code suggests REG, OT, DT, PTO, HOL, SICK (still free text)');
+   ok(!errs.length,'7 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
+
+  // ── 8. a clock left running: ask, and let the worker put in the real stop time ──
+  {const start=NOW.getTime()-20*3600e3;const Y=ymd(new Date(start));
+   const run=x=>seed({clock:Object.assign({start,jobId:'j1',codes:A,breaks:[{s:start+4*3600e3,e:start+4.5*3600e3}],onBreak:null},x||{})});
+   const {c,p,errs}=await open(run());const card=await p.textContent('#stillOn').catch(()=>'');
+   ok(/Still on the clock\?/.test(card)&&/20 hours ago/.test(card)&&/4:00pm/.test(card),'8a '+T0+'after a very long shift the Clock tab asks "Still on the clock?" with when it started');if(SHOTS)await p.screenshot({path:path.join(SHOTS,dev+'-4-still-on.png')});
+   await p.click('[data-a=stillyes]');await p.waitForTimeout(200);let s=await st(p);ok(!(await p.$('#stillOn'))&&s.clock&&s.clock.start===start&&s.clock.askedAt>0&&s.entries.length===0,'8b '+T0+'"Yes, still working" keeps the clock running and stops asking for now');
+   await p.evaluate(t=>{const s=OTJ.state();s.clock.askedAt=t;localStorage.setItem('yfs_otj_v1',JSON.stringify(s));OTJ.reload();},NOW.getTime()-5*3600e3);await p.waitForTimeout(200);ok(!!(await p.$('#stillOn')),'8c '+T0+'it asks again a few hours later');
+   await p.click('[data-a=forgot]');await p.waitForTimeout(200);
+   const tom=ymd(new Date(NOW.getTime()+86400e3));await p.fill('#fD',tom);await p.fill('#fT','09:00');await p.click('#fSave');await p.waitForTimeout(200);s=await st(p);
+   ok(!!(await p.$('#fSave'))&&s.clock&&s.entries.length===0&&/not in the future/.test(await p.textContent('#fCalc')),'8d '+T0+'a stop time in the future is refused; nothing is saved');
+   await p.fill('#fD',Y);await p.fill('#fT','23:30');ok(/7\.5 hrs/.test(await p.textContent('#fCalc')),'8e '+T0+'it shows what the chosen stop time adds up to (7.5 hrs on the clock)');
+   await p.click('#fSave');await p.waitForTimeout(300);s=await st(p);const e=s.entries[0];const h=await p.evaluate(()=>OTJ.entryHours(OTJ.state().entries[0]));
+   ok(!s.clock&&e&&e.start===start&&e.date===Y&&new Date(e.end).getHours()===23&&new Date(e.end).getMinutes()===30&&e.breakMin===30&&Math.abs(h-7)<0.01&&e.codes.job===A.job,'8f '+T0+'the shift is saved with the real stop time: 7 hrs after the 30-min break, on the day it started, codes kept');
+   ok(s.log.some(l=>l.id===e.id&&l.reason==='forgot to clock out'),'8g '+T0+'the change history notes "forgot to clock out"');
+   ok(!errs.length,'8 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();
+   const n=await open(seed({clock:{start:NOW.getTime()-10*3600e3,jobId:'j1',breaks:[],onBreak:null}}));ok(!(await n.p.$('#stillOn'))&&!!(await n.p.$('#clkT')),'8h '+T0+'a normal 10-hour shift is not interrupted');await n.c.close();
+   const br=await open(run({breaks:[],onBreak:start+9*3600e3}));await br.p.click('[data-a=forgot]');await br.p.waitForTimeout(200);await br.p.fill('#fD',Y);await br.p.fill('#fT','22:00');await br.p.click('#fSave');await br.p.waitForTimeout(300);
+   const be=(await st(br.p)).entries[0];ok(be&&be.breakMin===0&&new Date(be.end).getHours()===22,'8i '+T0+'a break that was still running after the real stop time is not taken off the shift');ok(!br.errs.length,'8 '+T0+'no page errors (break case) '+br.errs.join('|').slice(0,140));await br.c.close();}
+
  }
  await b.close();srv.close();console.log(fails?('\n'+fails+' FAILED'):'\nALL PASS');process.exit(fails?1:0);})();

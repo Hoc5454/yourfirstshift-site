@@ -87,6 +87,10 @@ textarea.i{min-height:80px;}
 .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;}
 .cgrid .w2{grid-column:1 / -1;}
 .cgrid>div{min-width:0;}
+.rcs{margin:6px 0 2px;}
+.rc{display:flex;gap:6px;margin-top:6px;}
+.rc .rcf{flex:1;min-width:0;min-height:48px;text-align:left;background:#F1F5F9;border:2px solid var(--line);border-radius:12px;padding:6px 12px;font-size:15px;font-weight:700;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rc .rcx{flex:none;width:48px;min-height:48px;background:#fff;border:2px solid var(--line);border-radius:12px;font-size:18px;color:#475569;}
 .tsday{border-top:1px solid var(--line);padding:6px 0;}
 .tsday:first-child{border-top:0;}
 .tsday.today{background:#F0F9FF;margin:0 -12px;padding:6px 12px;}
@@ -158,7 +162,15 @@ function hasCodes(c){return !!c&&CODE_F.some(function(f){return !!c[f[0]];});}
 function codesText(c){c=c||{};return CODE_F.filter(function(f){return c[f[0]];}).map(function(f){return f[2]+' '+c[f[0]];}).join(' · ');}
 function codesLine(c){if(!hasCodes(c))return '';return '<span class="codes">'+CODE_F.filter(function(f){return c[f[0]];}).map(function(f){return '<span class="cd" data-code="'+f[0]+'"><i>'+f[2]+'</i>'+esc(c[f[0]])+'</span>';}).join('')+'</span>';}
 function codeInputs(pfx,c){c=c||{};var ph={job:'e.g. 4471 or Station 9',task:'e.g. WELD',cost:'e.g. 03-100',pay:'REG, OT, PTO',po:'e.g. 4500-18'};
-  return '<div class="cgrid">'+CODE_F.map(function(f){return '<div'+(f[0]==='job'?' class="w2"':'')+'><label class="f" for="'+pfx+f[0]+'">'+f[1]+'</label><input class="i" id="'+pfx+f[0]+'" value="'+esc(c[f[0]]||'')+'" maxlength="'+f[3]+'" placeholder="'+ph[f[0]]+'" autocomplete="off" autocorrect="off" spellcheck="false"></div>';}).join('')+'</div>';}
+  return '<div class="cgrid">'+CODE_F.map(function(f){return '<div'+(f[0]==='job'?' class="w2"':'')+'><label class="f" for="'+pfx+f[0]+'">'+f[1]+'</label><input class="i" id="'+pfx+f[0]+'" value="'+esc(c[f[0]]||'')+'" maxlength="'+f[3]+'" placeholder="'+ph[f[0]]+'" autocomplete="off" autocorrect="off" spellcheck="false"'+(f[0]==='pay'?' list="payList"':'')+'></div>';}).join('')+'</div><datalist id="payList"><option value="REG"><option value="OT"><option value="DT"><option value="PTO"><option value="HOL"><option value="SICK"></datalist>';}
+/* Recent code sets: the last 5 different sets a worker used, newest first. One tap fills every box, so nobody retypes when they switch jobs. */
+var RECENT_MAX=5;
+function recentCodes(){return Array.isArray(S.ui.recentCodes)?S.ui.recentCodes:[];}
+function pushRecent(c){c=cleanCodes(c);if(!hasCodes(c))return;var k=codesText(c);S.ui.recentCodes=[c].concat(recentCodes().filter(function(x){return codesText(x)!==k;})).slice(0,RECENT_MAX);}
+function recentRow(pfx){var r=recentCodes();if(!r.length)return '';
+  return '<div class="rcs" id="'+pfx+'recent"><div class="fine">Used before. Tap to fill:</div>'+r.map(function(c,i){return '<div class="rc"><button type="button" class="rcf" data-rc="'+i+'">'+esc(codesText(c))+'</button><button type="button" class="rcx" data-rx="'+i+'" aria-label="Forget these codes">✕</button></div>';}).join('')+'</div>';}
+function wireRecent(m,pfx){m.querySelectorAll('[data-rc]').forEach(function(b){b.addEventListener('click',function(){var c=recentCodes()[+b.dataset.rc]||{};CODE_F.forEach(function(f){var el=document.getElementById(pfx+f[0]);if(el)el.value=c[f[0]]||'';});});});
+  m.querySelectorAll('[data-rx]').forEach(function(b){b.addEventListener('click',function(){var r=recentCodes(),c=r[+b.dataset.rx];if(!c)return;var k=codesText(c);S.ui.recentCodes=r.filter(function(x){return codesText(x)!==k;});save();var row=b.closest('.rc');if(row)row.style.display='none';toast('Forgotten.');});});}
 function readCodes(pfx){var o={};CODE_F.forEach(function(f){var el=document.getElementById(pfx+f[0]);if(el)o[f[0]]=el.value;});return cleanCodes(o);}
 
 /* ── helpers ── */
@@ -200,7 +212,7 @@ function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isAr
     if(!num(e.start)||Math.abs(e.start)>8e15||(e.end!=null&&!num(e.end)))return false;
     if(!dOk)e.date=ymd(e.start);if(!Array.isArray(e.splits))e.splits=[];else e.splits=e.splits.filter(o).map(function(sp){sp.hours=isFinite(+sp.hours)?+sp.hours:0;return sp;});if(e.breaks!=null)e.breaks=arr(e.breaks);return true;});
   if(o(j.clock)&&num(j.clock.start)){j.clock.breaks=arr(j.clock.breaks);j.clock.codes=cleanCodes(j.clock.codes);}else j.clock=null;
-  j.ui.lastCodes=cleanCodes(j.ui.lastCodes);if(j.ui.view==='codes')j.ui.view='week';
+  j.ui.lastCodes=cleanCodes(j.ui.lastCodes);j.ui.recentCodes=(Array.isArray(j.ui.recentCodes)?j.ui.recentCodes:[]).map(cleanCodes).filter(hasCodes).slice(0,RECENT_MAX);if(j.ui.view==='codes')j.ui.view='week';
   return j;}
 function load(){try{var j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.app==='yfs-on-the-job')return clean(j);}catch(_){}return blank();}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true;}catch(e){toast('Phone storage is full. Make a Backup, then free up space.');return false;}}
@@ -336,7 +348,7 @@ function otAlert(w){var out='';Object.keys(w.jobs).forEach(function(jid){var jt=
   else if(jt.worked>=36)out+='<div class="alert ot">⚠︎ '+nm+'You\'re at '+hrs(jt.worked)+' hrs this week. Overtime starts after 40. <span class="est">estimate</span></div>';});return out;}
 function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=otAlert(w);
   h+='<div class="card">';
-  if(c&&c.start){var onB=!!c.onBreak;h+='<div class="state'+(onB?' brk':'')+'" id="clkState">'+(onB?'On break (not counted)':'On the clock')+'</div><div class="timer" id="clkT">0:00:00</div>'+
+  if(c&&c.start){var onB=!!c.onBreak;h+=stillOn(c)+'<div class="state'+(onB?' brk':'')+'" id="clkState">'+(onB?'On break (not counted)':'On the clock')+'</div><div class="timer" id="clkT">0:00:00</div>'+
     '<div class="muted" style="text-align:center">'+esc(jobOf(c.jobId).name)+' · since '+hm(c.start)+'</div>'+clockCodes(c.codes)+
     '<div class="row" style="margin-top:14px"><button type="button" class="btn ghost grow" data-a="break">'+(onB?'End break':'Start break')+'</button></div>'+
     '<div style="margin-top:10px"><button type="button" class="btn stop huge block" data-a="stop">STOP</button></div>';}
@@ -418,7 +430,7 @@ function filingText(f){return f==='mfj'?'Married filing jointly':f==='hoh'?'Head
 
 /* ── setup ── */
 function setupHTML(first){var s=S.settings||{state:'FL',period:'weekly',filing:'single',weekStart:1};var j=S.jobs[0]||{};
-  var h=(first?'<div class="card" style="background:#0F172A;color:#fff;border:0"><h2 style="color:#fff">Clocked In</h2><div>Clock in, watch your paycheck add up as the week goes, track PTO and keep the job codes your timesheet needs. It\'s your record, on your phone. Not your boss\'s.</div><div class="fine" style="color:#CBD5E1;margin-top:6px">30-second setup. Everything stays on this phone.</div></div>':'')+
+  var h=(first?'<div class="card" style="background:#0F172A;color:#fff;border:0"><h2 style="color:#fff">Clocked In</h2><div>Clock in, watch your paycheck add up as the week goes, track PTO and keep the job codes your timesheet needs. It\'s your record, on your phone. Not your boss\'s. No GPS. Every minute counts.</div><div class="fine" style="color:#CBD5E1;margin-top:6px">30-second setup. Everything stays on this phone.</div></div>':'')+
   '<div class="card"><h2>'+(first?'Set up your pay':'Pay setup')+'</h2>'+
   (first?'<label class="f" for="sJob">Job name</label><input class="i" id="sJob" value="'+esc(j.name||'')+'" placeholder="e.g. Gulf Coast Grocers">':'')+
   '<label class="f" for="sRate">Hourly rate</label><input class="i" id="sRate" inputmode="decimal" value="'+esc(s.rate||'')+'" placeholder="28.00">'+
@@ -469,6 +481,8 @@ function act(a,el){
   if(a==='install'&&BIP){BIP.prompt();BIP.userChoice.finally(function(){BIP=null;render();});return;}
   if(a==='start')return clockStart();
   if(a==='stop')return clockStop();
+  if(a==='stillyes'){if(S.clock){S.clock.askedAt=Date.now();save();render();}return;}
+  if(a==='forgot')return forgotModal();
   if(a==='break')return clockBreak();
   if(a==='add')return editEntry(null,{date:todayKey()});
   if(a==='addpto'){if(!S.pto.buckets.length){ptoDefaults();}return editEntry(null,{date:todayKey(),kind:'pto'});}
@@ -492,18 +506,32 @@ function act(a,el){
 function clockStart(){var jid=($('#cJob')||{}).value||(S.jobs[0]&&S.jobs[0].id);
   S.clock={start:Date.now(),jobId:jid,codes:cleanCodes(S.ui.lastCodes),breaks:[],onBreak:null};S.ui.lastJob=jid;save();render();toast('Clocked in at '+hm(S.clock.start)+'.');}
 function clockBreak(){var c=S.clock;if(!c)return;if(c.onBreak){c.breaks.push({s:c.onBreak,e:Date.now()});c.onBreak=null;toast('Back on the clock.');}else{c.onBreak=Date.now();toast('Break started. Break time doesn\'t count.');}save();render();}
-function clockStop(){var c=S.clock;if(!c)return;var now=Date.now();if(c.onBreak){c.breaks.push({s:c.onBreak,e:now});c.onBreak=null;}
+/* endAt: the real stop time when the worker forgot to clock out (see forgotModal). Breaks that run past it are cut off there. */
+function clockStop(endAt,why){var c=S.clock;if(!c)return;var real=Date.now(),now=(endAt&&endAt>c.start&&endAt<=real)?endAt:real;if(c.onBreak){c.breaks.push({s:c.onBreak,e:real});c.onBreak=null;}
+  c.breaks=c.breaks.filter(function(b){return b.s<now;}).map(function(b){return {s:b.s,e:Math.min(b.e,now)};});
   var brk=Math.round(c.breaks.reduce(function(a,b){return a+(b.e-b.s);},0)/60000);
-  var e={id:uid(),kind:'work',date:ymd(c.start),start:c.start,end:now,breakMin:brk,jobId:c.jobId,codeId:'',splits:[],note:'',created:now,src:'clock'};if(hasCodes(c.codes))e.codes=cleanCodes(c.codes);
-  S.entries.push(e);log(e.id,'(created)','',entrySummary(e),'clock');S.clock=null;save();render();toast('Saved: '+hrs(entryHours(e))+' hrs.');}
+  var e={id:uid(),kind:'work',date:ymd(c.start),start:c.start,end:now,breakMin:brk,jobId:c.jobId,codeId:'',splits:[],note:'',created:real,src:'clock'};if(hasCodes(c.codes))e.codes=cleanCodes(c.codes);
+  S.entries.push(e);log(e.id,'(created)','',entrySummary(e),why||'clock');pushRecent(e.codes);S.clock=null;save();render();toast('Saved: '+hrs(entryHours(e))+' hrs.');}
 /* v2 hook (not built): an opt-in native wrapper may call OTJ.autoClock('start'|'stop') after the user confirms. Location never leaves the phone. */
 function autoClockHook(kind){return false;}
+/* A clock left running: after LONG_SHIFT hours, ask once (and again every 4 hours) instead of quietly counting a 30-hour day. */
+var LONG_SHIFT=14,ASK_AGAIN=4;
+function stillOn(c){var now=Date.now(),run=(now-c.start)/3600000;if(run<LONG_SHIFT||(c.askedAt&&now-c.askedAt<ASK_AGAIN*3600000))return '';
+  return '<div class="alert ot" id="stillOn" style="text-align:left"><b>Still on the clock?</b> You clocked in '+esc(dayName(ymd(c.start),true))+' at '+hm(c.start)+', '+hrs(Math.floor(run))+' hours ago.<div class="row wrap" style="margin-top:10px"><button type="button" class="btn ghost small grow" data-a="stillyes">Yes, still working</button><button type="button" class="btn go small grow" data-a="forgot">I forgot to clock out</button></div></div>';}
+function forgotModal(){var c=S.clock;if(!c)return;var guess=Math.min(Date.now(),c.start+8*3600000);
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>When did you stop?</h3><div class="fine">You clocked in '+esc(dayName(ymd(c.start),true))+' at '+hm(c.start)+'. Put in when you really finished and we\'ll save the shift with that time.</div>'+
+    '<label class="f" for="fD">Day you stopped</label><input class="i" type="date" id="fD" value="'+esc(ymd(guess))+'"><label class="f" for="fT">Time you stopped</label><input class="i" type="time" id="fT" value="'+timeVal(guess)+'">'+
+    '<div class="fine" id="fCalc" style="margin-top:8px"></div><button type="button" class="btn go block" style="margin-top:14px" id="fSave">Save shift</button>',function(){
+    function end(){var d=$('#fD').value,t=$('#fT').value;return d&&t?toMs(d,t):0;}
+    function calc(){var e=end(),ok=e>c.start&&e<=Date.now();$('#fCalc').innerHTML=ok?'That makes <b>'+hrs(r2((e-c.start)/3600000))+' hrs</b> on the clock (breaks come off).':'<span style="color:var(--red)">Pick a time after you clocked in and not in the future.</span>';return ok;}
+    ['fD','fT'].forEach(function(id){$('#'+id).addEventListener('input',calc);});calc();
+    $('#fSave').addEventListener('click',function(){if(!calc())return;var e=end();closeModal();clockStop(e,'forgot to clock out');});});}
 /* Codes for the next clock-in (or the shift that is running). Typed once, then remembered until the worker changes or clears them. */
 function clockCodesModal(){var c=S.clock&&S.clock.start?S.clock.codes:S.ui.lastCodes;
-  modal('<button class="x" data-close aria-label="Close">×</button><h3>Job codes</h3><div class="fine">What your employer\'s timesheet asks for. Fill in only what you need. We remember them for your next shift.</div>'+codeInputs('kC_',c)+
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>Job codes</h3><div class="fine">What your employer\'s timesheet asks for. Fill in only what you need. We remember them for your next shift.</div>'+codeInputs('kC_',c)+recentRow('kC_')+
     '<button type="button" class="btn go block" style="margin-top:14px" id="kSave">Save</button><button type="button" class="btn ghost block" style="margin-top:8px" id="kClr">Clear codes</button>',function(){
-    $('#kClr').addEventListener('click',function(){CODE_F.forEach(function(f){$('#kC_'+f[0]).value='';});});
-    $('#kSave').addEventListener('click',function(){var n=readCodes('kC_');if(S.clock&&S.clock.start){var was=codesText(S.clock.codes);S.clock.codes=n;if(was!==codesText(n))log('clock','codes',was,codesText(n));}S.ui.lastCodes=n;save();closeModal();render();toast(hasCodes(n)?'Codes saved.':'Codes cleared.');});});}
+    $('#kClr').addEventListener('click',function(){CODE_F.forEach(function(f){$('#kC_'+f[0]).value='';});});wireRecent(document.getElementById('otjModal'),'kC_');
+    $('#kSave').addEventListener('click',function(){var n=readCodes('kC_');if(S.clock&&S.clock.start){var was=codesText(S.clock.codes);S.clock.codes=n;if(was!==codesText(n))log('clock','codes',was,codesText(n));}S.ui.lastCodes=n;pushRecent(n);save();closeModal();render();toast(hasCodes(n)?'Codes saved.':'Codes cleared.');});});}
 function repeatYesterday(){var y=addDays(todayKey(),-1),tk=todayKey();var src=S.entries.filter(function(e){return !e.deleted&&entryDate(e)===y;});
   if(!src.length){toast('Nothing logged yesterday to repeat.');return;}
   src.forEach(function(e){var n=JSON.parse(JSON.stringify(e));n.id=uid();n.date=tk;n.created=Date.now();n.src='repeat';if(n.start){n.start+=DAY;}if(n.end){n.end+=DAY;}delete n.orig;S.entries.push(n);log(n.id,'(created)','',entrySummary(n),'repeat yesterday');});
@@ -527,7 +555,7 @@ function editEntry(id,preset){var e=id?S.entries.filter(function(x){return x.id=
     '</div>'+
     '<div id="pRows"><label class="f" for="eBucket">PTO bucket</label><select class="i" id="eBucket">'+S.pto.buckets.map(function(b){return '<option value="'+esc(b.id)+'"'+(b.id===e.bucket?' selected':'')+'>'+esc(b.name)+' ('+hrs(ptoBalance(b).balance)+' hrs left)</option>';}).join('')+'</select>'+
     '<label class="f" for="ePH">PTO hours</label><input class="i" id="ePH" inputmode="decimal" value="'+esc(e.kind==='pto'?e.hours:8)+'"></div>'+
-    '<div class="f" style="margin-top:16px;font-size:16px">Codes for your employer\'s timesheet <span class="muted">(optional)</span></div>'+codeInputs('eC_',e.codes)+'<button type="button" class="link" id="eClr">Clear codes</button>'+
+    '<div class="f" style="margin-top:16px;font-size:16px">Codes for your employer\'s timesheet <span class="muted">(optional)</span></div>'+codeInputs('eC_',e.codes)+recentRow('eC_')+'<button type="button" class="link" id="eClr">Clear codes</button>'+
     '<label class="f" for="eNote">Note <span class="muted">(optional)</span></label><input class="i" id="eNote" value="'+esc(e.note||'')+'" maxlength="300">'+
     (isNew?'':'<label class="f" for="eWhy">Why the change? <span class="muted">(optional, saved in history)</span></label><input class="i" id="eWhy" maxlength="200" placeholder="e.g. forgot to clock out">')+
     '<div class="fine" id="eCalc" style="margin-top:8px"></div>'+
@@ -542,7 +570,7 @@ function editEntry(id,preset){var e=id?S.entries.filter(function(x){return x.id=
     function vis(){var p=$('#eKind').value==='pto';$('#wRows').hidden=p;$('#pRows').hidden=!p;var ho=$('#eHO').checked;$('#seRow').hidden=ho;$('#hoRow').hidden=!ho;calc();}
     ['eKind','eHO'].forEach(function(id){$('#'+id).addEventListener('change',vis);});
     ['eStart','eEnd','eBrk','eHrs','ePH','eDate'].forEach(function(id){var x=$('#'+id);if(x)x.addEventListener('input',calc);});
-    $('#eClr').addEventListener('click',function(){CODE_F.forEach(function(f){$('#eC_'+f[0]).value='';});});
+    $('#eClr').addEventListener('click',function(){CODE_F.forEach(function(f){$('#eC_'+f[0]).value='';});});wireRecent(m,'eC_');
     if(e.kind==='pto'&&!S.pto.buckets.length){ptoDefaults();}
     vis();
     $('#eSave').addEventListener('click',function(){var c=cur();var d=$('#eDate').value;if(!d){toast('Pick a date.');return;}
@@ -555,7 +583,7 @@ function editEntry(id,preset){var e=id?S.entries.filter(function(x){return x.id=
       var why=($('#eWhy')||{}).value||'';
       if(isNew){S.entries.push(n);log(n.id,'(created)','',entrySummary(n),'manual');S.ui.lastCodes=cleanCodes(n.codes);}
       else{var old=S.entries.filter(function(x){return x.id===e.id;})[0];diffLog(old,n,why);var i=S.entries.indexOf(old);S.entries[i]=n;}
-      if(n.jobId)S.ui.lastJob=n.jobId;save();closeModal();render();toast('Saved.');});
+      pushRecent(n.codes);if(n.jobId)S.ui.lastJob=n.jobId;save();closeModal();render();toast('Saved.');});
     var del=$('#eDel');if(del)del.addEventListener('click',function(){if(!confirm('Delete this entry? It stays in your change history and backup.'))return;var old=S.entries.filter(function(x){return x.id===e.id;})[0];old.deleted=Date.now();log(old.id,'(deleted)',entrySummary(old),'',($('#eWhy')||{}).value||'');save();closeModal();render();toast('Deleted. Still kept in your history.');});});}
 function toMs(dk,t){var p=(t||'00:00').split(':');var d=parseYmd(dk);d.setHours(+p[0]||0,+p[1]||0,0,0);return d.getTime();}
 function fmtField(f,v){if(v==null||v==='')return '';if(f==='start'||f==='end')return new Date(+v).toLocaleString();if(f==='codeId')return codeName(v);if(f==='codes')return codesText(v);if(f==='jobId')return jobOf(v).name;if(f==='bucket')return bucketName(v);if(f==='splits')return (v||[]).map(function(s){return codeName(s.codeId)+' '+s.hours+'h';}).join(' + ');return String(v);}
