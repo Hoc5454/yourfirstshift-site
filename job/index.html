@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>On the Job · YourFirstShift</title>
+<title>Clocked In · YourFirstShift</title>
 <meta name="description" content="Your hours, your paycheck estimate, your PTO and your job codes. Your record, on your phone.">
 <meta name="theme-color" content="#0F172A">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="On the Job">
+<meta name="apple-mobile-web-app-title" content="Clocked In">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="/job/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/job/apple-touch-icon.png">
@@ -110,13 +110,13 @@ textarea.i{min-height:80px;}
 </head>
 <body>
 <header class="hd">
-  <div><div class="brand">Your<span>First</span>Shift™</div><div class="sub">On the Job · your record, on your phone</div></div>
+  <div><div class="brand">Your<span>First</span>Shift™</div><div class="sub">Clocked In · track your hours, check your paycheck</div></div>
   <div class="sp"></div>
   <span id="proPill" class="pro-pill" hidden>PRO</span>
   <a class="back" href="/app.html">Resume tools</a>
 </header>
 <main id="view" aria-live="polite"></main>
-<nav class="tabs" aria-label="On the Job">
+<nav class="tabs" aria-label="Clocked In">
   <button type="button" data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>Clock</button>
   <button type="button" data-v="week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Week + Pay</button>
   <button type="button" data-v="pto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20h16M6 20V9l6-5 6 5v11M10 20v-5h4v5"/></svg>PTO</button>
@@ -291,8 +291,8 @@ function render(){$$('.tabs button').forEach(function(b){if(b.dataset.v===VIEW)b
 function a2hsHTML(){var standalone=(window.navigator.standalone===true)||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
   if(standalone||S.ui.a2hsX)return '';
   var ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  if(ios)return '<div class="a2hs" id="a2hs"><b>Keep your records safe:</b> add On the Job to your Home Screen. iPhone can erase website data after 7 days without a visit, but not for Home Screen apps.<div>Tap <b>Share</b> <span aria-hidden="true">⬆︎</span> at the bottom of Safari → <b>Add to Home Screen</b>.</div><div class="row"><button type="button" class="x2" data-a="a2hsx">Got it</button></div></div>';
-  if(BIP)return '<div class="a2hs" id="a2hs"><b>Install On the Job</b> so it opens like an app and works with no signal.<div class="row"><button type="button" data-a="install">Install</button><button type="button" class="x2" data-a="a2hsx">Not now</button></div></div>';
+  if(ios)return '<div class="a2hs" id="a2hs"><b>Keep your records safe:</b> add Clocked In to your Home Screen. iPhone can erase website data after 7 days without a visit, but not for Home Screen apps.<div>Tap <b>Share</b> <span aria-hidden="true">⬆︎</span> at the bottom of Safari → <b>Add to Home Screen</b>.</div><div class="row"><button type="button" class="x2" data-a="a2hsx">Got it</button></div></div>';
+  if(BIP)return '<div class="a2hs" id="a2hs"><b>Install Clocked In</b> so it opens like an app and works with no signal.<div class="row"><button type="button" data-a="install">Install</button><button type="button" class="x2" data-a="a2hsx">Not now</button></div></div>';
   return '';}
 function backupNag(){if(!S.entries.length)return '';var lb=S.lastBackup;if(lb&&Date.now()-lb<14*DAY)return '';
   return '<div class="alert info">'+(lb?'Last backup: '+new Date(lb).toLocaleDateString()+'. It\'s been over 2 weeks.':'You haven\'t made a backup yet.')+' <button type="button" class="link" data-a="backup">Back up now</button></div>';}
@@ -387,7 +387,7 @@ function filingText(f){return f==='mfj'?'Married filing jointly':f==='hoh'?'Head
 
 /* ── setup ── */
 function setupHTML(first){var s=S.settings||{state:'FL',period:'weekly',filing:'single',weekStart:1};var j=S.jobs[0]||{};
-  var h=(first?'<div class="card" style="background:#0F172A;color:#fff;border:0"><h2 style="color:#fff">On the Job</h2><div>Clock in, watch your paycheck add up as the week goes, track PTO and keep your job codes. It\'s your record, on your phone. Not your boss\'s.</div><div class="fine" style="color:#CBD5E1;margin-top:6px">30-second setup. Everything stays on this phone.</div></div>':'')+
+  var h=(first?'<div class="card" style="background:#0F172A;color:#fff;border:0"><h2 style="color:#fff">Clocked In</h2><div>Clock in, watch your paycheck add up as the week goes, track PTO and keep your job codes. It\'s your record, on your phone. Not your boss\'s.</div><div class="fine" style="color:#CBD5E1;margin-top:6px">30-second setup. Everything stays on this phone.</div></div>':'')+
   '<div class="card"><h2>'+(first?'Set up your pay':'Pay setup')+'</h2>'+
   (first?'<label class="f" for="sJob">Job name</label><input class="i" id="sJob" value="'+esc(j.name||'')+'" placeholder="e.g. Gulf Coast Grocers">':'')+
   '<label class="f" for="sRate">Hourly rate</label><input class="i" id="sRate" inputmode="decimal" value="'+esc(s.rate||'')+'" placeholder="28.00">'+
@@ -612,16 +612,16 @@ function csvModal(){var pro=isPro();
     (S.codes.length?'<label class="f" for="xC">Charge code</label><select class="i" id="xC"><option value="">All codes</option>'+S.codes.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.nick)+'</option>';}).join('')+'</select>':''):'<div class="fine">Exports every entry you have (always free). Filtering by date, job or code is Pro.</div>')+
     '<button type="button" class="btn go block" style="margin-top:14px" id="xGo">Download CSV</button>'+(pro?'':'<button type="button" class="link" id="xUp">Filter by date, job or code (Pro)</button>'),function(){
     $('#xGo').addEventListener('click',function(){var f=pro?{from:($('#xF')||{}).value,to:($('#xT')||{}).value,job:($('#xJ')||{}).value,code:($('#xC')||{}).value}:{};
-      deliver(new Blob([buildCSV(f)],{type:'text/csv;charset=utf-8'}),'yfs-on-the-job-'+todayKey()+'.csv');closeModal();});
+      deliver(new Blob([buildCSV(f)],{type:'text/csv;charset=utf-8'}),'yfs-clocked-in-'+todayKey()+'.csv');closeModal();});
     var up=$('#xUp');if(up)up.addEventListener('click',function(){upsell('Filter your export by date range, job or charge code for timesheets and audits.');});});}
 function backupObj(){return {app:'yfs-on-the-job',kind:'backup',v:1,exported:Date.now(),data:S};}
 function deliver(blob,name){try{var file=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[file]})&&/iPhone|iPad|Android/.test(navigator.userAgent)){navigator.share({files:[file],title:name}).catch(function(){dl(blob,name);});return;}}catch(_){}dl(blob,name);}
 function dl(blob,name){var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},4000);}
-function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-on-the-job-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
+function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-clocked-in-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
 function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){
     /* Everything that can fail happens BEFORE the worker's current records are touched. */
     var j=null;try{j=JSON.parse(rd.result);}catch(_){}
-    if(!j||typeof j!=='object'||j.app!=='yfs-on-the-job'||!j.data||typeof j.data!=='object'||!Array.isArray(j.data.entries)){alert('That file isn\'t an On the Job backup.');return;}
+    if(!j||typeof j!=='object'||j.app!=='yfs-on-the-job'||!j.data||typeof j.data!=='object'||!Array.isArray(j.data.entries)){alert('That file isn\'t a Clocked In backup.');return;}
     var rawN=j.data.entries.length,next;try{next=clean(JSON.parse(JSON.stringify(j.data)));}catch(_){alert('That backup is damaged and can\'t be read. Your records were not changed.');return;}
     var ex=new Date(j.exported),okD=j.exported!=null&&j.exported!==''&&!isNaN(ex.getTime());
     var when=okD?ex.toLocaleString():'an unknown date',stamp=okD?ex.toISOString():'unknown date';
