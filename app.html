@@ -2825,6 +2825,7 @@ alert('Done — your resume and results are deleted from this device. We never s
   <button type="button" id="ybnHome" onclick="yfsGoHome()"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Home</button>
   <button type="button" id="ybnRes" onclick="openVault()"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>My resumes</button>
   <button type="button" id="ybnPlans" onclick="yfsOpenPlans()"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>Plans</button>
+  <a id="ybnJob" href="/job/" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:52px;color:#475569;font-family:var(--font-b);font-size:13px;font-weight:600;text-decoration:none;-webkit-tap-highlight-color:transparent;"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>On the Job</a>
   <button type="button" id="ybnAcct" onclick="yfsOpenAccount()"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Account</button>
 </nav>
 
@@ -3791,6 +3792,14 @@ if(typeof window.yfsResumeModel==='function'){var _rm=window.yfsResumeModel;wind
   return _rm.apply(this,arguments);};
   var _rm2=window.yfsResumeModel;window.yfsResumeModel=function(){var m=_rm2.apply(this,arguments);try{if(m&&m.secs&&window.yfsJoinWraps)m.secs=m.secs.map(function(x){return /SKILL/i.test(x[0])?x:[x[0],yfsJoinWraps(x[1])];});}catch(_){}return m;};}
 })();
+</script>
+<style id="yfs-otj-nav">#yfsBottomNav{grid-template-columns:repeat(5,minmax(0,1fr)) !important;}#yfsBottomNav button,#yfsBottomNav a{font-size:12px !important;}</style>
+<script id="yfs-otj-plans">/* On the Job → "See Pro plans" lands here: open the plans sheet (retry once after full load in case startup closed it) */
+(function(){var want=location.hash==='#plans';if(!want)return;
+function go(){var sh=document.getElementById('yfsPlans');if(sh&&sh.classList.contains('open'))return;if(typeof window.yfsOpenPlans==='function'){try{window.yfsOpenPlans();}catch(_){}}}
+try{history.replaceState(null,'',location.pathname+location.search);}catch(_){}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(go,350);});else setTimeout(go,350);
+window.addEventListener('load',function(){setTimeout(go,350);});})();
 </script>
 </body>
 </html>

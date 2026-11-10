@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>On the Job · YourFirstShift</title>
+<meta name="description" content="Your hours, your paycheck estimate, your PTO and your job codes. Your record, on your phone.">
+<meta name="theme-color" content="#0F172A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="On the Job">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="/job/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/job/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/job/icon-192.png">
+<style>
+:root{--ink:#0F172A;--ink2:#334155;--muted:#64748B;--line:#E2E8F0;--bg:#F8FAFC;--card:#fff;--go:#047857;--go2:#10B981;--amber:#B45309;--amberbg:#FEF3C7;--red:#B91C1C;--blue:#1D4ED8;}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:17px;line-height:1.4;-webkit-text-size-adjust:100%;}
+button,input,select,textarea{font:inherit;color:inherit;}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.hd{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px;}
+.hd .brand{font-weight:800;font-size:18px;letter-spacing:-.2px;}
+.hd .brand span{color:var(--amber);}
+.hd .sub{font-size:13px;color:var(--muted);font-weight:600;}
+.hd .sp{flex:1;}
+.hd a.back{font-size:14px;font-weight:700;color:var(--blue);text-decoration:none;padding:8px 4px;}
+.pro-pill{font-size:12px;font-weight:800;color:var(--go);background:#ECFDF5;border:1px solid #A7F3D0;border-radius:999px;padding:3px 9px;}
+main{padding:14px 16px calc(96px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px;}
+.card h2{margin:0 0 8px;font-size:18px;}
+.muted{color:var(--muted);font-size:14px;}
+.fine{color:var(--muted);font-size:13px;line-height:1.45;}
+.big{font-size:34px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;}
+.mid{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;}
+.row{display:flex;align-items:center;gap:10px;}
+.row.wrap{flex-wrap:wrap;}
+.grow{flex:1;min-width:0;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:12px 18px;border-radius:12px;border:2px solid var(--line);background:#fff;font-weight:800;font-size:17px;}
+.btn.block{display:flex;width:100%;}
+.btn.go{background:var(--go);border-color:var(--go);color:#fff;}
+.btn.stop{background:var(--red);border-color:var(--red);color:#fff;}
+.btn.amber{background:#F59E0B;border-color:#F59E0B;color:#111;}
+.btn.ghost{border-color:#CBD5E1;}
+.btn.small{min-height:44px;padding:8px 12px;font-size:15px;}
+.btn.huge{min-height:96px;font-size:26px;letter-spacing:.5px;border-radius:18px;}
+.btn:disabled{opacity:.5;}
+.link{background:none;border:0;padding:6px 0;color:var(--blue);font-weight:700;text-decoration:underline;font-size:15px;}
+label.f{display:block;font-size:14px;font-weight:700;color:var(--ink2);margin:12px 0 4px;}
+input.i,select.i,textarea.i{width:100%;min-height:50px;padding:10px 12px;border:2px solid #CBD5E1;border-radius:10px;background:#fff;font-size:17px;}
+textarea.i{min-height:80px;}
+.chk{display:flex;gap:10px;align-items:flex-start;margin:12px 0;font-size:15px;}
+.chk input{width:24px;height:24px;flex:none;margin-top:1px;}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:6px 4px calc(6px + env(safe-area-inset-bottom));}
+.tabs button{background:none;border:0;min-height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:13px;font-weight:700;color:#475569;}
+.tabs button[aria-current=page]{color:var(--blue);}
+.tabs svg{width:24px;height:24px;}
+.alert{border-radius:12px;padding:12px 14px;margin:0 0 14px;font-size:15px;font-weight:600;}
+.alert.ot{background:var(--amberbg);color:#78350F;border:1px solid #FCD34D;}
+.alert.ok{background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0;}
+.alert.info{background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;}
+.timer{font-size:52px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums;text-align:center;margin:6px 0;}
+.state{text-align:center;font-weight:700;color:var(--go);}
+.state.brk{color:var(--amber);}
+.list{list-style:none;margin:0;padding:0;}
+.list li{border-top:1px solid var(--line);padding:12px 0;display:flex;gap:10px;align-items:center;}
+.list li:first-child{border-top:0;}
+.ent{width:100%;text-align:left;background:none;border:0;padding:0;display:flex;gap:10px;align-items:center;}
+.tag{display:inline-block;font-size:12px;font-weight:800;border-radius:6px;padding:2px 7px;margin-right:4px;}
+.tag.ot{background:var(--amberbg);color:#92400E;}
+.tag.pto{background:#EDE9FE;color:#5B21B6;}
+.tag.code{background:#F1F5F9;color:#334155;}
+.wk{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;}
+.wk th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:right;padding:6px 4px;font-weight:800;}
+.wk th:first-child,.wk td:first-child{text-align:left;}
+.wk td{border-top:1px solid var(--line);padding:12px 4px;text-align:right;font-size:16px;}
+.wk tr.today td{background:#F0F9FF;}
+.wk tr.tap{cursor:pointer;}
+.wk .d{font-weight:800;}
+.wk .dd{font-size:12px;color:var(--muted);font-weight:600;}
+.tot{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;}
+.tot .k{font-weight:700;color:var(--ink2);}
+.tot.main .v{font-size:26px;font-weight:800;}
+.est{font-size:12px;font-weight:800;color:#92400E;background:var(--amberbg);border-radius:6px;padding:2px 6px;vertical-align:middle;}
+.wknav{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;}
+.wknav button{min-width:52px;min-height:52px;border:2px solid var(--line);border-radius:12px;background:#fff;font-size:22px;font-weight:800;}
+.wknav .t{font-weight:800;}
+.modal{position:fixed;inset:0;z-index:50;background:rgba(15,23,42,.5);display:flex;align-items:flex-end;justify-content:center;}
+.sheet{background:#fff;width:100%;max-width:640px;max-height:92vh;max-height:92dvh;overflow:auto;-webkit-overflow-scrolling:touch;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));}
+.sheet h3{margin:0 0 6px;font-size:20px;}
+.sheet .x{float:right;border:0;background:#F1F5F9;border-radius:999px;width:44px;height:44px;font-size:22px;font-weight:800;}
+.math{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:15px;}
+.math td{padding:8px 2px;border-top:1px solid var(--line);vertical-align:top;}
+.math td:last-child{text-align:right;white-space:nowrap;font-weight:700;}
+.math tr.sum td{font-weight:800;border-top:2px solid var(--ink);}
+.split{display:grid;grid-template-columns:1fr 96px 44px;gap:8px;align-items:center;margin:6px 0;}
+.a2hs{background:#0F172A;color:#fff;border-radius:14px;padding:14px 16px;margin:0 0 14px;font-size:15px;}
+.a2hs b{color:#FCD34D;}
+.a2hs .row{margin-top:8px;}
+.a2hs button{background:#fff;color:#0F172A;border:0;border-radius:10px;min-height:44px;padding:8px 14px;font-weight:800;}
+.a2hs .x2{background:none;color:#CBD5E1;text-decoration:underline;}
+.foot{margin:18px 0 0;text-align:center;}
+.empty{text-align:center;color:var(--muted);font-size:15px;padding:8px 6px;}
+.star{background:none;border:0;font-size:24px;min-width:44px;min-height:44px;color:#CBD5E1;}
+.star.on{color:#F59E0B;}
+.lock{font-size:13px;font-weight:800;color:var(--amber);}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;background:#0F172A;color:#fff;border-radius:12px;padding:12px 16px;font-weight:700;font-size:15px;max-width:92vw;}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+@media(min-width:760px){.modal{align-items:center;}.sheet{border-radius:18px;}}
+</style>
+</head>
+<body>
+<header class="hd">
+  <div><div class="brand">Your<span>First</span>Shift™</div><div class="sub">On the Job · your record, on your phone</div></div>
+  <div class="sp"></div>
+  <span id="proPill" class="pro-pill" hidden>PRO</span>
+  <a class="back" href="/app.html">Resume tools</a>
+</header>
+<main id="view" aria-live="polite"></main>
+<nav class="tabs" aria-label="On the Job">
+  <button type="button" data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>Clock</button>
+  <button type="button" data-v="week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Week + Pay</button>
+  <button type="button" data-v="pto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20h16M6 20V9l6-5 6 5v11M10 20v-5h4v5"/></svg>PTO</button>
+  <button type="button" data-v="codes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>Jobs + Codes</button>
+  <button type="button" data-v="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>More</button>
+</nav>
+<script>
+/* YourFirstShift — On the Job, Phase 1.
+   Worker-owned record. Everything stays in this browser (localStorage). No GPS, no server, no employer access.
+   Paycheck numbers are ESTIMATES from a dated table file (tax-2026.json). The employer's payroll is the final word. */
+(function(){
+'use strict';
+var KEY='yfs_otj_v1', FREE_JOBS=1, FREE_CODES=3;
+var TAX=null, S=null, VIEW='today', WEEK_OFF=0, TICK=null, BIP=null;
+var DAY=86400000;
+var STATES=[['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['DC','District of Columbia'],['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming']];
+var DEFAULT_LABELS={proj:'Job / Project #',po:'PO # + Line',cost:'Cost Code',wo:'Work Order #'};
+
+/* ── helpers ── */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+function pad(n){return (n<10?'0':'')+n;}
+function ymd(d){d=new Date(d);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function parseYmd(k){var p=k.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function addDays(k,n){var d=parseYmd(k);d.setDate(d.getDate()+n);return ymd(d);}
+function hm(ms){var d=new Date(ms);var h=d.getHours(),m=d.getMinutes();var ap=h>=12?'pm':'am';h=h%12||12;return h+':'+pad(m)+ap;}
+function timeVal(ms){var d=new Date(ms);return pad(d.getHours())+':'+pad(d.getMinutes());}
+function money(n){n=Math.round((n||0)*100)/100;return (n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function hrs(n){n=Math.round((n||0)*100)/100;return (Math.round(n*100)%100===0?n.toFixed(0):n.toFixed(2).replace(/0$/,''));}
+function r2(n){return Math.round(n*100)/100;}
+function dayName(k,long){return parseYmd(k).toLocaleDateString('en-US',long?{weekday:'long',month:'short',day:'numeric'}:{weekday:'short'});}
+function shortDate(k){return parseYmd(k).toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+function todayKey(){return ymd(Date.now());}
+function isPro(){try{return localStorage.getItem('yfs_pro')==='1';}catch(_){return false;}}
+function $(s,r){return (r||document).querySelector(s);}
+function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+
+/* ── storage (never auto-deletes) ── */
+function blank(){return {app:'yfs-on-the-job',v:1,created:Date.now(),settings:null,labels:Object.assign({},DEFAULT_LABELS),jobs:[],codes:[],entries:[],pto:{buckets:[]},clock:null,log:[],lastBackup:null,ui:{}};}
+function load(){try{var j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.app==='yfs-on-the-job')return Object.assign(blank(),j);}catch(_){}return blank();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('Phone storage is full. Make a Backup, then free up space.');}}
+function log(entryId,field,oldV,newV,reason){S.log.push({t:Date.now(),id:entryId,field:field,old:oldV==null?'':String(oldV),new:newV==null?'':String(newV),reason:reason||''});}
+
+/* ── hours + pay engine (pure; exposed as OTJ for tests) ── */
+function entryHours(e,now){
+  if(e.kind==='pto')return Math.max(0,+e.hours||0);
+  if(e.manualHours!=null&&e.manualHours!=='')return Math.max(0,+e.manualHours);
+  var end=e.end||now||Date.now();var ms=end-e.start;
+  var brk=(+e.breakMin||0)*60000;
+  (e.breaks||[]).forEach(function(b){brk+=((b.e||now||Date.now())-b.s);});
+  return Math.max(0,r2((ms-brk)/3600000));}
+function entryDate(e){return e.date||ymd(e.start);}
+function jobOf(id){return S.jobs.filter(function(j){return j.id===id;})[0]||S.jobs[0]||{id:'',name:'My job'};}
+function rateOf(job){var r=+(job&&job.rate)||+(S.settings&&S.settings.rate)||0;return r;}
+function otRateOf(job){var o=+(job&&job.otRate)||+(S.settings&&S.settings.otRate)||0;return o||rateOf(job)*1.5;}
+function weekStartKey(k){var ws=S.settings?+S.settings.weekStart||0:1;var d=parseYmd(k);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff);return ymd(d);}
+function liveEntries(){var a=S.entries.filter(function(e){return !e.deleted;});
+  if(S.clock&&S.clock.start){a=a.concat([{id:'__live',kind:'work',start:S.clock.start,end:null,jobId:S.clock.jobId,codeId:S.clock.codeId,breaks:(S.clock.breaks||[]).concat(S.clock.onBreak?[{s:S.clock.onBreak}]:[]),live:true}]);}
+  return a;}
+/* One FLSA workweek: OT = worked hours over 40 per job (separate employers are not combined). PTO/holiday is paid but never counts toward 40. Breaks never count. */
+function computeWeek(wsKey,now){
+  var days={},i,keys=[];for(i=0;i<7;i++){var k=addDays(wsKey,i);keys.push(k);days[k]={key:k,hours:0,reg:0,ot:0,pto:0,gross:0,perDiem:0,items:[]};}
+  var es=liveEntries().filter(function(e){return days[entryDate(e)];});
+  var byJob={};es.forEach(function(e){var j=e.jobId||(S.jobs[0]&&S.jobs[0].id)||'';(byJob[j]=byJob[j]||[]).push(e);});
+  var jobsTot={};
+  Object.keys(byJob).forEach(function(jid){var job=jobOf(jid),rate=rateOf(job),otr=otRateOf(job),cum=0;
+    var list=byJob[jid].slice().sort(function(a,b){return (entryDate(a)<entryDate(b)?-1:entryDate(a)>entryDate(b)?1:0)||((a.start||0)-(b.start||0));});
+    var jt={worked:0,ot:0,pto:0,gross:0};
+    list.forEach(function(e){var h=entryHours(e,now),d=days[entryDate(e)];var it={e:e,hours:h,reg:0,ot:0,pto:0,gross:0};
+      if(e.kind==='pto'){it.pto=h;it.gross=h*rate;d.pto+=h;jt.pto+=h;}
+      else{var before=cum;cum+=h;var reg=Math.max(0,Math.min(h,40-before));var ot=h-reg;it.reg=reg;it.ot=ot;it.gross=reg*rate+ot*otr;d.reg+=reg;d.ot+=ot;jt.worked+=h;jt.ot+=ot;}
+      d.hours+=h;d.gross+=it.gross;jt.gross+=it.gross;d.items.push(it);});
+    jobsTot[jid]=jt;});
+  var pd=S.settings&&+S.settings.perDiem||0;
+  keys.forEach(function(k){var d=days[k];if(pd&&d.reg+d.ot>0){d.perDiem=pd;}});
+  var tot={hours:0,reg:0,ot:0,pto:0,gross:0,perDiem:0,worked:0};
+  keys.forEach(function(k){var d=days[k];['hours','reg','ot','pto','gross','perDiem'].forEach(function(f){d[f]=r2(d[f]);tot[f]+=d[f];});});
+  tot.worked=r2(tot.reg+tot.ot);Object.keys(tot).forEach(function(f){tot[f]=r2(tot[f]);});
+  return {start:wsKey,keys:keys,days:days,tot:tot,jobs:jobsTot};}
+function periodRange(k){var s=S.settings||{},p=s.period||'weekly';var d=parseYmd(k);
+  if(p==='weekly'){var a=weekStartKey(k);return {from:a,to:addDays(a,6)};}
+  if(p==='biweekly'){var anchor=s.anchor||weekStartKey(todayKey());var diff=Math.round((parseYmd(weekStartKey(k))-parseYmd(anchor))/DAY);var n=Math.floor(diff/14);var a2=addDays(anchor,n*14);return {from:a2,to:addDays(a2,13)};}
+  if(p==='semimonthly'){var y=d.getFullYear(),m=d.getMonth();if(d.getDate()<=15)return {from:ymd(new Date(y,m,1)),to:ymd(new Date(y,m,15))};return {from:ymd(new Date(y,m,16)),to:ymd(new Date(y,m+1,0))};}
+  var y2=d.getFullYear(),m2=d.getMonth();return {from:ymd(new Date(y2,m2,1)),to:ymd(new Date(y2,m2+1,0))};}
+function rangeTotals(from,to,now){var t={hours:0,reg:0,ot:0,pto:0,gross:0,perDiem:0},seen={};var k=weekStartKey(from);
+  while(k<=to){var w=computeWeek(k,now);w.keys.forEach(function(dk){if(dk>=from&&dk<=to&&!seen[dk]){seen[dk]=1;var d=w.days[dk];['hours','reg','ot','pto','gross','perDiem'].forEach(function(f){t[f]+=d[f];});}});k=addDays(k,7);}
+  Object.keys(t).forEach(function(f){t[f]=r2(t[f]);});return t;}
+/* Take-home ESTIMATE for one pay period. IRS Pub 15-T Worksheet 1A (annual percentage method, 2020+ W-4, Step 2 not checked). */
+function takeHome(gross,perDiem,set,tax){set=set||{};tax=tax||TAX;var lines=[];var periods=tax.pay_periods[set.period||'weekly'];
+  var pdNT=set.perDiemNT?perDiem:0, pdT=set.perDiemNT?0:perDiem;
+  var total=r2(gross+perDiem);
+  var k401=+set.k401||0, health=+set.health||0;
+  var fitW=Math.max(0,r2(total-pdNT-k401-health));
+  var ficaW=Math.max(0,r2(total-pdNT-health));
+  var annual=fitW*periods;var adj=(set.filing==='mfj'?tax.worksheet_1a_line_1g.mfj:tax.worksheet_1a_line_1g.other);
+  var aaw=Math.max(0,annual-adj);var tbl=tax.federal_standard_annual[set.filing==='mfj'?'mfj':set.filing==='hoh'?'hoh':'single'];var row=tbl[0];
+  for(var i=0;i<tbl.length;i++){if(aaw>=tbl[i][0]&&(tbl[i][1]==null||aaw<tbl[i][1])){row=tbl[i];break;}}
+  var tentA=row[2]+(aaw-row[0])*row[3];var fed=tentA/periods-(+set.credits||0)/periods;fed=Math.max(0,r2(fed))+(+set.extraWH||0);fed=r2(fed);
+  var ss=r2(ficaW*tax.ss_rate),med=r2(ficaW*tax.medicare_rate),addl=0;
+  if(ficaW*periods>tax.additional_medicare_threshold){addl=r2((ficaW*periods-tax.additional_medicare_threshold)/periods*tax.additional_medicare_rate);}
+  var st=set.state||'',noTax=tax.no_wage_tax_states.indexOf(st)>=0,stRate=+set.stateRate||0,stateAmt=noTax?0:r2(fitW*stRate/100);
+  lines.push({k:'Gross pay (hours × rate, OT, PTO)',v:gross});
+  if(perDiem)lines.push({k:'Per diem',v:perDiem});
+  if(k401)lines.push({k:'Pre-tax 401(k)',v:-k401});
+  if(health)lines.push({k:'Pre-tax health',v:-health});
+  lines.push({k:'Federal income tax (IRS Pub 15-T 2026, '+(set.filing==='mfj'?'married filing jointly':set.filing==='hoh'?'head of household':'single')+')',v:-fed});
+  lines.push({k:'Social Security (6.2%)',v:-ss});
+  lines.push({k:'Medicare (1.45%)',v:-med});
+  if(addl)lines.push({k:'Additional Medicare (0.9%)',v:-addl});
+  if(noTax)lines.push({k:'No state income tax on wages ('+st+')',v:0});
+  else if(stRate)lines.push({k:'Your rate ('+stRate+'%)',v:-stateAmt});
+  else lines.push({k:'State tax not included. Add your rate in Pay setup.',v:0,warn:true});
+  var net=r2(total-k401-health-fed-ss-med-addl-stateAmt);
+  return {gross:gross,perDiem:perDiem,total:total,fitWages:fitW,ficaWages:ficaW,fed:fed,ss:ss,med:med,addl:addl,state:stateAmt,stateNoTax:noTax,net:net,lines:lines,periods:periods,pdNT:pdNT};}
+/* PTO balance: start balance + accruals (capped) − PTO used; optional Jan 1 carryover limit. */
+function ptoBalance(b,asOf,now){asOf=asOf||todayKey();var bal=+b.start||0,used=0,earned=0;var start=b.startDate||'1970-01-01';var ev=[];
+  S.entries.filter(function(e){return !e.deleted;}).forEach(function(e){var dk=entryDate(e);if(dk<start)return;
+    if(e.kind==='pto'&&e.bucket===b.id){ev.push({d:dk,t:1,amt:-(+e.hours||0)});return;} /* planned PTO counts as used right away */
+    if(dk>asOf)return;
+    else if(e.kind!=='pto'&&b.type==='perHours'&&(+b.per||0)>0&&(!b.jobId||e.jobId===b.jobId)&&(e.end||(e.manualHours!=null&&e.manualHours!=='')))ev.push({d:dk,t:0,amt:(+b.earn||0)*entryHours(e,now)/(+b.per)});});
+  if(b.type==='perPeriod'&&(+b.earn||0)>0){var k=start;var guard=0;while(k<=asOf&&guard++<2000){var pr=periodRange(k);if(pr.to<=asOf&&pr.to>=start)ev.push({d:pr.to,t:0,amt:+b.earn});k=addDays(pr.to,1);}}
+  var y0=+start.slice(0,4),y1=+asOf.slice(0,4);for(var y=y0+1;y<=y1;y++){var jan=y+'-01-01';if(jan<=asOf){ev.push({d:jan,t:-1});if(b.type==='yearly'&&(+b.earn||0)>0)ev.push({d:jan,t:0,amt:+b.earn,yr:1});}}
+  ev=ev.filter(function(x){return x.t===1||x.d<=asOf;});ev.sort(function(a,c){return a.d<c.d?-1:a.d>c.d?1:a.t-c.t;});
+  var cap=b.cap===''||b.cap==null?null:+b.cap,carry=b.carry===''||b.carry==null?null:+b.carry;
+  ev.forEach(function(x){if(x.t===-1){if(carry!=null)bal=Math.min(bal,carry);return;}
+    if(x.amt>=0){var nb=bal+x.amt;if(cap!=null)nb=Math.min(nb,Math.max(bal,cap));earned+=nb-bal;bal=nb;}else{bal+=x.amt;used-=x.amt;}});
+  return {balance:r2(bal),used:r2(used),earned:r2(earned)};}
+
+/* ── UI chrome ── */
+function toast(m){var t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove();},2600);}
+function modal(html,onOpen){closeModal();var m=document.createElement('div');m.className='modal';m.id='otjModal';m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';
+  m.addEventListener('click',function(e){if(e.target===m||e.target.closest('[data-close]'))closeModal();});document.body.appendChild(m);document.body.style.overflow='hidden';if(onOpen)onOpen(m);var f=m.querySelector('input,select,button');if(f&&f.focus&&!('ontouchstart' in window))f.focus();return m;}
+function closeModal(){var m=document.getElementById('otjModal');if(m)m.remove();document.body.style.overflow='';}
+function upsell(what){modal('<button class="x" data-close aria-label="Close">×</button><h3>That\'s a Pro feature</h3><p>'+esc(what)+'</p><p class="fine">Pro is $9/mo (cancel anytime) and also unlocks every resume tool. Your records are never locked: Backup and CSV export are always free.</p><a class="btn go block" href="/app.html#plans">See Pro plans</a>');}
+function go(v){VIEW=v;try{S.ui.view=v;save();}catch(_){}render();window.scrollTo(0,0);}
+$$('.tabs button').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.v);});});
+
+/* ── views ── */
+function render(){$$('.tabs button').forEach(function(b){if(b.dataset.v===VIEW)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  $('#proPill').hidden=!isPro();
+  var v=$('#view');clearInterval(TICK);TICK=null;
+  if(!S.settings){v.innerHTML=setupHTML(true);wireSetup(true);return;}
+  var h=a2hsHTML()+backupNag();
+  if(VIEW==='today')h+=todayHTML();else if(VIEW==='week')h+=weekHTML();else if(VIEW==='pto')h+=ptoHTML();else if(VIEW==='codes')h+=codesHTML();else h+=moreHTML();
+  h+='<div class="foot fine">Your personal records. Not legal or tax advice.<br>Pay amounts are estimates. Your employer\'s payroll is the final word.</div>';
+  v.innerHTML=h;wire();}
+
+function a2hsHTML(){var standalone=(window.navigator.standalone===true)||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
+  if(standalone||S.ui.a2hsX)return '';
+  var ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(ios)return '<div class="a2hs" id="a2hs"><b>Keep your records safe:</b> add On the Job to your Home Screen. iPhone can erase website data after 7 days without a visit, but not for Home Screen apps.<div>Tap <b>Share</b> <span aria-hidden="true">⬆︎</span> at the bottom of Safari → <b>Add to Home Screen</b>.</div><div class="row"><button type="button" class="x2" data-a="a2hsx">Got it</button></div></div>';
+  if(BIP)return '<div class="a2hs" id="a2hs"><b>Install On the Job</b> so it opens like an app and works with no signal.<div class="row"><button type="button" data-a="install">Install</button><button type="button" class="x2" data-a="a2hsx">Not now</button></div></div>';
+  return '';}
+function backupNag(){if(!S.entries.length)return '';var lb=S.lastBackup;if(lb&&Date.now()-lb<14*DAY)return '';
+  return '<div class="alert info">'+(lb?'Last backup: '+new Date(lb).toLocaleDateString()+'. It\'s been over 2 weeks.':'You haven\'t made a backup yet.')+' <button type="button" class="link" data-a="backup">Back up now</button></div>';}
+
+function weekNow(){return computeWeek(weekStartKey(todayKey()));}
+function otAlert(w){var out='';Object.keys(w.jobs).forEach(function(jid){var jt=w.jobs[jid],nm=S.jobs.length>1?esc(jobOf(jid).name)+': ':'';
+  if(jt.ot>0)out+='<div class="alert ot">⚠︎ '+nm+'Overtime: '+hrs(jt.ot)+' hrs this week <span class="est">estimate</span></div>';
+  else if(jt.worked>=36)out+='<div class="alert ot">⚠︎ '+nm+'You\'re at '+hrs(jt.worked)+' hrs this week. Overtime starts after 40. <span class="est">estimate</span></div>';});return out;}
+function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=otAlert(w);
+  h+='<div class="card">';
+  if(c&&c.start){var onB=!!c.onBreak;h+='<div class="state'+(onB?' brk':'')+'" id="clkState">'+(onB?'On break (not counted)':'On the clock')+'</div><div class="timer" id="clkT">0:00:00</div>'+
+    '<div class="muted" style="text-align:center">'+esc(jobOf(c.jobId).name)+(c.codeId?' · '+esc(codeName(c.codeId)):'')+' · since '+hm(c.start)+'</div>'+
+    '<div class="row" style="margin-top:14px"><button type="button" class="btn ghost grow" data-a="break">'+(onB?'End break':'Start break')+'</button></div>'+
+    '<div style="margin-top:10px"><button type="button" class="btn stop huge block" data-a="stop">STOP</button></div>';}
+  else{h+='<h2>Clock in</h2>'+jobPicker('cJob',S.ui.lastJob)+codePicker('cCode',S.ui.lastJob,S.ui.lastCode)+'<div style="margin-top:12px"><button type="button" class="btn go huge block" data-a="start">START</button></div>';}
+  h+='</div>';
+  h+='<div class="card"><div class="tot main"><span class="k">Earned today</span><span class="v" id="earnToday">'+money(d.gross+d.perDiem)+'</span></div>'+
+    '<div class="tot"><span class="k">This week so far</span><span class="v mid" id="earnWeek">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
+    '<div class="fine">'+hrs(w.tot.worked)+' hrs worked'+(w.tot.ot?' ('+hrs(w.tot.ot)+' OT)':'')+(w.tot.pto?' + '+hrs(w.tot.pto)+' PTO':'')+' · gross, before taxes · <span class="est">estimate</span></div>'+
+    '<button type="button" class="link" data-a="gopay">See take-home + show the math →</button></div>';
+  h+='<div class="row wrap" style="margin-bottom:14px"><button type="button" class="btn ghost small grow" data-a="add">+ Add hours</button><button type="button" class="btn ghost small grow" data-a="repeat">Repeat yesterday</button><button type="button" class="btn ghost small grow" data-a="addpto">PTO day</button></div>';
+  var items=d.items.filter(function(it){return !it.e.live;});
+  h+='<div class="card"><h2>Today · '+esc(dayName(tk,true))+'</h2>'+(items.length?entryList(items):'<div class="empty">Nothing logged today. Tap START when your shift begins, or add hours you forgot.</div>')+'</div>';
+  return h;}
+function entryList(items){return '<ul class="list">'+items.map(function(it){var e=it.e;var tags='';
+  if(e.kind==='pto')tags+='<span class="tag pto">PTO · '+esc(bucketName(e.bucket))+'</span>';
+  if(it.ot>0)tags+='<span class="tag ot">'+hrs(it.ot)+' OT</span>';
+  (e.splits&&e.splits.length?e.splits:(e.codeId?[{codeId:e.codeId}]:[])).forEach(function(sp){tags+='<span class="tag code">'+esc(codeName(sp.codeId))+(sp.hours!=null&&e.splits&&e.splits.length?' '+hrs(sp.hours)+'h':'')+'</span>';});
+  var when=e.kind==='pto'?'':(e.manualHours!=null&&e.manualHours!==''?'Hours only':hm(e.start)+'–'+(e.end?hm(e.end):'now'));
+  return '<li><button type="button" class="ent" data-edit="'+esc(e.id)+'"><span class="grow"><b>'+hrs(it.hours)+' hrs</b> '+esc(when)+(S.jobs.length>1?' · '+esc(jobOf(e.jobId).name):'')+'<br>'+tags+(e.note?'<span class="fine"> '+esc(e.note)+'</span>':'')+'</span><span class="mid" style="font-size:17px">'+money(it.gross)+'</span></button></li>';}).join('')+'</ul>';}
+function codeName(id){var c=S.codes.filter(function(x){return x.id===id;})[0];return c?c.nick||c.fields.proj||'Code':'Code';}
+function bucketName(id){var b=S.pto.buckets.filter(function(x){return x.id===id;})[0];return b?b.name:'PTO';}
+function jobPicker(id,sel){if(S.jobs.length<=1)return '<input type="hidden" id="'+id+'" value="'+esc(S.jobs[0]?S.jobs[0].id:'')+'">';
+  return '<label class="f" for="'+id+'">Job</label><select class="i" id="'+id+'">'+S.jobs.filter(function(j){return j.active!==false;}).map(function(j){return '<option value="'+esc(j.id)+'"'+(j.id===sel?' selected':'')+'>'+esc(j.name)+'</option>';}).join('')+'</select>';}
+function codesFor(jobId){return S.codes.filter(function(c){return c.active!==false&&(!jobId||!c.jobId||c.jobId===jobId);}).sort(function(a,b){return (b.fav?1:0)-(a.fav?1:0);});}
+function codePicker(id,jobId,sel){var cs=codesFor(jobId||(S.jobs[0]&&S.jobs[0].id));if(!cs.length)return '';
+  return '<label class="f" for="'+id+'">Charge code <span class="muted">(optional)</span></label><select class="i" id="'+id+'"><option value="">No code</option>'+cs.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===sel?' selected':'')+'>'+(c.fav?'★ ':'')+esc(c.nick||c.fields.proj||'Code')+'</option>';}).join('')+'</select>';}
+
+function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=computeWeek(wsk),tk=todayKey();var running=0;
+  var h='<div class="wknav"><button type="button" data-a="wprev" aria-label="Previous week">‹</button><div class="t">'+esc(shortDate(wsk))+' – '+esc(shortDate(addDays(wsk,6)))+'</div><button type="button" data-a="wnext" aria-label="Next week">›</button></div>';
+  h+=otAlert(w);
+  h+='<div class="card" style="padding:8px 12px"><table class="wk"><thead><tr><th>Day</th><th>Hours</th><th>Pay</th><th>Running</th></tr></thead><tbody>';
+  w.keys.forEach(function(k){var d=w.days[k];running+=d.gross+d.perDiem;
+    h+='<tr class="tap'+(k===tk?' today':'')+'" data-day="'+k+'"><td><span class="d">'+esc(dayName(k))+'</span> <span class="dd">'+esc(shortDate(k))+'</span><br>'+(d.ot?'<span class="tag ot">'+hrs(d.ot)+' OT</span>':'')+(d.pto?'<span class="tag pto">'+hrs(d.pto)+' PTO</span>':'')+'</td><td>'+(d.hours?hrs(d.hours):'–')+'</td><td>'+(d.gross+d.perDiem?money(d.gross+d.perDiem):'–')+'</td><td>'+(running?money(running):'–')+'</td></tr>';});
+  h+='</tbody></table></div>';
+  var th=takeHomeFor(w.tot.gross,w.tot.perDiem,'week');
+  h+='<div class="card"><div class="tot"><span class="k">Hours</span><span class="v">'+hrs(w.tot.worked)+' worked'+(w.tot.ot?' · '+hrs(w.tot.ot)+' OT':'')+(w.tot.pto?' · '+hrs(w.tot.pto)+' PTO':'')+'</span></div>'+
+    '<div class="tot main"><span class="k">Gross so far</span><span class="v">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
+    '<div class="tot main"><span class="k">Est. take-home</span><span class="v" style="color:var(--go)">~'+money(th.net)+'</span></div>'+
+    '<div class="fine"><span class="est">Estimate only</span> Your employer\'s payroll is the final word. '+esc(TAX.label)+'.</div>'+
+    '<button type="button" class="btn ghost block" style="margin-top:10px" data-a="math" data-scope="week">Show the math</button>'+ptoLine()+'</div>';
+  var s=S.settings;if(s.period!=='weekly'){var pr=periodRange(addDays(wsk,3));var pt=rangeTotals(pr.from,pr.to);var pth=takeHome(pt.gross,pt.perDiem,s);
+    h+='<div class="card"><h2>This pay period</h2><div class="muted">'+esc(shortDate(pr.from))+' – '+esc(shortDate(pr.to))+' · '+esc(s.period)+'</div><div class="tot main"><span class="k">Gross so far</span><span class="v">'+money(pt.gross+pt.perDiem)+'</span></div><div class="tot main"><span class="k">Est. take-home</span><span class="v" style="color:var(--go)">~'+money(pth.net)+'</span></div><button type="button" class="btn ghost block" data-a="math" data-scope="period" data-from="'+pr.from+'" data-to="'+pr.to+'">Show the math</button></div>';}
+  h+='<p class="fine">Tap a day to see or fix its hours. Overtime is figured per job, per workweek: hours worked over 40. PTO and holiday hours are paid but don\'t count toward the 40. Breaks don\'t count.</p>';
+  return h;}
+function takeHomeFor(gross,perDiem,scope){var s=Object.assign({},S.settings);if(scope==='week'&&s.period!=='weekly'){/* a single week inside a longer pay period: estimate as if paid weekly so tax brackets are right per check */s.period='weekly';s.k401=(+s.k401||0)/(52/TAX.pay_periods[S.settings.period]);s.health=(+s.health||0)/(52/TAX.pay_periods[S.settings.period]);s.extraWH=(+s.extraWH||0)/(52/TAX.pay_periods[S.settings.period]);}return takeHome(gross,perDiem,s);}
+function ptoLine(){if(!S.pto.buckets.length)return '';return '<div class="fine" style="margin-top:10px"><b>PTO balance:</b> '+S.pto.buckets.map(function(b){return esc(b.name)+' '+hrs(ptoBalance(b).balance)+' hrs';}).join(' · ')+'</div>';}
+
+function ptoHTML(){var h='<div class="card"><h2>PTO balances</h2>';
+  if(!S.pto.buckets.length)h+='<div class="empty">Track vacation, sick and holiday hours. Set how you earn them once; taking PTO is one tap.</div><button type="button" class="btn go block" data-a="ptoDefaults">Add Vacation, Sick + Holiday</button>';
+  else h+='<ul class="list">'+S.pto.buckets.map(function(b){var r=ptoBalance(b);return '<li><button type="button" class="ent" data-bucket="'+esc(b.id)+'"><span class="grow"><b>'+esc(b.name)+'</b><br><span class="fine">'+esc(accrualText(b))+' · used '+hrs(r.used)+' hrs</span></span><span class="mid">'+hrs(r.balance)+' hrs</span></button></li>';}).join('')+'</ul>';
+  h+='</div>';
+  if(S.pto.buckets.length)h+='<div class="row wrap"><button type="button" class="btn go grow" data-a="addpto">Take PTO</button><button type="button" class="btn ghost grow" data-a="addbucket">+ Bucket</button></div>';
+  h+='<p class="fine">PTO is paid at your rate and shows in your paycheck estimate. Under federal law, PTO and holiday hours don\'t count toward the 40 for overtime. Balances are your own estimate; your employer\'s records are the final word.</p>';
+  return h;}
+function accrualText(b){if(b.type==='perHours')return 'Earn '+hrs(+b.earn)+' hr per '+hrs(+b.per)+' hrs worked';if(b.type==='perPeriod')return 'Earn '+hrs(+b.earn)+' hrs per pay period';if(b.type==='yearly')return hrs(+b.earn)+' hrs each Jan 1';return 'Set balance by hand';}
+
+function codesHTML(){var pro=isPro();var h='<div class="card"><h2>Jobs</h2><ul class="list">'+S.jobs.map(function(j){return '<li><button type="button" class="ent" data-job="'+esc(j.id)+'"><span class="grow"><b>'+esc(j.name)+'</b>'+(j.active===false?' <span class="tag">Closed</span>':'')+'<br><span class="fine">'+money(rateOf(j))+'/hr · OT '+money(otRateOf(j))+'/hr</span></span>›</button></li>';}).join('')+'</ul>'+
+  '<button type="button" class="btn ghost block" data-a="addjob">+ Add a job'+(pro||S.jobs.length<FREE_JOBS?'':' <span class="lock">PRO</span>')+'</button></div>';
+  h+='<div class="card"><h2>Charge codes</h2>';
+  if(!S.codes.length)h+='<div class="empty">Save the codes your job bills hours to (project, PO, cost code, work order) once. Then pick one when you clock in, or split a shift across them.</div>';
+  else h+='<ul class="list">'+S.codes.map(function(c){var f=c.fields||{};var sub=['proj','po','cost','wo'].filter(function(k){return f[k];}).map(function(k){return S.labels[k]+': '+f[k];}).join(' · ');
+    return '<li><button type="button" class="star'+(c.fav?' on':'')+'" data-fav="'+esc(c.id)+'" aria-label="Favorite">★</button><button type="button" class="ent" data-code="'+esc(c.id)+'"><span class="grow"><b>'+esc(c.nick||'Code')+'</b>'+(c.active===false?' <span class="tag">Closed</span>':'')+(S.jobs.length>1?' · '+esc(jobOf(c.jobId).name):'')+'<br><span class="fine">'+esc(sub)+'</span></span>›</button></li>';}).join('')+'</ul>';
+  h+='<button type="button" class="btn ghost block" data-a="addcode">+ Add a code'+(pro||S.codes.length<FREE_CODES?'':' <span class="lock">PRO</span>')+'</button>';
+  h+='<div class="fine" style="margin-top:8px">'+(pro?'':'Free: 1 job, '+FREE_CODES+' codes (you can split a shift across them). ')+'Codes are free text. We never check them against a company system.</div>';
+  h+='<button type="button" class="link" data-a="labels">Rename the code labels'+(pro?'':' (Pro)')+'</button></div>';
+  return h;}
+
+function moreHTML(){var pro=isPro();var h='<div class="card"><h2>Pay setup</h2><div class="fine">'+esc(S.settings.state)+' · '+esc(S.settings.period)+' · '+esc(filingText(S.settings.filing))+' · '+money(+S.settings.rate)+'/hr</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="setup">Edit pay setup</button></div>';
+  h+='<div class="card"><h2>Backup + restore</h2><div class="fine">Last backup: <b id="lastBk">'+(S.lastBackup?new Date(S.lastBackup).toLocaleString():'never')+'</b>. A backup is one file with all your hours, codes, PTO and change history. Keep it in Files, iCloud Drive, Google Drive or email it to yourself.</div>'+
+    '<div class="row wrap" style="margin-top:10px"><button type="button" class="btn go grow" data-a="backup">Back up now</button><button type="button" class="btn ghost grow" data-a="restore">Restore</button></div><input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="Choose backup file"></div>';
+  h+='<div class="card"><h2>Export</h2><div class="fine">CSV opens in Excel, Google Sheets or Numbers. Exporting your own records is always free.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="csv">Export CSV</button></div>';
+  h+='<div class="card"><h2>Change history</h2><div class="fine">Every change to an entry is saved with the time, the old value and the new value. Nothing is silently overwritten. '+S.log.length+' changes saved.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="logview">View change history'+(pro?'':' <span class="lock">PRO</span>')+'</button></div>';
+  h+='<div class="card"><h2>Keep it on your phone</h2><div class="fine">On iPhone: Safari → Share → <b>Add to Home Screen</b>. Home Screen apps keep their data; Safari can erase website data after 7 days without a visit. Works with no signal once it\'s opened.</div>'+(BIP?'<button type="button" class="btn ghost block" style="margin-top:10px" data-a="install">Install app</button>':'')+'</div>';
+  h+='<div class="card fine"><b>About these numbers.</b> Pay amounts are estimates for your own planning. Federal withholding uses IRS Pub 15-T (2026) percentage method for a 2020+ W-4 with Step 2 not checked. Social Security 6.2% (to the $184,500 2026 wage base, not tracked across checks here), Medicare 1.45%. '+esc(TAX.label)+'. Your employer\'s payroll is the final word. This is a personal record, not legal, tax or payroll advice. Keep records at least 3 years. We never auto-delete them.</div>';
+  return h;}
+function filingText(f){return f==='mfj'?'Married filing jointly':f==='hoh'?'Head of household':'Single';}
+
+/* ── setup ── */
+function setupHTML(first){var s=S.settings||{state:'FL',period:'weekly',filing:'single',weekStart:1};var j=S.jobs[0]||{};
+  var h=(first?'<div class="card" style="background:#0F172A;color:#fff;border:0"><h2 style="color:#fff">On the Job</h2><div>Clock in, watch your paycheck add up as the week goes, track PTO and keep your job codes. It\'s your record, on your phone. Not your boss\'s.</div><div class="fine" style="color:#CBD5E1;margin-top:6px">30-second setup. Everything stays on this phone.</div></div>':'')+
+  '<div class="card"><h2>'+(first?'Set up your pay':'Pay setup')+'</h2>'+
+  (first?'<label class="f" for="sJob">Job name</label><input class="i" id="sJob" value="'+esc(j.name||'')+'" placeholder="e.g. Gulf Coast Grocers">':'')+
+  '<label class="f" for="sRate">Hourly rate</label><input class="i" id="sRate" inputmode="decimal" value="'+esc(s.rate||'')+'" placeholder="28.00">'+
+  '<label class="f" for="sOt">Overtime rate <span class="muted">(blank = 1.5× your rate)</span></label><input class="i" id="sOt" inputmode="decimal" value="'+esc(s.otRate||'')+'" placeholder="42.00">'+
+  '<label class="f" for="sPer">Pay period</label><select class="i" id="sPer">'+[['weekly','Weekly'],['biweekly','Every 2 weeks'],['semimonthly','Twice a month (1st–15th, 16th–end)'],['monthly','Monthly']].map(function(o){return '<option value="'+o[0]+'"'+(s.period===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
+  '<div id="anchorRow"'+(s.period==='biweekly'?'':' hidden')+'><label class="f" for="sAnchor">First day of a recent pay period</label><input class="i" type="date" id="sAnchor" value="'+esc(s.anchor||weekStartKey(todayKey()))+'"></div>'+
+  '<label class="f" for="sWs">Your workweek starts on</label><select class="i" id="sWs">'+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(function(n,i){return '<option value="'+i+'"'+((s.weekStart==null?1:+s.weekStart)===i?' selected':'')+'>'+n+'</option>';}).join('')+'</select>'+
+  '<label class="f" for="sState">State you work in</label><select class="i" id="sState">'+STATES.map(function(x){return '<option value="'+x[0]+'"'+(s.state===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('')+'</select>'+
+  '<div id="stateRateRow"><label class="f" for="sStRate">Your state tax rate, % <span class="muted">(look at a pay stub: state tax ÷ gross)</span></label><input class="i" id="sStRate" inputmode="decimal" value="'+esc(s.stateRate||'')+'" placeholder="e.g. 4.5"></div>'+
+  '<div class="fine" id="stateNote"></div>'+
+  '<label class="f" for="sFil">Filing status on your W-4</label><select class="i" id="sFil">'+[['single','Single or married filing separately'],['mfj','Married filing jointly'],['hoh','Head of household']].map(function(o){return '<option value="'+o[0]+'"'+(s.filing===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
+  '<details style="margin-top:12px"'+(first?'':' open')+'><summary style="font-weight:800;min-height:44px;display:flex;align-items:center">More (optional): 401(k), health, per diem</summary>'+
+  '<label class="f" for="sK">Pre-tax 401(k) per check, $</label><input class="i" id="sK" inputmode="decimal" value="'+esc(s.k401||'')+'">'+
+  '<label class="f" for="sH">Pre-tax health insurance per check, $</label><input class="i" id="sH" inputmode="decimal" value="'+esc(s.health||'')+'">'+
+  '<label class="f" for="sCr">W-4 Step 3 credits (yearly total), $</label><input class="i" id="sCr" inputmode="decimal" value="'+esc(s.credits||'')+'">'+
+  '<label class="f" for="sX">Extra withholding per check (W-4 Step 4c), $</label><input class="i" id="sX" inputmode="decimal" value="'+esc(s.extraWH||'')+'">'+
+  '<label class="f" for="sPd">Per diem per day worked, $</label><input class="i" id="sPd" inputmode="decimal" value="'+esc(s.perDiem||'')+'">'+
+  '<label class="chk"><input type="checkbox" id="sPdNT"'+(s.perDiemNT?' checked':'')+'><span>My per diem isn\'t taxed on my stub</span></label>'+
+  '<div class="fine">If you mark per diem as non-taxable, we leave it out of the tax estimate. Your employer\'s payroll is the final word.</div></details>'+
+  '<button type="button" class="btn go block" style="margin-top:16px" data-a="saveSetup">'+(first?'Start tracking':'Save')+'</button>'+
+  (first?'':'<button type="button" class="btn ghost block" style="margin-top:8px" data-a="cancelSetup">Cancel</button>')+'</div>';
+  return h;}
+function wireSetup(first){var st=$('#sState'),per=$('#sPer');function upd(){var noTax=TAX.no_wage_tax_states.indexOf(st.value)>=0;$('#stateRateRow').hidden=noTax;
+    $('#stateNote').textContent=noTax?((TAX.state_notes[st.value])||'No state income tax on wages.'):'We don\'t calculate your official state tax yet (full state tables come in Phase 3). Your rate is used as you enter it.';$('#anchorRow').hidden=per.value!=='biweekly';}
+  st.addEventListener('change',upd);per.addEventListener('change',upd);upd();
+  $('[data-a=saveSetup]').addEventListener('click',function(){var num=function(id){var v=($('#'+id)||{}).value;v=String(v||'').replace(/[$,\s]/g,'');return v===''?'':(+v>=0?+v:'');};
+    var rate=num('sRate');if(!(rate>0)){toast('Enter your hourly rate.');$('#sRate').focus();return;}
+    var old=S.settings?JSON.stringify(S.settings):null;
+    S.settings={rate:rate,otRate:num('sOt'),period:per.value,anchor:($('#sAnchor')||{}).value||weekStartKey(todayKey()),weekStart:+$('#sWs').value,state:st.value,stateRate:num('sStRate'),filing:$('#sFil').value,k401:num('sK'),health:num('sH'),credits:num('sCr'),extraWH:num('sX'),perDiem:num('sPd'),perDiemNT:$('#sPdNT').checked};
+    if(first){var jn=($('#sJob').value||'').trim()||'My job';S.jobs=[{id:uid(),name:jn,rate:'',otRate:'',active:true,created:Date.now()}];log('settings','(setup)','','rate '+rate+', '+per.value+', '+st.value);}
+    else log('settings','pay setup',old,JSON.stringify(S.settings));
+    save();VIEW=first?'today':'more';render();window.scrollTo(0,0);toast(first?'You\'re set. Tap START when your shift begins.':'Saved.');});
+  var c=$('[data-a=cancelSetup]');if(c)c.addEventListener('click',function(){render();});}
+
+/* ── wiring ── */
+function wire(){var v=$('#view');
+  v.querySelectorAll('[data-a]').forEach(function(b){b.addEventListener('click',function(){act(b.dataset.a,b);});});
+  v.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){editEntry(b.dataset.edit);});});
+  v.querySelectorAll('[data-day]').forEach(function(r){r.addEventListener('click',function(){dayModal(r.dataset.day);});});
+  v.querySelectorAll('[data-bucket]').forEach(function(b){b.addEventListener('click',function(){bucketModal(b.dataset.bucket);});});
+  v.querySelectorAll('[data-job]').forEach(function(b){b.addEventListener('click',function(){jobModal(b.dataset.job);});});
+  v.querySelectorAll('[data-code]').forEach(function(b){b.addEventListener('click',function(){codeModal(b.dataset.code);});});
+  v.querySelectorAll('[data-fav]').forEach(function(b){b.addEventListener('click',function(){var c=S.codes.filter(function(x){return x.id===b.dataset.fav;})[0];if(c){c.fav=!c.fav;save();render();}});});
+  var cj=$('#cJob');if(cj&&cj.tagName==='SELECT')cj.addEventListener('change',function(){S.ui.lastJob=cj.value;save();render();});
+  var rf=$('#restoreFile');if(rf)rf.addEventListener('change',restoreFile);
+  if(S.clock&&S.clock.start&&VIEW==='today'){var t=function(){var el=$('#clkT');if(!el)return;var live={kind:'work',start:S.clock.start,breaks:(S.clock.breaks||[]).concat(S.clock.onBreak?[{s:S.clock.onBreak}]:[])};var nw=Date.now(),brk=live.breaks.reduce(function(x,b){return x+((b.e||nw)-b.s);},0);var sec=Math.max(0,Math.floor((nw-live.start-brk)/1000));el.textContent=Math.floor(sec/3600)+':'+pad(Math.floor(sec%3600/60))+':'+pad(sec%60);
+      var w=weekNow(),d=w.days[todayKey()];var a=$('#earnToday'),b=$('#earnWeek');if(a)a.textContent=money(d.gross+d.perDiem);if(b)b.textContent=money(w.tot.gross+w.tot.perDiem);};t();TICK=setInterval(t,1000);}}
+function act(a,el){
+  if(a==='a2hsx'){S.ui.a2hsX=1;save();render();return;}
+  if(a==='install'&&BIP){BIP.prompt();BIP.userChoice.finally(function(){BIP=null;render();});return;}
+  if(a==='start')return clockStart();
+  if(a==='stop')return clockStop();
+  if(a==='break')return clockBreak();
+  if(a==='add')return editEntry(null,{date:todayKey()});
+  if(a==='addpto'){if(!S.pto.buckets.length){ptoDefaults();}return editEntry(null,{date:todayKey(),kind:'pto'});}
+  if(a==='repeat')return repeatYesterday();
+  if(a==='gopay'){go('week');return;}
+  if(a==='wprev'){WEEK_OFF--;render();return;}
+  if(a==='wnext'){WEEK_OFF++;render();return;}
+  if(a==='math')return mathModal(el.dataset.scope,el.dataset.from,el.dataset.to);
+  if(a==='ptoDefaults'){ptoDefaults();render();return;}
+  if(a==='addbucket')return bucketModal(null);
+  if(a==='addjob'){if(!isPro()&&S.jobs.length>=FREE_JOBS)return upsell('Free covers 1 job. Pro tracks every job you work, with overtime figured separately for each employer.');return jobModal(null);}
+  if(a==='addcode'){if(!isPro()&&S.codes.length>=FREE_CODES)return upsell('Free covers '+FREE_CODES+' charge codes. Pro saves unlimited codes and lets you rename the labels.');return codeModal(null);}
+  if(a==='labels'){if(!isPro())return upsell('Rename the code labels to what your company calls them (WBS, AFE, Cost Center...).');return labelsModal();}
+  if(a==='setup'){$('#view').innerHTML=setupHTML(false);wireSetup(false);return;}
+  if(a==='backup')return backup();
+  if(a==='restore'){$('#restoreFile').click();return;}
+  if(a==='csv')return csvModal();
+  if(a==='logview'){if(!isPro())return upsell('See every change with the time, the old value and the new value. Your history is always saved (free) and included in your Backup; viewing it here is Pro.');return logModal();}}
+
+/* ── clock ── */
+function clockStart(){var jid=($('#cJob')||{}).value||(S.jobs[0]&&S.jobs[0].id);var cid=($('#cCode')||{}).value||'';
+  S.clock={start:Date.now(),jobId:jid,codeId:cid,breaks:[],onBreak:null};S.ui.lastJob=jid;S.ui.lastCode=cid;save();render();toast('Clocked in at '+hm(S.clock.start)+'.');}
+function clockBreak(){var c=S.clock;if(!c)return;if(c.onBreak){c.breaks.push({s:c.onBreak,e:Date.now()});c.onBreak=null;toast('Back on the clock.');}else{c.onBreak=Date.now();toast('Break started. Break time doesn\'t count.');}save();render();}
+function clockStop(){var c=S.clock;if(!c)return;var now=Date.now();if(c.onBreak){c.breaks.push({s:c.onBreak,e:now});c.onBreak=null;}
+  var brk=Math.round(c.breaks.reduce(function(a,b){return a+(b.e-b.s);},0)/60000);
+  var e={id:uid(),kind:'work',date:ymd(c.start),start:c.start,end:now,breakMin:brk,jobId:c.jobId,codeId:c.codeId||'',splits:[],note:'',created:now,src:'clock'};
+  S.entries.push(e);log(e.id,'(created)','',entrySummary(e),'clock');S.clock=null;save();render();toast('Saved: '+hrs(entryHours(e))+' hrs.');}
+/* v2 hook (not built): an opt-in native wrapper may call OTJ.autoClock('start'|'stop') after the user confirms. Location never leaves the phone. */
+function autoClockHook(kind){return false;}
+function repeatYesterday(){var y=addDays(todayKey(),-1),tk=todayKey();var src=S.entries.filter(function(e){return !e.deleted&&entryDate(e)===y;});
+  if(!src.length){toast('Nothing logged yesterday to repeat.');return;}
+  src.forEach(function(e){var n=JSON.parse(JSON.stringify(e));n.id=uid();n.date=tk;n.created=Date.now();n.src='repeat';if(n.start){n.start+=DAY;}if(n.end){n.end+=DAY;}delete n.orig;S.entries.push(n);log(n.id,'(created)','',entrySummary(n),'repeat yesterday');});
+  save();render();toast('Copied '+src.length+' entr'+(src.length>1?'ies':'y')+' from yesterday. Tap to adjust.');}
+function entrySummary(e){return entryDate(e)+' '+(e.kind==='pto'?'PTO '+hrs(+e.hours)+'h '+bucketName(e.bucket):(e.manualHours!=null&&e.manualHours!==''?hrs(+e.manualHours)+'h':hm(e.start)+'-'+(e.end?hm(e.end):'')+' break '+(+e.breakMin||0)+'m'))+(e.codeId?' code '+codeName(e.codeId):'')+(e.splits&&e.splits.length?' split '+e.splits.map(function(s){return codeName(s.codeId)+' '+s.hours+'h';}).join('+'):'');}
+
+/* ── entry editor (manual, PTO, split across codes) ── */
+function editEntry(id,preset){var e=id?S.entries.filter(function(x){return x.id===id;})[0]:null;var isNew=!e;
+  e=e?JSON.parse(JSON.stringify(e)):Object.assign({id:uid(),kind:'work',date:todayKey(),jobId:S.ui.lastJob||(S.jobs[0]&&S.jobs[0].id),codeId:'',splits:[],note:'',breakMin:0},preset||{});
+  if(isNew&&e.kind==='pto'){e.hours=8;e.bucket=(S.pto.buckets[0]||{}).id;}
+  var dk=entryDate(e);var startV=e.start?timeVal(e.start):'07:00',endV=e.end?timeVal(e.end):'15:30';var hoursOnly=e.manualHours!=null&&e.manualHours!=='';
+  var h='<button class="x" data-close aria-label="Close">×</button><h3>'+(isNew?(e.kind==='pto'?'Take PTO':'Add hours'):'Edit entry')+'</h3>'+
+    '<label class="f" for="eDate">Date</label><input class="i" type="date" id="eDate" value="'+esc(dk)+'">'+
+    '<label class="f" for="eKind">Type</label><select class="i" id="eKind"><option value="work"'+(e.kind!=='pto'?' selected':'')+'>Hours worked</option><option value="pto"'+(e.kind==='pto'?' selected':'')+'>PTO / holiday (paid, not worked)</option></select>'+
+    '<div id="wRows">'+jobPicker('eJob',e.jobId)+
+    '<label class="chk"><input type="checkbox" id="eHO"'+(hoursOnly?' checked':'')+'><span>Just enter total hours (no start/end times)</span></label>'+
+    '<div id="seRow"><div class="row"><div class="grow"><label class="f" for="eStart">Start</label><input class="i" type="time" id="eStart" value="'+startV+'"></div><div class="grow"><label class="f" for="eEnd">End</label><input class="i" type="time" id="eEnd" value="'+endV+'"></div></div>'+
+    '<label class="f" for="eBrk">Unpaid break, minutes</label><input class="i" id="eBrk" inputmode="numeric" value="'+esc(e.breakMin||0)+'"></div>'+
+    '<div id="hoRow"><label class="f" for="eHrs">Hours worked</label><input class="i" id="eHrs" inputmode="decimal" value="'+esc(hoursOnly?e.manualHours:'')+'"></div>'+
+    '<div id="codeRow">'+codePicker('eCode',e.jobId,e.codeId)+'</div>'+
+    '<div id="splits"></div>'+(S.codes.length?'<button type="button" class="link" id="addSplit">+ Split this shift across codes</button>':'')+'</div>'+
+    '<div id="pRows"><label class="f" for="eBucket">PTO bucket</label><select class="i" id="eBucket">'+S.pto.buckets.map(function(b){return '<option value="'+esc(b.id)+'"'+(b.id===e.bucket?' selected':'')+'>'+esc(b.name)+' ('+hrs(ptoBalance(b).balance)+' hrs left)</option>';}).join('')+'</select>'+
+    '<label class="f" for="ePH">PTO hours</label><input class="i" id="ePH" inputmode="decimal" value="'+esc(e.kind==='pto'?e.hours:8)+'"></div>'+
+    '<label class="f" for="eNote">Note <span class="muted">(optional)</span></label><input class="i" id="eNote" value="'+esc(e.note||'')+'" maxlength="300">'+
+    (isNew?'':'<label class="f" for="eWhy">Why the change? <span class="muted">(optional, saved in history)</span></label><input class="i" id="eWhy" maxlength="200" placeholder="e.g. forgot to clock out">')+
+    '<div class="fine" id="eCalc" style="margin-top:8px"></div>'+
+    '<button type="button" class="btn go block" style="margin-top:14px" id="eSave">Save</button>'+(isNew?'':'<button type="button" class="btn ghost block" style="margin-top:8px;color:var(--red)" id="eDel">Delete entry</button>')+
+    (e.orig?'<div class="fine" style="margin-top:8px">Original clock times: '+hm(e.orig.start)+'–'+hm(e.orig.end)+' (kept in history)</div>':'');
+  modal(h,function(m){var splits=(e.splits||[]).slice();
+    function cur(){var ho=$('#eHO').checked;var d=$('#eDate').value||dk;var o={kind:$('#eKind').value};
+      if(o.kind==='pto')return {kind:'pto',hours:+$('#ePH').value||0};
+      if(ho)return {kind:'work',manualHours:+($('#eHrs').value||0)};
+      var st=toMs(d,$('#eStart').value),en=toMs(d,$('#eEnd').value);if(en<=st)en+=DAY;return {kind:'work',start:st,end:en,breakMin:+$('#eBrk').value||0};}
+    function drawSplits(){var box=$('#splits');var cs=codesFor($('#eJob').value);if(!splits.length){box.innerHTML='';$('#codeRow').hidden=false;calc();return;}
+      $('#codeRow').hidden=true;box.innerHTML='<div class="f" style="margin-top:12px">Split across codes</div>'+splits.map(function(sp,i){return '<div class="split"><select class="i" data-si="'+i+'">'+cs.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===sp.codeId?' selected':'')+'>'+esc(c.nick||'Code')+'</option>';}).join('')+'</select><input class="i" data-sh="'+i+'" inputmode="decimal" value="'+esc(sp.hours)+'" aria-label="Hours"><button type="button" class="star" data-sx="'+i+'" aria-label="Remove">✕</button></div>';}).join('');
+      box.querySelectorAll('[data-si]').forEach(function(s){s.addEventListener('change',function(){splits[+s.dataset.si].codeId=s.value;calc();});});
+      box.querySelectorAll('[data-sh]').forEach(function(s){s.addEventListener('input',function(){splits[+s.dataset.sh].hours=s.value;calc();});});
+      box.querySelectorAll('[data-sx]').forEach(function(s){s.addEventListener('click',function(){splits.splice(+s.dataset.sx,1);drawSplits();});});calc();}
+    function calc(){var c=cur();var h=entryHours(c);var t='';if(c.kind!=='pto'){t='This entry: <b>'+hrs(h)+' hrs</b> worked (breaks not counted).';if(splits.length){var sum=splits.reduce(function(a,s){return a+(+s.hours||0);},0);t+=' Split total: <b>'+hrs(sum)+'</b>'+(Math.abs(sum-h)>0.01?' <span style="color:var(--red)">must equal '+hrs(h)+'</span>':' ✓');}}else t='PTO is paid at your rate. It doesn\'t count toward the 40 for overtime.';$('#eCalc').innerHTML=t;}
+    function vis(){var p=$('#eKind').value==='pto';$('#wRows').hidden=p;$('#pRows').hidden=!p;var ho=$('#eHO').checked;$('#seRow').hidden=ho;$('#hoRow').hidden=!ho;calc();}
+    ['eKind','eHO'].forEach(function(id){$('#'+id).addEventListener('change',vis);});
+    ['eStart','eEnd','eBrk','eHrs','ePH','eDate'].forEach(function(id){var x=$('#'+id);if(x)x.addEventListener('input',calc);});
+    var ej=$('#eJob');if(ej&&ej.tagName==='SELECT')ej.addEventListener('change',function(){var cr=$('#codeRow');cr.innerHTML=codePicker('eCode',ej.value,'');splits=[];drawSplits();});
+    var as=$('#addSplit');if(as)as.addEventListener('click',function(){var cs=codesFor($('#eJob').value);if(!cs.length){toast('Add a code under Jobs + Codes first.');return;}
+      var c=cur();var h=entryHours(c);if(!splits.length){var first=($('#eCode')||{}).value||cs[0].id;splits.push({codeId:first,hours:r2(h)});}var used=splits.reduce(function(a,s){return a+(+s.hours||0);},0);
+      var next=cs.filter(function(x){return !splits.some(function(s){return s.codeId===x.id;});})[0]||cs[0];splits.push({codeId:next.id,hours:r2(Math.max(0,h-used))});drawSplits();});
+    if(e.kind==='pto'&&!S.pto.buckets.length){ptoDefaults();}
+    vis();drawSplits();
+    $('#eSave').addEventListener('click',function(){var c=cur();var d=$('#eDate').value;if(!d){toast('Pick a date.');return;}
+      var n=Object.assign({},e,{date:d,note:($('#eNote').value||'').trim()});
+      if(c.kind==='pto'){if(!(c.hours>0)){toast('Enter PTO hours.');return;}n.kind='pto';n.hours=c.hours;n.bucket=$('#eBucket').value;delete n.start;delete n.end;delete n.manualHours;n.splits=[];n.codeId='';}
+      else{n.kind='work';delete n.hours;delete n.bucket;n.jobId=($('#eJob')||{}).value||n.jobId;
+        if(c.manualHours!=null){if(!(c.manualHours>0)){toast('Enter the hours worked.');return;}n.manualHours=c.manualHours;n.start=toMs(d,'12:00');delete n.end;n.breakMin=0;}
+        else{if(e.src==='clock'&&!e.orig&&(e.start!==c.start||e.end!==c.end))n.orig={start:e.start,end:e.end};n.start=c.start;n.end=c.end;n.breakMin=c.breakMin;delete n.manualHours;}
+        var tot=entryHours(n);
+        if(splits.length){var sum=splits.reduce(function(a,s){return a+(+s.hours||0);},0);if(Math.abs(sum-tot)>0.01){toast('Split hours must add up to '+hrs(tot)+'.');return;}n.splits=splits.map(function(s){return {codeId:s.codeId,hours:r2(+s.hours)};});n.codeId='';}
+        else{n.splits=[];n.codeId=($('#eCode')||{}).value||'';}}
+      var why=($('#eWhy')||{}).value||'';
+      if(isNew){S.entries.push(n);log(n.id,'(created)','',entrySummary(n),'manual');}
+      else{var old=S.entries.filter(function(x){return x.id===e.id;})[0];diffLog(old,n,why);var i=S.entries.indexOf(old);S.entries[i]=n;}
+      if(n.jobId)S.ui.lastJob=n.jobId;save();closeModal();render();toast('Saved.');});
+    var del=$('#eDel');if(del)del.addEventListener('click',function(){if(!confirm('Delete this entry? It stays in your change history and backup.'))return;var old=S.entries.filter(function(x){return x.id===e.id;})[0];old.deleted=Date.now();log(old.id,'(deleted)',entrySummary(old),'',($('#eWhy')||{}).value||'');save();closeModal();render();toast('Deleted. Still kept in your history.');});});}
+function toMs(dk,t){var p=(t||'00:00').split(':');var d=parseYmd(dk);d.setHours(+p[0]||0,+p[1]||0,0,0);return d.getTime();}
+function fmtField(f,v){if(v==null||v==='')return '';if(f==='start'||f==='end')return new Date(+v).toLocaleString();if(f==='codeId')return codeName(v);if(f==='jobId')return jobOf(v).name;if(f==='bucket')return bucketName(v);if(f==='splits')return (v||[]).map(function(s){return codeName(s.codeId)+' '+s.hours+'h';}).join(' + ');return String(v);}
+function diffLog(a,b,why){['date','kind','jobId','start','end','breakMin','manualHours','hours','bucket','codeId','splits','note'].forEach(function(f){var x=a[f],y=b[f];var xs=JSON.stringify(x==null?'':x),ys=JSON.stringify(y==null?'':y);if(xs!==ys)log(a.id,f,fmtField(f,x),fmtField(f,y),why);});}
+
+function dayModal(k){var wk=computeWeek(weekStartKey(k)),d=wk.days[k];var items=d.items.filter(function(it){return !it.e.live;});
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+esc(dayName(k,true))+'</h3><div class="muted">'+hrs(d.hours)+' hrs · '+money(d.gross+d.perDiem)+' <span class="est">estimate</span></div>'+(items.length?entryList(items):'<div class="empty">Nothing logged this day.</div>')+'<button type="button" class="btn go block" style="margin-top:12px" id="dAdd">+ Add hours</button><button type="button" class="btn ghost block" style="margin-top:8px" id="dPto">PTO</button>',function(m){
+    m.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){editEntry(b.dataset.edit);});});
+    $('#dAdd').addEventListener('click',function(){editEntry(null,{date:k});});$('#dPto').addEventListener('click',function(){if(!S.pto.buckets.length)ptoDefaults();editEntry(null,{date:k,kind:'pto'});});});}
+
+function mathModal(scope,from,to){var t,th,title;
+  if(scope==='period'){t=rangeTotals(from,to);th=takeHome(t.gross,t.perDiem,S.settings);title='Pay period '+shortDate(from)+' – '+shortDate(to);}
+  else{var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7);var w=computeWeek(wsk);t=w.tot;th=takeHomeFor(t.gross,t.perDiem,'week');title='Week of '+shortDate(wsk);}
+  var rate=rateOf(S.jobs[0]),otr=otRateOf(S.jobs[0]);
+  var rows='<tr><td>Regular '+hrs(t.reg)+' hrs'+(S.jobs.length<=1?' × '+money(rate):'')+'</td><td>'+money(S.jobs.length<=1?t.reg*rate:0)+'</td></tr>';
+  if(S.jobs.length>1)rows='<tr><td>Regular + OT across '+S.jobs.length+' jobs (each job\'s own rate)</td><td></td></tr>';
+  else{if(t.ot)rows+='<tr><td>Overtime '+hrs(t.ot)+' hrs × '+money(otr)+'</td><td>'+money(t.ot*otr)+'</td></tr>';if(t.pto)rows+='<tr><td>PTO '+hrs(t.pto)+' hrs × '+money(rate)+' (doesn\'t count toward 40)</td><td>'+money(t.pto*rate)+'</td></tr>';}
+  th.lines.forEach(function(l){rows+='<tr><td'+(l.warn?' style="color:#92400E"':'')+'>'+esc(l.k)+'</td><td>'+(l.warn?'':(l.v<0?'−'+money(-l.v):money(l.v)))+'</td></tr>';});
+  rows+='<tr class="sum"><td>Est. take-home</td><td>'+money(th.net)+'</td></tr>';
+  var note=(TAX.state_notes&&TAX.state_notes[S.settings.state]&&S.settings.state==='WA')?'<p class="fine">'+esc(TAX.state_notes.WA)+'</p>':'';
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>Show the math</h3><div class="muted">'+esc(title)+'</div><table class="math">'+rows+'</table>'+note+
+    '<p class="fine">Federal: annualized pay ('+money(th.fitWages)+' × '+th.periods+' checks) minus the IRS Worksheet 1A adjustment, run through the 2026 annual table, then ÷ '+th.periods+'. '+(th.pdNT?'Per diem left out of taxes because you marked it non-taxable. ':'')+'Social Security stops after $184,500 earned in the year (not tracked across checks here).</p>'+
+    '<p class="fine"><span class="est">Estimate only.</span> Your employer\'s payroll is the final word. '+esc(TAX.label)+'.</p>');}
+
+/* ── PTO ── */
+function ptoDefaults(){if(S.pto.buckets.length)return;var sd=todayKey();S.pto.buckets=[{id:uid(),name:'Vacation',type:'none',earn:'',per:'',start:0,startDate:sd,cap:'',carry:''},{id:uid(),name:'Sick',type:'perHours',earn:1,per:30,start:0,startDate:sd,cap:'',carry:''},{id:uid(),name:'Holiday',type:'none',earn:'',per:'',start:0,startDate:sd,cap:'',carry:''}];log('pto','(buckets)','','Vacation, Sick, Holiday');save();}
+function bucketModal(id){var b=id?S.pto.buckets.filter(function(x){return x.id===id;})[0]:{id:uid(),name:'',type:'none',earn:'',per:'',start:0,startDate:todayKey(),cap:'',carry:''};var isNew=!id;
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+(isNew?'New PTO bucket':esc(b.name))+'</h3>'+
+    '<label class="f" for="bN">Name</label><input class="i" id="bN" value="'+esc(b.name)+'" placeholder="Vacation">'+
+    '<label class="f" for="bS">Balance on start date, hrs</label><input class="i" id="bS" inputmode="decimal" value="'+esc(b.start)+'">'+
+    '<label class="f" for="bSD">Start date</label><input class="i" type="date" id="bSD" value="'+esc(b.startDate)+'">'+
+    '<label class="f" for="bT">How you earn it</label><select class="i" id="bT">'+[['none','I\'ll set the balance by hand'],['perHours','Hours per hours worked (e.g. 1 per 30)'],['perPeriod','Hours each pay period'],['yearly','A lump each January 1']].map(function(o){return '<option value="'+o[0]+'"'+(b.type===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
+    '<div class="row"><div class="grow"><label class="f" for="bE">Earn (hrs)</label><input class="i" id="bE" inputmode="decimal" value="'+esc(b.earn)+'"></div><div class="grow" id="bPerW"><label class="f" for="bP">per hrs worked</label><input class="i" id="bP" inputmode="decimal" value="'+esc(b.per)+'"></div></div>'+
+    '<div class="row"><div class="grow"><label class="f" for="bC">Max balance (cap)</label><input class="i" id="bC" inputmode="decimal" value="'+esc(b.cap)+'" placeholder="none"></div><div class="grow"><label class="f" for="bCo">Carryover limit Jan 1</label><input class="i" id="bCo" inputmode="decimal" value="'+esc(b.carry)+'" placeholder="none"></div></div>'+
+    (S.jobs.length>1?'<label class="f" for="bJ">Earned from job</label><select class="i" id="bJ"><option value="">All jobs</option>'+S.jobs.map(function(j){return '<option value="'+esc(j.id)+'"'+(j.id===b.jobId?' selected':'')+'>'+esc(j.name)+'</option>';}).join('')+'</select>':'')+
+    '<div class="fine" style="margin-top:8px">Check your handbook or pay stub for your real accrual rule.</div>'+
+    '<button type="button" class="btn go block" style="margin-top:14px" id="bSave">Save</button>',function(){
+    function v(){var t=$('#bT').value;$('#bPerW').hidden=t!=='perHours';$('#bE').closest('.row').hidden=t==='none';}$('#bT').addEventListener('change',v);v();
+    $('#bSave').addEventListener('click',function(){var n=Object.assign({},b,{name:($('#bN').value||'').trim()||'PTO',start:+$('#bS').value||0,startDate:$('#bSD').value||todayKey(),type:$('#bT').value,earn:$('#bE').value,per:$('#bP').value,cap:$('#bC').value,carry:$('#bCo').value,jobId:($('#bJ')||{}).value||''});
+      if(isNew){S.pto.buckets.push(n);log('pto','(bucket added)','',n.name);}else{var i=S.pto.buckets.indexOf(b);log('pto','bucket '+b.name,JSON.stringify(b),JSON.stringify(n));S.pto.buckets[i]=n;}save();closeModal();render();});});}
+
+/* ── jobs + codes ── */
+function jobModal(id){var j=id?S.jobs.filter(function(x){return x.id===id;})[0]:{id:uid(),name:'',rate:'',otRate:'',active:true,created:Date.now()};var isNew=!id;
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+(isNew?'Add a job':'Job')+'</h3><label class="f" for="jN">Job name</label><input class="i" id="jN" value="'+esc(j.name)+'">'+
+  '<label class="f" for="jR">Hourly rate <span class="muted">(blank = '+money(+S.settings.rate)+')</span></label><input class="i" id="jR" inputmode="decimal" value="'+esc(j.rate)+'">'+
+  '<label class="f" for="jO">OT rate <span class="muted">(blank = 1.5×)</span></label><input class="i" id="jO" inputmode="decimal" value="'+esc(j.otRate)+'">'+
+  (isNew?'':'<label class="chk"><input type="checkbox" id="jC"'+(j.active===false?' checked':'')+'><span>Closed (keeps all history, hides from the pick list)</span></label>')+
+  '<button type="button" class="btn go block" style="margin-top:14px" id="jS">Save</button>',function(){$('#jS').addEventListener('click',function(){var n=Object.assign({},j,{name:($('#jN').value||'').trim()||'Job',rate:$('#jR').value,otRate:$('#jO').value,active:!($('#jC')&&$('#jC').checked)});
+    if(isNew){S.jobs.push(n);log('job','(added)','',n.name);}else{log('job',j.name,JSON.stringify(j),JSON.stringify(n));S.jobs[S.jobs.indexOf(j)]=n;}save();closeModal();render();});});}
+function codeModal(id){var c=id?S.codes.filter(function(x){return x.id===id;})[0]:{id:uid(),nick:'',jobId:S.jobs[0]&&S.jobs[0].id,fields:{proj:'',po:'',cost:'',wo:''},active:true,fav:false,created:Date.now()};var isNew=!id;
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+(isNew?'Add a charge code':'Charge code')+'</h3><label class="f" for="cN">Nickname</label><input class="i" id="cN" value="'+esc(c.nick)+'" placeholder="e.g. Tie-in Station 9">'+
+  (S.jobs.length>1?'<label class="f" for="cJ">Job</label><select class="i" id="cJ">'+S.jobs.map(function(j){return '<option value="'+esc(j.id)+'"'+(j.id===c.jobId?' selected':'')+'>'+esc(j.name)+'</option>';}).join('')+'</select>':'')+
+  ['proj','po','cost','wo'].map(function(k){return '<label class="f" for="cf_'+k+'">'+esc(S.labels[k])+'</label><input class="i" id="cf_'+k+'" value="'+esc(c.fields[k]||'')+'">';}).join('')+
+  (isNew?'':'<label class="chk"><input type="checkbox" id="cC"'+(c.active===false?' checked':'')+'><span>Closed (stays in history and exports, hidden from the pick list)</span></label>')+
+  '<button type="button" class="btn go block" style="margin-top:14px" id="cS">Save</button>',function(){$('#cS').addEventListener('click',function(){var f={};['proj','po','cost','wo'].forEach(function(k){f[k]=($('#cf_'+k).value||'').trim();});
+    var n=Object.assign({},c,{nick:($('#cN').value||'').trim()||f.proj||'Code',jobId:($('#cJ')||{}).value||c.jobId,fields:f,active:!($('#cC')&&$('#cC').checked)});
+    if(isNew){S.codes.push(n);log('code','(added)','',n.nick);}else{log('code',c.nick,JSON.stringify(c),JSON.stringify(n));S.codes[S.codes.indexOf(c)]=n;}save();closeModal();render();});});}
+function labelsModal(){modal('<button class="x" data-close aria-label="Close">×</button><h3>Rename code labels</h3><div class="fine">Use what your company calls them: WBS, AFE #, Cost Center, Field Ticket #...</div>'+['proj','po','cost','wo'].map(function(k){return '<label class="f" for="l_'+k+'">'+esc(DEFAULT_LABELS[k])+'</label><input class="i" id="l_'+k+'" value="'+esc(S.labels[k])+'">';}).join('')+'<button type="button" class="btn go block" style="margin-top:14px" id="lS">Save</button>',function(){$('#lS').addEventListener('click',function(){var o=JSON.stringify(S.labels);['proj','po','cost','wo'].forEach(function(k){S.labels[k]=($('#l_'+k).value||'').trim()||DEFAULT_LABELS[k];});log('labels','labels',o,JSON.stringify(S.labels));save();closeModal();render();});});}
+
+/* ── change history (always written; view is Pro) ── */
+function logModal(){var rows=S.log.slice().reverse().slice(0,400).map(function(l){return '<tr><td><b>'+esc(new Date(l.t).toLocaleString())+'</b><br>'+esc(l.field)+(l.reason?' · <i>'+esc(l.reason)+'</i>':'')+'<br><span class="fine">'+(l.old?'was: '+esc(l.old.slice(0,160))+'<br>':'')+(l.new?'now: '+esc(l.new.slice(0,160)):'')+'</span></td></tr>';}).join('');
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>Change history</h3><div class="fine">'+S.log.length+' changes. Newest first.</div><table class="math">'+(rows||'<tr><td>No changes yet.</td></tr>')+'</table>');}
+
+/* ── export / backup / restore ── */
+function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function buildCSV(f){f=f||{};var rows=[['Date','Day','Job','Type','Start','End','Break min','Hours','Regular','Overtime','PTO','PTO bucket','Charge code',S.labels.proj,S.labels.po,S.labels.cost,S.labels.wo,'Split hours','Gross (estimate)','Note','Entry ID']];
+  var ents=S.entries.filter(function(e){return !e.deleted;}).slice().sort(function(a,b){return entryDate(a)<entryDate(b)?-1:entryDate(a)>entryDate(b)?1:(a.start||0)-(b.start||0);});
+  var weeks={};function w(k){var ws=weekStartKey(k);return weeks[ws]||(weeks[ws]=computeWeek(ws));}
+  ents.forEach(function(e){var dk=entryDate(e);if(f.from&&dk<f.from)return;if(f.to&&dk>f.to)return;if(f.job&&e.jobId!==f.job)return;
+    var codesList=e.splits&&e.splits.length?e.splits:[{codeId:e.codeId,hours:null}];if(f.code&&!codesList.some(function(s){return s.codeId===f.code;}))return;
+    var it=w(dk).days[dk].items.filter(function(x){return x.e.id===e.id;})[0]||{hours:entryHours(e),reg:0,ot:0,pto:0,gross:0};
+    codesList.forEach(function(sp,i){var c=S.codes.filter(function(x){return x.id===sp.codeId;})[0];var cf=c?c.fields:{};var share=codesList.length>1?(+sp.hours||0)/(it.hours||1):1;
+      rows.push([dk,dayName(dk),jobOf(e.jobId).name,e.kind==='pto'?'PTO':'Worked',e.kind==='pto'||e.manualHours!=null&&e.manualHours!==''?'':timeVal(e.start),e.kind==='pto'||!e.end?'':timeVal(e.end),e.kind==='pto'?'':(+e.breakMin||0),
+        r2(codesList.length>1?(+sp.hours||0):it.hours),r2(it.reg*share),r2(it.ot*share),r2(it.pto*share),e.kind==='pto'?bucketName(e.bucket):'',c?c.nick:'',cf.proj||'',cf.po||'',cf.cost||'',cf.wo||'',codesList.length>1?sp.hours:'',r2(it.gross*share),e.note||'',e.id]);});});
+  return rows.map(function(r){return r.map(csvCell).join(',');}).join('\r\n')+'\r\n';}
+function csvModal(){var pro=isPro();
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>Export CSV</h3>'+(pro?'<div class="row"><div class="grow"><label class="f" for="xF">From</label><input class="i" type="date" id="xF"></div><div class="grow"><label class="f" for="xT">To</label><input class="i" type="date" id="xT"></div></div>'+
+    (S.jobs.length>1?'<label class="f" for="xJ">Job</label><select class="i" id="xJ"><option value="">All jobs</option>'+S.jobs.map(function(j){return '<option value="'+esc(j.id)+'">'+esc(j.name)+'</option>';}).join('')+'</select>':'')+
+    (S.codes.length?'<label class="f" for="xC">Charge code</label><select class="i" id="xC"><option value="">All codes</option>'+S.codes.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.nick)+'</option>';}).join('')+'</select>':''):'<div class="fine">Exports every entry you have (always free). Filtering by date, job or code is Pro.</div>')+
+    '<button type="button" class="btn go block" style="margin-top:14px" id="xGo">Download CSV</button>'+(pro?'':'<button type="button" class="link" id="xUp">Filter by date, job or code (Pro)</button>'),function(){
+    $('#xGo').addEventListener('click',function(){var f=pro?{from:($('#xF')||{}).value,to:($('#xT')||{}).value,job:($('#xJ')||{}).value,code:($('#xC')||{}).value}:{};
+      deliver(new Blob([buildCSV(f)],{type:'text/csv;charset=utf-8'}),'yfs-on-the-job-'+todayKey()+'.csv');closeModal();});
+    var up=$('#xUp');if(up)up.addEventListener('click',function(){upsell('Filter your export by date range, job or charge code for timesheets and audits.');});});}
+function backupObj(){return {app:'yfs-on-the-job',kind:'backup',v:1,exported:Date.now(),data:S};}
+function deliver(blob,name){try{var file=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[file]})&&/iPhone|iPad|Android/.test(navigator.userAgent)){navigator.share({files:[file],title:name}).catch(function(){dl(blob,name);});return;}}catch(_){}dl(blob,name);}
+function dl(blob,name){var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},4000);}
+function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-on-the-job-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
+function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){try{var j=JSON.parse(rd.result);if(!j||j.app!=='yfs-on-the-job'||!j.data||!Array.isArray(j.data.entries))throw new Error('x');
+    if(!confirm('Restore this backup from '+new Date(j.exported).toLocaleString()+'? It replaces what\'s on this phone now ('+S.entries.length+' entries) with the backup ('+j.data.entries.length+' entries).'))return;
+    S=Object.assign(blank(),j.data);log('backup','(restored)','',new Date(j.exported).toISOString()+' · '+j.data.entries.length+' entries');save();render();toast('Restored. All your records are back.');}catch(_){alert('That file isn\'t an On the Job backup.');}};rd.readAsText(f);ev.target.value='';}
+
+/* ── boot ── */
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();BIP=e;if(S&&S.settings)render();});
+window.addEventListener('pageshow',function(e){if(e.persisted&&S){S=load();render();}});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&S){S=load();render();}});
+window.addEventListener('storage',function(e){if(e.key===KEY||e.key==='yfs_pro'){S=load();render();}});
+window.OTJ={entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();render();},tax:function(){return TAX;},autoClock:autoClockHook,
+  hash:function(o){var t=new TextEncoder().encode(JSON.stringify(o||S));return crypto.subtle.digest('SHA-256',t).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}};
+S=load();VIEW=(S.ui&&S.ui.view)||'today';
+fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(_){}}).catch(function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/job/sw.js',{scope:'/job/'}).catch(function(){});});}
+})();
+</script>
+</body>
+</html>
