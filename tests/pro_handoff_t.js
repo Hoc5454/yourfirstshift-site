@@ -37,7 +37,7 @@ const vis=(p,sel)=>p.evaluate(s=>{const e=document.querySelector(s);if(!e)return
    const bn=document.getElementById('yfsProBanner');const br=bn.getBoundingClientRect();const a=yfsVaultList().find(x=>x.id===yfsVaultActive());
    return {url:location.search,tool:activeTool,pro:localStorage.getItem('yfs_pro'),banner:bn.innerText,bTop:br.top,vh:innerHeight,imp:[...bn.querySelectorAll('li')].map(x=>x.innerText),
     name:v('name'),target:v('target'),summary:v('summary'),skills:v('skills'),exp:v('experience'),edu:v('education'),email:v('email'),
-    ph:pg.innerText.includes('Your Name')||pg.innerText.includes('City, ST'),edit:pg.querySelector('[data-f=summary]').getAttribute('contenteditable'),blur:!!document.querySelector('.ym-blur,.ym-lock,.yfs-blurzone'),
+    ph:pg.innerText.includes('Your Name')||pg.innerText.includes('City, ST')||pg.innerText.includes('+ Add city'),edit:pg.querySelector('[data-f=summary]').getAttribute('contenteditable'),blur:!!document.querySelector('.ym-blur,.ym-lock,.yfs-blurzone'),
     ty:!!document.getElementById('yfsThankYou'),filler:!!document.getElementById('yfsProFillerNote'),dl:(document.getElementById('rbDlBtn')||{}).innerText,
     active:a&&a.name,activePro:!!(a&&a.pro),using:(document.getElementById('yfsUsing')||{}).innerText||'',handoffLeft:!!localStorage.getItem('yfs_handoff')};});
   ok(log.verify===1&&r.pro==='1'&&r.url==='','A3 paid return verified once, URL cleaned');
@@ -84,7 +84,7 @@ const vis=(p,sel)=>p.evaluate(s=>{const e=document.querySelector(s);if(!e)return
  {const {ctx,p,errs}=await ctxFor(b,{vault:F.VAULT});await p.addInitScript(()=>{localStorage.setItem('yfs_usage','1');});await p.goto('http://yfs.local/app.html');await p.waitForTimeout(1000);
   await p.evaluate(()=>yfsOpenTool(5));await p.waitForTimeout(500);
   const r=await p.evaluate(()=>{const pg=document.getElementById('rbPage');return {txt:pg.innerText,name:(pg.querySelector('[data-f=name]')||{}).innerText,u:(document.getElementById('yfsUsing')||{}).innerText||''};});
-  ok(r.name==='Jordan Reyes'&&!/Your Name|City, ST/.test(r.txt)&&/Gulf Coast Grocers/.test(r.txt),'C1 free Builder opens the ACTIVE Vault resume, not the blank template');
+  ok(r.name==='Jordan Reyes'&&!/Your Name|City, ST|\+ Add city/.test(r.txt)&&/Gulf Coast Grocers/.test(r.txt),'C1 free Builder opens the ACTIVE Vault resume, not the blank template');
   ok(/Using: JordanReyesResume/.test(r.u),'C2 Builder Using chip');await shot(p,'8-builder-from-vault');ok(!errs.length,'C no page errors');await ctx.close();}
  // ── D. Job Hunt Pack return + AI failure: still lands on the full resume, honest note ──
  {const {ctx,p,errs,log}=await ctxFor(b,{plan:'pack',upgFail:true,vault:F.VAULT});
