@@ -34,4 +34,21 @@ const srv=http.createServer((q,s)=>{let u=decodeURIComponent(q.url.split('?')[0]
  const cx=await b.newContext();const p=await cx.newPage();const a=await p.goto(O+'/app.html',{waitUntil:'domcontentloaded'});ok(a&&a.status()===200&&!/Clocked In/.test(await p.title()),'/app.html still opens the resume app (200)');
  const j=await p.goto(O+'/job/tax-2026.json');ok(j&&j.status()===200,'/job/tax-2026.json still 200');
  if(!REMOTE){const n=await p.goto(O+'/jobs');ok(n&&n.status()===404,'a different path (/jobs) is not caught by the rule (404)');}
+ // Offline on a host that answers page addresses with redirects (the behaviour reported on production: /job/ is sent to /job).
+ // The offline copy must still open: a browser refuses a cached page answer that was redirected.
+ if(!REMOTE){const P2=PORT+1,O2='http://127.0.0.1:'+P2;
+  const srv2=http.createServer((q,s)=>{let u=decodeURIComponent(q.url.split('?')[0]);const qs=q.url.indexOf('?')>=0?q.url.slice(q.url.indexOf('?')):'';
+   if(u==='/job/'||u==='/job/index.html'){s.writeHead(308,{Location:'/job'+qs});return s.end();}
+   if(u==='/job')u='/job/index.html';const f=path.join(ROOT,u);if(!f.startsWith(ROOT)||!fs.existsSync(f)||fs.statSync(f).isDirectory()){s.writeHead(404);return s.end('nf');}
+   s.writeHead(200,{'Content-Type':TYPES[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache'});fs.createReadStream(f).pipe(s);});
+  await new Promise(r=>srv2.listen(P2,r));
+  const c2=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'});const p2=await c2.newPage();const e2=[];p2.on('pageerror',e=>e2.push(String(e)));
+  await p2.goto(O2+'/job/',{waitUntil:'load'});ok(/Clocked In/.test(await p2.title())&&await p2.evaluate(()=>location.pathname==='/job/'),'[redirecting host] online: /job/ opens Clocked In and the address ends at /job/');
+  const act=await p2.waitForFunction(async()=>{const r=await navigator.serviceWorker.getRegistration('/job/');return !!(r&&r.active&&r.active.state==='activated');},null,{timeout:10000}).then(()=>true).catch(()=>false);
+  ok(act,'[redirecting host] the offline worker installs even though page addresses redirect');
+  const cached=await p2.evaluate(async()=>{const c=await caches.open('otj-v1');const ks=(await c.keys()).map(r=>new URL(r.url).pathname);const m=await c.match('/job/');return {ks,red:m?m.redirected:null,ok:m?m.ok:false};});
+  ok(cached.ok&&cached.red===false&&cached.ks.includes('/job/tax-2026.json')&&cached.ks.includes('/job/manifest.webmanifest'),'[redirecting host] the saved page is a plain copy (not marked redirected); pay tables and manifest saved ('+cached.ks.length+' files)');
+  await c2.setOffline(true);let opened=false;try{await p2.goto(O2+'/job/?src=homescreen',{waitUntil:'load',timeout:8000});await p2.waitForFunction(()=>window.OTJ&&OTJ.tax&&OTJ.tax(),null,{timeout:6000});opened=/Clocked In/.test(await p2.title());}catch(_){}
+  ok(opened,'[redirecting host] offline: the Home Screen address /job/?src=homescreen opens the app with its pay tables');
+  ok(!e2.length,'[redirecting host] no page errors '+e2.join('|').slice(0,140));await c2.close();srv2.close();}
  await b.close();if(!REMOTE)srv.close();console.log(fails?('\n'+fails+' FAILED'):'\nALL PASS');process.exit(fails?1:0);})();

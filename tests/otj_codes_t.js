@@ -149,6 +149,24 @@ function csvParse(t){const rows=[];let r=[],c='',q=false;for(let i=0;i<t.length;
    await p.click('[data-a=add]');await p.waitForTimeout(150);await p.click('#eClr');await p.fill('#eC_job','J6');await p.fill('#eStart','13:00');await p.fill('#eEnd','14:00');await p.fill('#eBrk','0');await p.click('#eSave');await p.waitForTimeout(250);s=await st(p);
    ok(s.ui.recentCodes.length===5&&s.ui.recentCodes[0].job==='J6'&&!s.ui.recentCodes.some(x=>x.job==='J5'),'7i '+T0+'only the last 5 sets are kept');
    await p.click('[data-a=add]');await p.waitForTimeout(150);ok(await p.evaluate(()=>{const i=document.getElementById('eC_pay');const d=document.getElementById(i.getAttribute('list'));return !!d&&[...d.options].map(o=>o.value).join()==='REG,OT,DT,PTO,HOL,SICK';}),'7j '+T0+'Pay code suggests REG, OT, DT, PTO, HOL, SICK (still free text)');
+   await p.click('[data-close]');
+   // forget one row, then use the rows under it: every button must still act on the set it shows
+   const three=()=>p.evaluate(()=>{const s=OTJ.state();s.ui.recentCodes=[{job:'AAA'},{job:'BBB'},{job:'CCC'}];s.ui.lastCodes={};localStorage.setItem('yfs_otj_v1',JSON.stringify(s));OTJ.reload();});
+   const rows=sel=>p.evaluate(sel=>[...document.querySelectorAll(sel+' .rc')].filter(r=>r.offsetParent!==null).map(r=>r.querySelector('.rcf').textContent),sel);
+   for(const [name,openIt,pfx,after] of [['+ Add hours',async()=>{await p.click('[data-a=add]');},'eC_',async()=>{await p.click('[data-close]');}],['Clock tab codes',async()=>{await p.click('[data-a=clkcodes]');},'kC_',async()=>{await p.click('[data-close]');}]]){
+    await three();await openIt();await p.waitForTimeout(150);
+    await p.click('#'+pfx+'recent .rc:nth-child(2) .rcx');await p.waitForTimeout(100);            /* forget AAA (first row; child 1 is the caption) */
+    const left=await rows('#'+pfx+'recent');
+    await p.click('#'+pfx+'recent .rc:nth-child(2) .rcf');const filled=await p.inputValue('#'+pfx+'job');   /* first row left = BBB */
+    await p.click('#'+pfx+'recent .rc:nth-child(3) .rcf');const filled2=await p.inputValue('#'+pfx+'job');  /* next row = CCC */
+    await p.click('#'+pfx+'recent .rc:nth-child(2) .rcx');await p.waitForTimeout(100);const s2=await st(p);const left2=await rows('#'+pfx+'recent');
+    ok(left.join('|')==='Job BBB|Job CCC'&&filled==='BBB'&&filled2==='CCC','7k '+T0+name+': after forgetting AAA, tapping BBB fills BBB and tapping CCC fills CCC (got '+filled+', '+filled2+')');
+    ok(s2.ui.recentCodes.length===1&&s2.ui.recentCodes[0].job==='CCC'&&left2.join('|')==='Job CCC','7l '+T0+name+': ✕ on BBB forgets BBB, not CCC (left: '+s2.ui.recentCodes.map(x=>x.job).join(',')+')');
+    await p.click('#'+pfx+'recent .rc .rcx');await p.waitForTimeout(100);ok(!(await p.$('#'+pfx+'recent'))&&(await st(p)).ui.recentCodes.length===0,'7m '+T0+name+': forgetting the last set removes the list');await after();}
+   // damaged saved recents are repaired on load
+   const bad=await open(seed({ui:{a2hsX:1,recentCodes:['x',5,null,{job:{a:1}},[1],{job:'R1'},{task:'R2'},{job:'R3',extra:'no'},{po:'R4'},{cost:'R5'},{job:'R6'},{job:'R7'}]}}));const br=(await st(bad.p)).ui.recentCodes;
+   ok(br.length===5&&br[0].job==='R1'&&br[1].task==='R2'&&JSON.stringify(br[2])==='{"job":"R3"}'&&br[4].cost==='R5','7n '+T0+'bad saved recents (wrong types, unknown fields, more than 5) are cleaned on load: '+JSON.stringify(br).slice(0,90));
+   const bad2=await open(seed({ui:{a2hsX:1,recentCodes:'oops'}}));ok((await st(bad2.p)).ui.recentCodes.length===0&&!bad.errs.length&&!bad2.errs.length,'7o '+T0+'a recents value of the wrong type loads as an empty list, no page errors');await bad.c.close();await bad2.c.close();
    ok(!errs.length,'7 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
 
   // ── 8. a clock left running: ask, and let the worker put in the real stop time ──
@@ -166,6 +184,22 @@ function csvParse(t){const rows=[];let r=[],c='',q=false;for(let i=0;i<t.length;
    ok(!s.clock&&e&&e.start===start&&e.date===Y&&new Date(e.end).getHours()===23&&new Date(e.end).getMinutes()===30&&e.breakMin===30&&Math.abs(h-7)<0.01&&e.codes.job===A.job,'8f '+T0+'the shift is saved with the real stop time: 7 hrs after the 30-min break, on the day it started, codes kept');
    ok(s.log.some(l=>l.id===e.id&&l.reason==='forgot to clock out'),'8g '+T0+'the change history notes "forgot to clock out"');
    ok(!errs.length,'8 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();
+   // stop time before clock-in is refused
+   {const q=await open(run());await q.p.click('[data-a=forgot]');await q.p.waitForTimeout(200);await q.p.fill('#fD',Y);await q.p.fill('#fT','15:59');await q.p.click('#fSave');await q.p.waitForTimeout(200);let qs=await st(q.p);
+    ok(!!(await q.p.$('#fSave'))&&qs.clock&&qs.entries.length===0&&/after you clocked in/.test(await q.p.textContent('#fCalc')),'8j '+T0+'a stop time before clock-in (3:59pm vs 4:00pm) is refused; nothing is saved');
+    await q.p.fill('#fT','16:00');await q.p.click('#fSave');await q.p.waitForTimeout(200);qs=await st(q.p);ok(qs.clock&&qs.entries.length===0,'8k '+T0+'a stop time equal to clock-in is refused too');await q.c.close();}
+   // a break that was running across the chosen stop time is cut off there
+   {const q=await open(run({breaks:[{s:start+5*3600e3,e:start+9*3600e3}]}));await q.p.click('[data-a=forgot]');await q.p.waitForTimeout(200);await q.p.fill('#fD',Y);await q.p.fill('#fT','22:00');await q.p.click('#fSave');await q.p.waitForTimeout(300);
+    const qe=(await st(q.p)).entries[0];const qh=await q.p.evaluate(()=>OTJ.entryHours(OTJ.state().entries[0]));ok(qe&&qe.breakMin===60&&Math.abs(qh-5)<0.01,'8l '+T0+'a 9pm–1am break with a 10pm stop counts as 60 min, not 240 (6 hrs on the clock → 5 hrs worked; got '+(qe&&qe.breakMin)+' min, '+qh+' hrs)');await q.c.close();
+    const q2=await open(run({breaks:[],onBreak:start+5*3600e3}));await q2.p.click('[data-a=forgot]');await q2.p.waitForTimeout(200);await q2.p.fill('#fD',Y);await q2.p.fill('#fT','22:00');await q2.p.click('#fSave');await q2.p.waitForTimeout(300);
+    const q2e=(await st(q2.p)).entries[0];ok(q2e&&q2e.breakMin===60,'8m '+T0+'same for a break never ended (started 9pm, stop 10pm → 60 min; got '+(q2e&&q2e.breakMin)+')');await q2.c.close();}
+   // no re-ask sooner than 4 h after "Yes, still working"; 14 h boundary
+   {const q=await open(run({askedAt:NOW.getTime()-3.9*3600e3}));ok(!(await q.p.$('#stillOn')),'8n '+T0+'3.9 h after "Yes, still working" it does not ask again');await q.c.close();
+    const q2=await open(run({askedAt:NOW.getTime()-4.1*3600e3}));ok(!!(await q2.p.$('#stillOn')),'8o '+T0+'4.1 h after, it asks again');await q2.c.close();
+    const q3=await open(seed({clock:{start:NOW.getTime()-13.9*3600e3,jobId:'j1',breaks:[],onBreak:null}}));ok(!(await q3.p.$('#stillOn')),'8p '+T0+'13.9 h on the clock: no prompt');await q3.c.close();
+    const q4=await open(seed({clock:{start:NOW.getTime()-14.1*3600e3,jobId:'j1',breaks:[],onBreak:null}}));ok(!!(await q4.p.$('#stillOn')),'8q '+T0+'14.1 h on the clock: prompt');await q4.c.close();}
+   {const c0=await b.newContext({...DEVS[dev],serviceWorkers:'block'});const p0=await c0.newPage();await p0.goto(O+'/job/');await p0.waitForFunction(()=>window.OTJ&&OTJ.tax());await p0.waitForTimeout(200);
+    ok(/No GPS\. Every minute counts\./.test(await p0.textContent('#view')),'8r '+T0+'the set-up screen says "No GPS. Every minute counts."');await c0.close();}
    const n=await open(seed({clock:{start:NOW.getTime()-10*3600e3,jobId:'j1',breaks:[],onBreak:null}}));ok(!(await n.p.$('#stillOn'))&&!!(await n.p.$('#clkT')),'8h '+T0+'a normal 10-hour shift is not interrupted');await n.c.close();
    const br=await open(run({breaks:[],onBreak:start+9*3600e3}));await br.p.click('[data-a=forgot]');await br.p.waitForTimeout(200);await br.p.fill('#fD',Y);await br.p.fill('#fT','22:00');await br.p.click('#fSave');await br.p.waitForTimeout(300);
    const be=(await st(br.p)).entries[0];ok(be&&be.breakMin===0&&new Date(be.end).getHours()===22,'8i '+T0+'a break that was still running after the real stop time is not taken off the shift');ok(!br.errs.length,'8 '+T0+'no page errors (break case) '+br.errs.join('|').slice(0,140));await br.c.close();}

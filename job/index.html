@@ -169,8 +169,10 @@ function recentCodes(){return Array.isArray(S.ui.recentCodes)?S.ui.recentCodes:[
 function pushRecent(c){c=cleanCodes(c);if(!hasCodes(c))return;var k=codesText(c);S.ui.recentCodes=[c].concat(recentCodes().filter(function(x){return codesText(x)!==k;})).slice(0,RECENT_MAX);}
 function recentRow(pfx){var r=recentCodes();if(!r.length)return '';
   return '<div class="rcs" id="'+pfx+'recent"><div class="fine">Used before. Tap to fill:</div>'+r.map(function(c,i){return '<div class="rc"><button type="button" class="rcf" data-rc="'+i+'">'+esc(codesText(c))+'</button><button type="button" class="rcx" data-rx="'+i+'" aria-label="Forget these codes">✕</button></div>';}).join('')+'</div>';}
-function wireRecent(m,pfx){m.querySelectorAll('[data-rc]').forEach(function(b){b.addEventListener('click',function(){var c=recentCodes()[+b.dataset.rc]||{};CODE_F.forEach(function(f){var el=document.getElementById(pfx+f[0]);if(el)el.value=c[f[0]]||'';});});});
-  m.querySelectorAll('[data-rx]').forEach(function(b){b.addEventListener('click',function(){var r=recentCodes(),c=r[+b.dataset.rx];if(!c)return;var k=codesText(c);S.ui.recentCodes=r.filter(function(x){return codesText(x)!==k;});save();var row=b.closest('.rc');if(row)row.style.display='none';toast('Forgotten.');});});}
+/* Each button is tied to the SET it shows (captured here), never to a position in the list: forgetting one row must not change what the other rows do. */
+function wireRecent(m,pfx){var shown=recentCodes().slice();
+  m.querySelectorAll('[data-rc]').forEach(function(b){var c=shown[+b.dataset.rc];b.addEventListener('click',function(){if(!c)return;CODE_F.forEach(function(f){var el=document.getElementById(pfx+f[0]);if(el)el.value=c[f[0]]||'';});});});
+  m.querySelectorAll('[data-rx]').forEach(function(b){var c=shown[+b.dataset.rx];b.addEventListener('click',function(){if(!c)return;var k=codesText(c);S.ui.recentCodes=recentCodes().filter(function(x){return codesText(x)!==k;});save();var row=b.closest('.rc');if(row)row.remove();if(!recentCodes().length){var box=document.getElementById(pfx+'recent');if(box)box.remove();}toast('Forgotten.');});});}
 function readCodes(pfx){var o={};CODE_F.forEach(function(f){var el=document.getElementById(pfx+f[0]);if(el)o[f[0]]=el.value;});return cleanCodes(o);}
 
 /* ── helpers ── */
