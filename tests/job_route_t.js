@@ -2,7 +2,7 @@
 // Usage: node job_route_t.js ..                      (local server that applies the repo's _redirects file)
 //        node job_route_t.js https://<preview-or-live> (checks a real deploy; run this on the Cloudflare preview before going live)
 const {chromium}=require('playwright');const http=require('http');const fs=require('fs');const path=require('path');
-const ARG=process.argv[2]||'..';const REMOTE=/^https?:\/\//.test(ARG);const ROOT=REMOTE?null:path.resolve(ARG);const PORT=18897;const O=REMOTE?ARG.replace(/\/+$/,''):'http://127.0.0.1:'+PORT;
+const ARG=process.argv[2]||'..';const REMOTE=/^https?:\/\//.test(ARG);const ROOT=REMOTE?null:path.resolve(ARG);const PORT=18893;const O=REMOTE?ARG.replace(/\/+$/,''):'http://127.0.0.1:'+PORT;
 const TYPES={'.html':'text/html; charset=utf-8','.json':'application/json','.js':'text/javascript','.png':'image/png','.webmanifest':'application/manifest+json'};
 let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
 // _redirects: "<from> <to> [status]" per line; 200 = serve <to> at the same address, 3xx = redirect
