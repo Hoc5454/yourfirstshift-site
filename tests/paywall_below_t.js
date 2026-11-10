@@ -1,0 +1,25 @@
+// paywall-below: free run used + saved result -> result first, free-run card under it. Usage: node paywall_below_t.js ../app.html
+const { chromium } = require('playwright'); const fs = require('fs');
+const H=process.argv[2];const RAW=fs.readFileSync('raw_resume.txt','utf8');
+const OUT='## AI MATCH ESTIMATE: 64/100 (vs this job posting)\n## VERDICT: Solid fit.\n\n## ✅ KEYWORD HITS (2 found)\n- Motor grader\n- Dozer\n\n## ❌ CRITICAL GAPS (1 missing)\n- Grade stakes\n\n## 🔧 TOP 5 FIXES — do these before applying\n1. Put motor grader in your summary\n\n## 📊 HIRING PROBABILITY\nGood with fixes.';
+(async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:390,height:844}});const p=await ctx.newPage();
+let perr=0;p.on('pageerror',e=>{perr++;console.log('PAGEERR',e.message);});
+await ctx.route('**/*',r=>{const u=r.request().url();if(u.startsWith('http://yfs.local/app.html'))return r.fulfill({body:fs.readFileSync(H),contentType:'text/html'});if(/workers\.dev\/?$/.test(u))return r.fulfill({body:JSON.stringify({content:[{text:OUT}]}),contentType:'application/json'});return r.abort();});
+await p.addInitScript(raw=>{if(!sessionStorage.getItem('x')){sessionStorage.setItem('x',1);localStorage.setItem('yfs_vault',JSON.stringify([{id:'v1',name:'JordanHayesResume',text:raw,look:'Modern Professional',ts:Date.now()}]));localStorage.setItem('yfs_vault_active','v1');localStorage.setItem('yfs_resume',raw);}},RAW);
+await p.goto('http://yfs.local/app.html');await p.waitForTimeout(500);
+await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(200);await p.fill('#xrayJd','Heavy Equipment Operator — must run dozer and motor grader, read grade stakes. Full-time, benefits.');
+await p.evaluate(()=>{updateRunBtn();runTool();});await p.waitForTimeout(1500);
+await p.reload();await p.waitForTimeout(600);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(800);
+let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
+const st=()=>p.evaluate(()=>{const pws=[...document.querySelectorAll('.paywall')].filter(e=>e.offsetParent);const os=document.getElementById('outputSection');
+ const top=e=>e?Math.round(e.getBoundingClientRect().top+scrollY):null;return {n:pws.length,pwTop:pws[0]?top(pws[0]):null,osTop:os&&os.offsetParent?top(os):null,moved:!!document.getElementById('yfsPwMoved'),inApp:!!document.querySelector('#appContent .paywall')};});
+let r=await st();console.log(JSON.stringify(r));
+ok(r.n===1&&r.osTop!=null&&r.pwTop>r.osTop,'P1 restored X-Ray result shows first, free-run card right under it');
+await p.screenshot({path:'/tmp/fr.png',fullPage:true});
+await p.evaluate(()=>yfsOpenTool(2));await p.waitForTimeout(700);r=await st();console.log(JSON.stringify(r));
+ok(r.n===1&&r.inApp&&!r.moved,'P2 tool with no saved result: one card in the normal spot, no moved copy');
+await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(700);r=await st();
+ok(r.n===1&&r.pwTop>r.osTop,'P3 back to X-Ray: still one card, under the result');
+for(const t of [0,3,1,4,1])await p.evaluate(t=>yfsOpenTool(t),t);await p.waitForTimeout(700);r=await st();
+ok(r.n===1,'P4 fast switching never leaves two cards ('+r.n+')');
+await b.close();ok(!perr,'P5 no page errors');console.log(fails?fails+' FAIL':'ALL PASS');process.exit(fails?1:0);})();

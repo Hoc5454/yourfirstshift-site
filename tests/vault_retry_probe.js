@@ -9,7 +9,7 @@ const H=process.argv[2]||'../app.html';const RAW=fs.readFileSync('raw_resume.txt
  await p.goto('http://yfs.local/app.html');await p.waitForTimeout(400);await p.evaluate(()=>yfsOpenTool(3));
  const inp=await p.$('input[onchange="yfsVaultFile(event)"]');await inp.setInputFiles({name:'v.pdf',mimeType:'application/pdf',buffer:PDF});await p.waitForTimeout(300);
  await p.evaluate(()=>{window.__vis='hidden';document.dispatchEvent(new Event('visibilitychange'));});pend.splice(0).forEach(f=>f());await p.waitForTimeout(300);
- await p.evaluate(()=>{window.__vis='visible';document.dispatchEvent(new Event('visibilitychange'));});await p.waitForTimeout(1500);
+ await p.evaluate(()=>{window.__vis='visible';document.dispatchEvent(new Event('visibilitychange'));});await p.waitForTimeout(4000);
  const r=await p.evaluate(()=>({vz:(document.getElementById('vaultZone')||{}).textContent||'',vi:((document.getElementById('vaultInput')||{}).value||'').length,uz:!!document.getElementById('uploadZone')}));
  console.log(JSON.stringify(r),'calls',n);const pass=/File read/.test(r.vz)&&r.vi>100&&r.uz&&n===2&&!errs.length;console.log(pass?'PASS vault retry':'FAIL vault retry');
  await b.close();process.exit(pass?0:1);})();

@@ -839,6 +839,13 @@ window.yfsRunFailed=function(e){
 };
 })();
 </script>
+<style id="yfs-tap-css">
+/* overnight: small text links/buttons get a bigger invisible tap area (no layout change) */
+.yfs-using button,.yfs-pdf-cancel a,.paywall-sub a,.paywall-feat a,.cancel-1click a,#freePdfLine a,#rbFreeUsedBanner a,a[onclick*="yfsOpenCheckout"],#uploadZone .upload-sub span[onclick]{position:relative}
+.yfs-using button::after,.yfs-pdf-cancel a::after,.paywall-sub a::after,.paywall-feat a::after,.cancel-1click a::after,#freePdfLine a::after,#rbFreeUsedBanner a::after,a[onclick*="yfsOpenCheckout"]::after,#uploadZone .upload-sub span[onclick]::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
+/* overnight: free X-Ray shows only score + verdict; don't pad it out with ~150px of blank paper */
+.output-box.yfs-paper:not(:has(p,ul,ol,li,table,div,pre,blockquote,h3,h4)){min-height:0}
+</style>
 </head>
 <body>
 
@@ -853,7 +860,7 @@ window.yfsRunFailed=function(e){
     <div id="vxGrid" class="vx-grid"></div>
     <div class="vx-new">
       <div class="vx-new-h" id="vxFormH">+ Add a resume</div>
-      <input id="vaultName" class="vx-name" maxlength="80" placeholder="Name it, e.g. HunterCulpepperResume-Blue Origin"/>
+      <input id="vaultName" class="vx-name" maxlength="80" placeholder="Name it, e.g. JordanResume-Warehouse Lead"/>
       <label class="vault-up">📎 Upload PDF, Word, text or photo<input type="file" accept=".pdf,.doc,.docx,.txt,.rtf,.odt,.png,.jpg,.jpeg,.webp,.heic" onchange="yfsVaultFile(event)" style="display:none"/></label><div id="vaultZone" class="vault-zone"></div>
       <textarea id="vaultInput" rows="6" placeholder="…or paste your resume / work history here"></textarea>
       <div class="modal-actions">
@@ -2272,7 +2279,7 @@ function openVault(){yfsVaultEditing='';document.getElementById('vaultInput').va
   yfsVaultRender();document.getElementById('vaultModal').style.display='flex';}
 function closeVault(){document.getElementById('vaultModal').style.display='none';}
 function saveVault(){const t=document.getElementById('vaultInput').value.trim();if(!t){alert('Upload or paste a resume first.');return;}
-  let n=(document.getElementById('vaultName').value||'').trim();if(!n){n=prompt('Name this resume (e.g. '+yfsVaultDefName(t)+'-Blue Origin)',yfsVaultDefName(t))||yfsVaultDefName(t);}
+  let n=(document.getElementById('vaultName').value||'').trim();if(!n){n=prompt('Name this resume (e.g. '+yfsVaultDefName(t)+'-Warehouse Lead)',yfsVaultDefName(t))||yfsVaultDefName(t);}
   const l=yfsVaultList();let id=yfsVaultEditing;
   if(id&&l.find(x=>x.id===id)){l.forEach(x=>{if(x.id===id){x.name=n.slice(0,80);x.text=t;x.look=selectedStyle||x.look;x.ts=Date.now();}});}
   else{id='v'+Date.now();l.push({id:id,name:n.slice(0,80),text:t,look:selectedStyle||'Modern Professional',ts:Date.now()});}
@@ -3800,6 +3807,23 @@ function go(){var sh=document.getElementById('yfsPlans');if(sh&&sh.classList.con
 try{history.replaceState(null,'',location.pathname+location.search);}catch(_){}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(go,350);});else setTimeout(go,350);
 window.addEventListener('load',function(){setTimeout(go,350);});})();
+</script>
+<script id="yfs-paywall-below">
+/* overnight: free run used + a saved result for this tool on screen -> show the result first and the
+   "You've used your free run" card right under it (its copy says "your result above"). Moved card is
+   removed on the next renderTool so it never lingers on another tool. */
+(function(){
+function place(){try{
+  var pw=document.querySelector('#appContent .paywall'),os=document.getElementById('outputSection');
+  if(!pw||!os||os.style.display==='none'||!os.offsetParent)return;
+  var box=document.getElementById('outputBox');if(!box||box.innerText.trim().length<40)return;
+  var w=document.createElement('div');w.id='yfsPwMoved';w.style.marginTop='16px';
+  os.parentNode.insertBefore(w,os.nextSibling);w.appendChild(pw);
+}catch(_){}}
+if(typeof renderTool==='function'){var _r=renderTool;renderTool=function(){
+  var old=document.getElementById('yfsPwMoved');if(old)old.remove();
+  var out=_r.apply(this,arguments);place();setTimeout(place,400);return out;};}
+})();
 </script>
 </body>
 </html>
