@@ -66,6 +66,11 @@ const BAD=/NaN|undefined|\[object|Infinity|Invalid Date/;
   ok(await p.evaluate(()=>OTJ.state().entries.length===1&&OTJ.state().entries[0].id==='n1'),'F5 Undo again goes forward to the restored backup (nothing is lost either way)');
   await p.evaluate(()=>localStorage.setItem('yfs_otj_v1_prev_t',String(Date.now()-15*86400000)));await p.reload();await p.waitForTimeout(500);await p.click('nav.tabs [data-v=more]');await p.waitForTimeout(200);
   ok(!(await p.$('[data-a=undorestore]'))&&await p.evaluate(()=>localStorage.getItem('yfs_otj_v1_prev')===null),'F6 the safety copy is dropped after 14 days');
+  // missing timestamp = expired
+  await p.setInputFiles('#restoreFile',{name:'b.json',mimeType:'application/json',buffer:Buffer.from(bk(base({entries:[W({id:'n2'})]})))});await p.waitForTimeout(600);
+  ok(!!(await p.$('[data-a=undorestore]')),'F6b (setup) a fresh restore offers Undo again');
+  await p.evaluate(()=>localStorage.removeItem('yfs_otj_v1_prev_t'));await p.reload();await p.waitForTimeout(500);await p.click('nav.tabs [data-v=more]');await p.waitForTimeout(200);
+  ok(!(await p.$('[data-a=undorestore]'))&&await p.evaluate(()=>localStorage.getItem('yfs_otj_v1_prev')===null),'F6c a safety copy with no timestamp is treated as expired and dropped');
   ok(!errs.length,'F7 no page errors '+errs.join('|').slice(0,150));await c.close();}
  {const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
   await c.addInitScript(v=>{if(!sessionStorage.getItem('s')){sessionStorage.setItem('s','1');localStorage.setItem('yfs_otj_v1',v);}},JSON.stringify(GOOD));
@@ -73,6 +78,6 @@ const BAD=/NaN|undefined|\[object|Infinity|Invalid Date/;
   await p.goto(O+'/job/');await p.waitForTimeout(500);await p.click('nav.tabs [data-v=more]');await p.waitForTimeout(200);
   await p.evaluate(()=>{const real=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='yfs_otj_v1'&&/"n1"/.test(v))throw new DOMException('QuotaExceededError','QuotaExceededError');return real.call(this,k,v);};});
   await p.setInputFiles('#restoreFile',{name:'b.json',mimeType:'application/json',buffer:Buffer.from(bk(base({entries:[W({id:'n1'})]})))});await p.waitForTimeout(700);
-  const r=await p.evaluate(()=>({ids:OTJ.state().entries.map(e=>e.id).sort().join(','),saved:JSON.parse(localStorage.getItem('yfs_otj_v1')).entries.length,toasts:[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' | ')}));
-  ok(r.ids==='k1,k2,k3'&&r.saved===3&&dlg.some(d=>/Restore failed\. Your records were not changed\./.test(d))&&!/Restored/.test(r.toasts),'F8 save fails during restore → "Restore failed", no "Restored" toast, the 3 records stay ('+r.toasts.slice(0,60)+')');await c.close();}
+  const r=await p.evaluate(()=>({prev:localStorage.getItem('yfs_otj_v1_prev'),prevT:localStorage.getItem('yfs_otj_v1_prev_t'),undo:!!document.querySelector('[data-a=undorestore]'),ids:OTJ.state().entries.map(e=>e.id).sort().join(','),saved:JSON.parse(localStorage.getItem('yfs_otj_v1')).entries.length,toasts:[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' | ')}));
+  ok(r.ids==='k1,k2,k3'&&r.saved===3&&dlg.some(d=>/Restore failed\. Your records were not changed\./.test(d))&&!/Restored/.test(r.toasts)&&r.prev===null&&r.prevT===null&&!r.undo,'F8 save fails during restore (safety copy cleared, no Undo offered) → "Restore failed", no "Restored" toast, the 3 records stay ('+r.toasts.slice(0,60)+')');await c.close();}
  await b.close();srv.close();console.log(fails?fails+' FAIL':'ALL PASS');process.exit(fails?1:0);})();
