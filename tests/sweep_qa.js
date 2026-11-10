@@ -34,7 +34,7 @@ for(const W of [390,360])for(const pro of [false,true]){
  await audit('home');await p.screenshot({path:`${shots}/${tag}_home.png`,fullPage:true});
  for(const t of [0,1,2,3,4,5]){tool=t;await p.evaluate(t=>yfsOpenTool(t),t);await p.waitForTimeout(400);await audit('tool'+t);
   if(W===390)await p.screenshot({path:`${shots}/${tag}_tool${t}.png`});
-  if(t>=1&&t<=4){const sel=t===1?'#xrayJd':'#userInput';if(!(await p.isVisible(sel))){add(W,tag+' tool'+t,'input '+sel+' not visible'+(pro?'':' (free run used — expected if gated)'));continue;}await p.fill(sel,t===1?'Heavy Equipment Operator — Lee County. Must run dozer and motor grader, read grade stakes, CDL a plus.':'Lee County Public Works, Heavy Equipment Operator. Interview next week.');
+  if(t>=1&&t<=4){const sel=t===1?'#xrayJd':'#userInput';if(!(await p.isVisible(sel))){add(W,tag+' tool'+t,'input '+sel+' not visible'+(pro?'':' (free run used — expected if gated)'));continue;}await p.fill(sel,t===1?'Heavy Equipment Operator — Demo County. Must run dozer and motor grader, read grade stakes, CDL a plus.':'Demo County Public Works, Heavy Equipment Operator. Interview next week.');
    await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
    if(!pro&&t>1){/* free run already used */}else{await p.evaluate(()=>runTool());await p.waitForTimeout(1800);await audit('result'+t);if(W===390){const y=await p.evaluate(()=>{const o=document.getElementById('outputSection');return o?o.getBoundingClientRect().top+scrollY:0;});await p.evaluate(y=>scrollTo(0,y-60),y);await p.waitForTimeout(150);await p.screenshot({path:`${shots}/${tag}_result${t}.png`});}}}
  }

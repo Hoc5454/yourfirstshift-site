@@ -159,6 +159,7 @@ function blank(){return {app:'yfs-on-the-job',v:1,created:Date.now(),settings:nu
 /* Repair damaged saved data (a bad or hand-edited backup file, a half-written save) so one bad record can never lock the worker out of their records. */
 function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isArray(x);},arr=function(x){return Array.isArray(x)?x.filter(o):[];},num=function(x){return typeof x==='number'&&isFinite(x);};
   j=Object.assign(blank(),o(j)?j:{});
+  j.app='yfs-on-the-job';
   j.settings=o(j.settings)?j.settings:null;j.labels=Object.assign({},DEFAULT_LABELS,o(j.labels)?j.labels:{});j.ui=o(j.ui)?j.ui:{};
   j.jobs=arr(j.jobs).filter(function(x){return x.id!=null;});
   j.codes=arr(j.codes).filter(function(x){return x.id!=null;}).map(function(c){if(!o(c.fields))c.fields={};return c;});
@@ -606,9 +607,20 @@ function backupObj(){return {app:'yfs-on-the-job',kind:'backup',v:1,exported:Dat
 function deliver(blob,name){try{var file=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[file]})&&/iPhone|iPad|Android/.test(navigator.userAgent)){navigator.share({files:[file],title:name}).catch(function(){dl(blob,name);});return;}}catch(_){}dl(blob,name);}
 function dl(blob,name){var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},4000);}
 function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-on-the-job-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
-function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){try{var j=JSON.parse(rd.result);if(!j||j.app!=='yfs-on-the-job'||!j.data||!Array.isArray(j.data.entries))throw new Error('x');
-    if(!confirm('Restore this backup from '+new Date(j.exported).toLocaleString()+'? It replaces what\'s on this phone now ('+S.entries.length+' entries) with the backup ('+j.data.entries.length+' entries).'))return;
-    S=clean(j.data);log('backup','(restored)','',new Date(j.exported).toISOString()+' · '+j.data.entries.length+' entries');save();render();toast('Restored. All your records are back.');}catch(_){alert('That file isn\'t an On the Job backup.');}};rd.readAsText(f);ev.target.value='';}
+function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){
+    /* Everything that can fail happens BEFORE the worker's current records are touched. */
+    var j=null;try{j=JSON.parse(rd.result);}catch(_){}
+    if(!j||typeof j!=='object'||j.app!=='yfs-on-the-job'||!j.data||typeof j.data!=='object'||!Array.isArray(j.data.entries)){alert('That file isn\'t an On the Job backup.');return;}
+    var rawN=j.data.entries.length,next;try{next=clean(JSON.parse(JSON.stringify(j.data)));}catch(_){alert('That backup is damaged and can\'t be read. Your records were not changed.');return;}
+    var ex=new Date(j.exported),okD=j.exported!=null&&j.exported!==''&&!isNaN(ex.getTime());
+    var when=okD?ex.toLocaleString():'an unknown date',stamp=okD?ex.toISOString():'unknown date';
+    var skipped=Math.max(0,rawN-next.entries.length),curN=(S.entries||[]).length;
+    var note=next.entries.length+(next.entries.length===1?' entry':' entries')+(skipped?' · '+skipped+' damaged skipped':'');
+    if(!confirm('Restore this backup from '+when+'? It replaces what\'s on this phone now ('+curN+(curN===1?' entry':' entries')+') with the backup ('+next.entries.length+(next.entries.length===1?' entry':' entries')+(skipped?'; '+skipped+' damaged record'+(skipped===1?'':'s')+' will be skipped':'')+').'))return;
+    var prev=S;try{localStorage.setItem(KEY+'_prev',JSON.stringify(prev));}catch(_){}
+    try{S=next;log('backup','(restored)','',stamp+' · '+note);save();render();toast('Restored'+(skipped?' ('+skipped+' damaged record'+(skipped===1?'':'s')+' skipped)':'')+'. Your records are back.');}
+    catch(_){S=prev;try{save();render();}catch(__){}alert('Restore failed. Your records were not changed.');}};
+  rd.readAsText(f);ev.target.value='';}
 
 /* ── boot ── */
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();BIP=e;if(S&&S.settings)render();});

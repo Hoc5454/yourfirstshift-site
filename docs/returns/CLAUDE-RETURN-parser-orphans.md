@@ -13,7 +13,7 @@ TEAM LOCK kept: no look CSS, Vault, Stripe/Worker, or free/Pro gating touched.
 3. ATS text layer unchanged: still extracts all words.
 
 ## Note for Hunter's screenshot
-"Labor Hand · Sunnyland Energy Service" at the top of page 2 is a **whole job** (header + its only bullet) that didn't fit at the bottom of page 1. That's the correct break, not an orphan. Keeping a job together is the right call; splitting the header from its bullet would be the real mistake.
+"Labor Hand · Ironleaf Energy Services" at the top of page 2 is a **whole job** (header + its only bullet) that didn't fit at the bottom of page 1. That's the correct break, not an orphan. Keeping a job together is the right call; splitting the header from its bullet would be the real mistake.
 
 ## Hunter phone retest (live tip, hard-reload)
 1. Jordan Hayes → Bold Trades: "SITE FOREMAN · HEAVY EQUIPMENT OPERATOR" is the orange title; contact = city · phone · email only

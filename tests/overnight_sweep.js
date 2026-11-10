@@ -5,7 +5,7 @@
 const { chromium } = require('playwright'); const fs = require('fs');
 const H = process.argv[2] || '../app.html', SHOTS = process.argv[3] || '';
 const RAW = fs.readFileSync('raw_resume.txt', 'utf8');
-const OUT = 'Jordan Hayes\nSite Foreman\nCape Coral, FL · 555-010-0199 · jordan.hayes@example.com\n\n## SUMMARY\nSite foreman with years of civil work running crews and equipment.\n\n## EXPERIENCE\n### Site Foreman | Gulfview Site Works | 2024 – Present\n- Runs day-to-day site work and final grading\n- Trains crews and operators\n\n## SKILLS\nMotor grader\nDozer\nOSHA 10\n\n## EDUCATION\nHigh School Diploma — Seagrape High School';
+const OUT = 'Jordan Hayes\nSite Foreman\nSampleton, FL · 555-010-0199 · jordan.hayes@example.com\n\n## SUMMARY\nSite foreman with years of civil work running crews and equipment.\n\n## EXPERIENCE\n### Site Foreman | Gulfview Site Works | 2024 – Present\n- Runs day-to-day site work and final grading\n- Trains crews and operators\n\n## SKILLS\nMotor grader\nDozer\nOSHA 10\n\n## EDUCATION\nHigh School Diploma — Testwood High School';
 const DEV = { iphone: { width: 390, height: 844 }, android: { width: 360, height: 800 }, desktop: { width: 1280, height: 800 } };
 let fails = 0; const issues = [];
 function bad(k, m) { fails++; issues.push(k + ' ' + m); console.log('FAIL', k, m); }
