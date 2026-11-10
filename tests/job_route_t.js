@@ -46,7 +46,7 @@ const srv=http.createServer((q,s)=>{let u=decodeURIComponent(q.url.split('?')[0]
   await p2.goto(O2+'/job/',{waitUntil:'load'});ok(/Clocked In/.test(await p2.title())&&await p2.evaluate(()=>location.pathname==='/job/'),'[redirecting host] online: /job/ opens Clocked In and the address ends at /job/');
   const act=await p2.waitForFunction(async()=>{const r=await navigator.serviceWorker.getRegistration('/job/');return !!(r&&r.active&&r.active.state==='activated');},null,{timeout:10000}).then(()=>true).catch(()=>false);
   ok(act,'[redirecting host] the offline worker installs even though page addresses redirect');
-  const cached=await p2.evaluate(async()=>{const c=await caches.open('otj-v1');const ks=(await c.keys()).map(r=>new URL(r.url).pathname);const m=await c.match('/job/');return {ks,red:m?m.redirected:null,ok:m?m.ok:false};});
+  const cached=await p2.evaluate(async()=>{const c=await caches.open('otj-v2');const ks=(await c.keys()).map(r=>new URL(r.url).pathname);const m=await c.match('/job/');return {ks,red:m?m.redirected:null,ok:m?m.ok:false};});
   ok(cached.ok&&cached.red===false&&cached.ks.includes('/job/tax-2026.json')&&cached.ks.includes('/job/manifest.webmanifest'),'[redirecting host] the saved page is a plain copy (not marked redirected); pay tables and manifest saved ('+cached.ks.length+' files)');
   await c2.setOffline(true);let opened=false;try{await p2.goto(O2+'/job/?src=homescreen',{waitUntil:'load',timeout:8000});await p2.waitForFunction(()=>window.OTJ&&OTJ.tax&&OTJ.tax(),null,{timeout:6000});opened=/Clocked In/.test(await p2.title());}catch(_){}
   ok(opened,'[redirecting host] offline: the Home Screen address /job/?src=homescreen opens the app with its pay tables');
