@@ -156,7 +156,20 @@ function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAl
 
 /* ── storage (never auto-deletes) ── */
 function blank(){return {app:'yfs-on-the-job',v:1,created:Date.now(),settings:null,labels:Object.assign({},DEFAULT_LABELS),jobs:[],codes:[],entries:[],pto:{buckets:[]},clock:null,log:[],lastBackup:null,ui:{}};}
-function load(){try{var j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.app==='yfs-on-the-job')return Object.assign(blank(),j);}catch(_){}return blank();}
+/* Repair damaged saved data (a bad or hand-edited backup file, a half-written save) so one bad record can never lock the worker out of their records. */
+function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isArray(x);},arr=function(x){return Array.isArray(x)?x.filter(o):[];},num=function(x){return typeof x==='number'&&isFinite(x);};
+  j=Object.assign(blank(),o(j)?j:{});
+  j.settings=o(j.settings)?j.settings:null;j.labels=Object.assign({},DEFAULT_LABELS,o(j.labels)?j.labels:{});j.ui=o(j.ui)?j.ui:{};
+  j.jobs=arr(j.jobs).filter(function(x){return x.id!=null;});
+  j.codes=arr(j.codes).filter(function(x){return x.id!=null;}).map(function(c){if(!o(c.fields))c.fields={};return c;});
+  j.log=arr(j.log);j.pto=o(j.pto)?j.pto:{};j.pto.buckets=arr(j.pto.buckets).filter(function(x){return x.id!=null;});
+  j.entries=arr(j.entries).filter(function(e){var dOk=typeof e.date==='string'&&/^\d{4}-\d\d-\d\d$/.test(e.date);
+    if(e.id==null)return false;if(e.kind==='pto')return dOk;
+    if(!num(e.start)||Math.abs(e.start)>8e15||(e.end!=null&&!num(e.end)))return false;
+    if(!dOk)e.date=ymd(e.start);if(!Array.isArray(e.splits))e.splits=[];else e.splits=e.splits.filter(o).map(function(sp){sp.hours=isFinite(+sp.hours)?+sp.hours:0;return sp;});if(e.breaks!=null)e.breaks=arr(e.breaks);return true;});
+  if(o(j.clock)&&num(j.clock.start)){j.clock.breaks=arr(j.clock.breaks);}else j.clock=null;
+  return j;}
+function load(){try{var j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.app==='yfs-on-the-job')return clean(j);}catch(_){}return blank();}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('Phone storage is full. Make a Backup, then free up space.');}}
 function log(entryId,field,oldV,newV,reason){S.log.push({t:Date.now(),id:entryId,field:field,old:oldV==null?'':String(oldV),new:newV==null?'':String(newV),reason:reason||''});}
 
@@ -591,7 +604,7 @@ function dl(blob,name){var u=URL.createObjectURL(blob);var a=document.createElem
 function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-on-the-job-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
 function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){try{var j=JSON.parse(rd.result);if(!j||j.app!=='yfs-on-the-job'||!j.data||!Array.isArray(j.data.entries))throw new Error('x');
     if(!confirm('Restore this backup from '+new Date(j.exported).toLocaleString()+'? It replaces what\'s on this phone now ('+S.entries.length+' entries) with the backup ('+j.data.entries.length+' entries).'))return;
-    S=Object.assign(blank(),j.data);log('backup','(restored)','',new Date(j.exported).toISOString()+' · '+j.data.entries.length+' entries');save();render();toast('Restored. All your records are back.');}catch(_){alert('That file isn\'t an On the Job backup.');}};rd.readAsText(f);ev.target.value='';}
+    S=clean(j.data);log('backup','(restored)','',new Date(j.exported).toISOString()+' · '+j.data.entries.length+' entries');save();render();toast('Restored. All your records are back.');}catch(_){alert('That file isn\'t an On the Job backup.');}};rd.readAsText(f);ev.target.value='';}
 
 /* ── boot ── */
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();BIP=e;if(S&&S.settings)render();});
