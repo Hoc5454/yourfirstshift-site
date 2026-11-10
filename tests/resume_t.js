@@ -25,7 +25,7 @@ let fails=0;const ok=(c,n)=>{console.log((c?'PASS ':'FAIL ')+n);if(!c)fails++;};
     window.__vis='visible';Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>window.__vis});Object.defineProperty(document,'hidden',{configurable:true,get:()=>window.__vis==='hidden'});},[RES,!!o.pro]);
   const p=await ctx.newPage();p.on('pageerror',e=>errs.push(String(e)));p.on('dialog',d=>d.dismiss());
   await p.goto('http://yfs.local/app.html');await p.waitForTimeout(600);await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(200);
-  await p.fill('#xrayJd','Heavy Equipment Operator — Lee County. Must run dozer and motor grader, read grade stakes.');await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
+  await p.fill('#xrayJd','Heavy Equipment Operator — Demo County. Must run dozer and motor grader, read grade stakes.');await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
   return {ctx,p,log,errs};}
  const setVis=(p,v)=>p.evaluate(v=>{window.__vis=v;document.dispatchEvent(new Event('visibilitychange'));},v);
  const gate=()=>{let open;const pr=new Promise(r=>open=r);return {wait:()=>pr,open};};

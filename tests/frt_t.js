@@ -5,7 +5,7 @@ const H=process.argv[2]||'../app.html',SHOT=process.argv[3]||'';
 const RAW=fs.readFileSync('raw_resume.txt','utf8');
 const PDF=Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
 let fails=0;const ok=(c,m)=>{console.log((c?'  PASS ':'  FAIL ')+m);if(!c)fails++;};
-const LETTER='Dear Hiring Manager,\n\nI ran final grade on three subdivisions last year.\n\nJeffery Johnson';
+const LETTER='Dear Hiring Manager,\n\nI ran final grade on three subdivisions last year.\n\nJordan Hayes';
 
 async function setup(b,{used=false,pro=false,plan}){
   const ctx=await b.newContext({viewport:{width:390,height:844}});const p=await ctx.newPage();
@@ -35,7 +35,7 @@ const hide=p=>p.evaluate(()=>{window.__vis='hidden';document.dispatchEvent(new E
 const show=p=>p.evaluate(()=>{window.__vis='visible';document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('focus'));});
 const zone=p=>p.evaluate(()=>{const z=document.getElementById('uploadZone');return z?z.innerText.replace(/\s+/g,' ').trim():'';});
 const btn=p=>p.evaluate(()=>{const b=document.getElementById('runBtn');return {cls:b.className,txt:b.textContent,dis:b.disabled,bg:getComputedStyle(b).backgroundColor};});
-const upload=p=>p.setInputFiles('#fileInput',{name:'Jeffery_Resume.pdf',mimeType:'application/pdf',buffer:PDF});
+const upload=p=>p.setInputFiles('#fileInput',{name:'Jordan_Resume.pdf',mimeType:'application/pdf',buffer:PDF});
 const isOrange=bg=>{const m=bg.match(/\d+/g);if(!m)return false;const [r,g,bb]=m.map(Number);return r>200&&g>100&&g<190&&bb<90;};
 
 (async()=>{const b=await chromium.launch();
@@ -79,7 +79,7 @@ const isOrange=bg=>{const m=bg.match(/\d+/g);if(!m)return false;const [r,g,bb]=m
 
  console.log('T5 after Free run + file error showing -> Upgrade CTA stays orange and opens checkout');
  {const {ctx,p,st}=await setup(b,{plan:['ok','hang','abort','abort']});
-  await upload(p);await p.waitForTimeout(1200);await p.fill('#userInput','Heavy Equipment Operator — Lee County.');await p.evaluate(()=>updateRunBtn());
+  await upload(p);await p.waitForTimeout(1200);await p.fill('#userInput','Heavy Equipment Operator — Demo County.');await p.evaluate(()=>updateRunBtn());
   await p.click('#runBtn');await p.waitForTimeout(1500);
   let s=await btn(p);console.log('   after free run:',JSON.stringify(s));
   ok(/Upgrade to continue/.test(s.txt)&&isOrange(s.bg),'Upgrade CTA orange after free run');
@@ -99,12 +99,12 @@ const isOrange=bg=>{const m=bg.match(/\d+/g);if(!m)return false;const [r,g,bb]=m
 
  console.log('T6 Pro: run button normal after file error');
  {const {ctx,p,st}=await setup(b,{plan:['abort'],pro:true});
-  await p.fill('#userInput','Heavy Equipment Operator — Lee County.');await upload(p);await p.waitForTimeout(1200);
+  await p.fill('#userInput','Heavy Equipment Operator — Demo County.');await upload(p);await p.waitForTimeout(1200);
   const s=await btn(p);ok(/Run Cover Letter/.test(s.txt)&&!/upgrade/i.test(s.cls),'Pro sees Run, not Upgrade: '+s.txt);await ctx.close();}
 
  console.log('T7 Free unused: normal free run after a successful read (free slice intact)');
  {const {ctx,p,st}=await setup(b,{plan:['ok']});
-  await upload(p);await p.waitForTimeout(1200);await p.fill('#userInput','Heavy Equipment Operator — Lee County.');await p.evaluate(()=>updateRunBtn());
+  await upload(p);await p.waitForTimeout(1200);await p.fill('#userInput','Heavy Equipment Operator — Demo County.');await p.evaluate(()=>updateRunBtn());
   let s=await btn(p);ok(/Run Cover Letter/.test(s.txt)&&/ready/.test(s.cls),'Run ready before free run');
   await p.click('#runBtn');await p.waitForTimeout(1500);
   ok(st.ai===1,'1 AI run');ok((await p.evaluate(()=>localStorage.getItem('yfs_usage')))==='1','usage=1');

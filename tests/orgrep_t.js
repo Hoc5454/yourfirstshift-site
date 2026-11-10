@@ -17,7 +17,7 @@ async function app(b,{orgOn=true,paid=false}={}){
   if(orgOn)await p.addInitScript(()=>{if(localStorage.getItem('yfs_org'))return;localStorage.setItem('yfs_pro','1');localStorage.setItem('yfs_pro_token','orgtok_A');localStorage.setItem('yfs_org',JSON.stringify({org:'Tri-County Tech',ends:Date.now()+30*864e5,tok:'orgtok_A'}));});
   if(paid)await p.addInitScript(()=>{localStorage.setItem('yfs_pro','1');localStorage.setItem('yfs_pro_token','stripe_tok');});
   await p.goto('http://yfs.local/app.html');await p.waitForTimeout(1200);return {ctx,p,errs,ev,ai};}
-async function run(p,i){await p.evaluate(i=>yfsOpenTool(i),i);await p.waitForTimeout(150);const has=await p.$('#userInput');if(has){await p.fill('#userInput','Heavy Equipment Operator — Lee County.');}
+async function run(p,i){await p.evaluate(i=>yfsOpenTool(i),i);await p.waitForTimeout(150);const has=await p.$('#userInput');if(has){await p.fill('#userInput','Heavy Equipment Operator — Demo County.');}
   await p.evaluate(()=>{try{updateRunBtn();}catch(_){}runTool();});await p.waitForTimeout(900);}
 (async()=>{const b=await chromium.launch();
  // T1 org Pro: open ping once per day, run events per tool
@@ -29,7 +29,7 @@ async function run(p,i){await p.evaluate(i=>yfsOpenTool(i),i);await p.waitForTim
   const runs=ev.filter(e=>e.b.k==='run').map(e=>e.b.tool);
   ok(ai.length===2&&JSON.stringify(runs)==='["cover","interview"]','T1 run events: '+JSON.stringify(runs)+' (AI calls '+ai.length+')');
   ok(ev.every(e=>Object.keys(e.b).every(k=>['t','k','tool'].includes(k))),'T1 events carry only token/kind/tool — no resume text');
-  ok(!ev.some(e=>JSON.stringify(e.b).includes('Jeffery')),'T1 no resume content in events');
+  ok(!ev.some(e=>JSON.stringify(e.b).includes('Jordan')),'T1 no resume content in events');
   await p.reload();await p.waitForTimeout(1100);ok(opens()===1,'T1 open not repeated same day');
   ok(errs.length===0,'T1 no page errors '+errs.join('|'));await ctx.close();}
  // T2 extract (file upload read) is not counted as a run
@@ -58,7 +58,7 @@ async function run(p,i){await p.evaluate(i=>yfsOpenTool(i),i);await p.waitForTim
   const txt=await p.textContent('#out');ok(/18 \/ 25/.test(txt)&&/ATSX-Ray31/.test(txt.replace(/\s/g,''))&&/83/.test(txt),'T6 report renders seats/tools/total');
   const csv=await p.evaluate(d=>yfsReportCSV(d),REP);const lines=csv.trim().split('\n');
   ok(lines.length===2&&lines[0].startsWith('org,code,period_start')&&lines[1].startsWith('Tri-County Tech,YFS-TCTC-7KQ4,2026-11-01,2026-11-30,25,18,14,9,31,8,17,6,12,83'),'T6 CSV: '+lines[1]);
-  ok(!/@|Jeffery/.test(csv),'T6 CSV has no PII');
+  ok(!/@|Jordan/.test(csv),'T6 CSV has no PII');
   ok(await p.evaluate(()=>localStorage.length===0&&sessionStorage.length===0),'T6 admin key not stored');
   if(SHOT)await p.screenshot({path:SHOT,fullPage:true});
   ok(errs.length===0,'T6 no page errors '+errs.join('|'));await ctx.close();}

@@ -16,7 +16,7 @@ The app kept ONE result slot (yfs_last_output + yfs_last_tool) and the tease reb
 7. Builder: unchanged (it already restores from its draft; Free blur still applies).
 
 ## Tested (390px, mocked Worker, 1 Worker call total)
-- Cover Free run → X-Ray (paywall, no Cover text) → Interview (same) → Home → Cover = same letterhead + first paragraph + locked rest + JEFFERY JOHNSON tease. usage stays 1.
+- Cover Free run → X-Ray (paywall, no Cover text) → Interview (same) → Home → Cover = same letterhead + first paragraph + locked rest + JORDAN HAYES tease. usage stays 1.
 - Reload page → Cover still restored.
 - Builder Free still blurred. Regression: Cover gate, 4-tool tease, page-break sweep 150/150, Start/nav, Trades PDF 371 words, Builder Pro edit.
 
