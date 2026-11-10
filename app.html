@@ -1524,7 +1524,35 @@ document.addEventListener('click',e=>{const j=e.target.closest&&e.target.closest
 function rbText(b){const c=b.cloneNode(true);c.querySelectorAll('br').forEach(x=>x.replaceWith('\n'));c.querySelectorAll('div,p').forEach(x=>x.prepend('\n'));return c.textContent.replace(/^\n/,'').replace(/\n$/,'');}
 let rbPdfLib=null;
 
+/* rejoin a sentence that a PDF/Word file broke onto the next line ("Specifically\noperating CAT…") */
+window.yfsJoinWraps=function(t){const out=[];
+  const LOOKS_CONTACT=/@|https?:|www\.|\.com\b|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}/i;
+  String(t||'').replace(/\r/g,'').split('\n').forEach(function(l){const x=l.trim();const prev=out.length?out[out.length-1]:'';const pv=prev.trim();const pvText=pv.replace(/^[-*•●▪◦–]\s*/,'');
+    const join=x&&/^[a-z(]/.test(x)&&pv&&!/^#/.test(pv)&&!/\|/.test(pv)
+      &&!/[.!?:;]\s*$/.test(pv)                 /* sentence already ended */
+      &&pvText.length>=45                        /* only long wrapped lines, never short list items ("forklift") */
+      &&!(pvText===pvText.toUpperCase()&&/[A-Z]/.test(pvText)) /* never under an ALL-CAPS heading */
+      &&!LOOKS_CONTACT.test(x)&&!LOOKS_CONTACT.test(pv);      /* never glue contact details */
+    if(join){out[out.length-1]=prev.replace(/\s+$/,'')+' '+x;return;}out.push(l);});return out.join('\n');};
+/* keep the PDF's proportions the same as the page on screen: every font size / line height / vertical margin is scaled
+   by one factor from the on-screen page (the PDF used to enlarge only the body text, so the name, contact line and headings looked tiny) */
+window.yfsStampScale=function(src){try{const all=[src].concat(Array.prototype.slice.call(src.querySelectorAll('*')));all.forEach(function(e){const cs=getComputedStyle(e);
+  e.setAttribute('data-pfs',parseFloat(cs.fontSize)||'');const lh=parseFloat(cs.lineHeight);if(lh)e.setAttribute('data-plh',lh);
+  e.setAttribute('data-pmt',parseFloat(cs.marginTop)||0);e.setAttribute('data-pmb',parseFloat(cs.marginBottom)||0);});}catch(_){}};
+window.yfsUnstamp=function(src){try{[src].concat(Array.prototype.slice.call(src.querySelectorAll('[data-pfs]'))).forEach(function(e){['data-pfs','data-plh','data-pmt','data-pmb'].forEach(function(a){e.removeAttribute(a);});});}catch(_){}};
+function yfsApplyScale(c){const base=parseFloat(c.getAttribute('data-pfs'));if(!base)return;const k=13.5/base;
+  [c].concat(Array.prototype.slice.call(c.querySelectorAll('[data-pfs]'))).forEach(function(e){const fs=parseFloat(e.getAttribute('data-pfs'));if(fs)e.style.setProperty('font-size',(fs*k).toFixed(2)+'px','important');
+    const lh=parseFloat(e.getAttribute('data-plh'));if(lh)e.style.setProperty('line-height',(lh*k).toFixed(2)+'px','important');
+    if(e!==c){const mt=parseFloat(e.getAttribute('data-pmt')),mb=parseFloat(e.getAttribute('data-pmb'));if(mt)e.style.setProperty('margin-top',(mt*k).toFixed(2)+'px','important');if(mb)e.style.setProperty('margin-bottom',(mb*k).toFixed(2)+'px','important');}
+    ['data-pfs','data-plh','data-pmt','data-pmb'].forEach(function(a){e.removeAttribute(a);});});}
+/* empty placeholder fields never print: drop them, their empty sections, and the dots next to them */
+function yfsPdfTidy(c){c.querySelectorAll('.rb-contact').forEach(function(ct){if(!ct.children.length)ct.textContent=ct.textContent.replace(/^[\s·|•]+|[\s·|•]+$/g,'').replace(/(\s*·\s*){2,}/g,'  ·  ');});c.querySelectorAll('.rb-ph').forEach(function(e){const pr=e.previousSibling,nx=e.nextSibling;const dot=function(n){return n&&n.nodeType===1&&n.getAttribute('aria-hidden')==='true'&&/^\s*·\s*$/.test(n.textContent);};
+    if(dot(pr))pr.remove();else if(dot(nx))nx.remove();e.remove();});
+  c.querySelectorAll('.rb-contact').forEach(function(ct){const kids=Array.prototype.slice.call(ct.children);while(kids.length&&kids[0].getAttribute('aria-hidden')==='true'){kids.shift().remove();}
+    let last=ct.lastElementChild;while(last&&last.getAttribute('aria-hidden')==='true'){const pv=last.previousElementSibling;last.remove();last=pv;}});
+  c.querySelectorAll('.rb-sec').forEach(function(sc){const t=Array.prototype.slice.call(sc.children).filter(function(x){return !x.classList.contains('rb-h');}).map(function(x){return x.textContent.trim();}).join('');if(!t)sc.remove();});}
 window.yfsPdfPrep=function(c){/* paginate: letter, real margins, full height, no orphans */
+ try{yfsPdfTidy(c);}catch(_){}try{yfsApplyScale(c);}catch(_){}
  if(c.parentNode&&!c.parentNode.classList.contains('yfs-pdf-root')){const w=document.createElement('div');w.className=(c.parentNode.className||'')+' yfs-pdf-root';w.style.cssText='width:816px;max-width:none;background:#fff;margin:0;padding:0;';c.parentNode.insertBefore(w,c);w.appendChild(c);} /* html2pdf renders this root, so measured layout == rendered layout */
  c.style.width='816px';c.style.maxWidth='none';c.style.height='auto';c.style.maxHeight='none';c.style.minHeight='0';c.style.overflow='visible';c.style.transform='none';c.style.aspectRatio='auto';c.style.boxSizing='border-box';
  c.style.paddingBottom='24px';if(!c.classList.contains('tpl-trades'))c.style.paddingTop='8px';
@@ -1650,7 +1678,7 @@ async function rbStyledPdf(){
   const src=document.getElementById('rbPage'); if(!src) throw new Error('nopage');
   const host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;z-index:-1;width:816px;background:#fff;';
   try{
-    const c=src.cloneNode(true);c.removeAttribute('id');c.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable'));
+    try{yfsStampScale(src);}catch(_){}const c=src.cloneNode(true);try{yfsUnstamp(src);}catch(_){}c.removeAttribute('id');c.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable'));
     c.querySelectorAll('.rb-ph').forEach(x=>x.style.visibility='hidden');
     c.querySelectorAll('.rb-wm,.rb-foot').forEach(x=>x.remove());c.classList.remove('rb-free');
     c.style.cssText='width:816px;aspect-ratio:auto;min-height:1056px;overflow:visible;box-shadow:none;padding:52px 58px;font-size:13.5px;';
@@ -1668,7 +1696,7 @@ async function rbDownloadImagePdf(){
     rbSyncFromPage(); await rbLoadPdfLib();
     const src=document.getElementById('rbPage');
     host=document.createElement('div');host.style.cssText='position:absolute;left:0;top:0;z-index:-1;width:816px;background:#fff;';
-    const c=src.cloneNode(true);c.removeAttribute('id');c.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable'));
+    try{yfsStampScale(src);}catch(_){}const c=src.cloneNode(true);try{yfsUnstamp(src);}catch(_){}c.removeAttribute('id');c.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable'));
     c.querySelectorAll('.rb-ph').forEach(x=>x.style.visibility='hidden');
     c.style.cssText='width:816px;aspect-ratio:auto;min-height:1056px;overflow:visible;box-shadow:none;padding:52px 58px;font-size:13.5px;';
     if(c.classList.contains('tpl-trades')){c.style.paddingTop='0';}
@@ -2305,7 +2333,7 @@ function yfsParseResume(text,src){const t=String(text||'').replace(/\r/g,'');con
   if(!r.contact&&src){const S=String(src);const em=(S.match(/[\w.+-]+@[\w-]+\.[\w.]+/)||[])[0],ph=(S.match(/\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}/)||[])[0],ct=(S.match(/\b[A-Z][a-z]+(?: [A-Z][a-z]+)?,\s*(?:FL|[A-Z]{2})\b/)||[])[0];r.contact=[ct,ph,em].filter(Boolean).join(' · ');}
   r.contact=r.contact.replace(/\s*[|·•]\s*/g,'  ·  ');return r;}
 function yfsResumeLike(text){const t=String(text||'');return /^#\s+\S/m.test(t)&&/^##\s+.*(EXPERIENCE|EMPLOYMENT|WORK HISTORY)/im.test(t);}
-function yfsSecHtml(title,body){const b=String(body||'').trim();if(!b)return '';const L=b.split('\n');let h='',ul=false,job=false;
+function yfsSecHtml(title,body){const b=(/SKILL/i.test(String(title))?String(body||''):yfsJoinWraps(String(body||''))).trim();if(!b)return '';const L=b.split('\n');let h='',ul=false,job=false;
   const cl=()=>{if(ul){h+='</ul>';ul=false;}};
   const isSkills=/SKILL/i.test(title);
   if(isSkills&&!/^\s*[-*•]/m.test(b))return '<div class="rb-sec"><div class="rb-h">'+yfsEsc(title)+'</div><p>'+yfsInline(b.replace(/\n+/g,' · '))+'</p></div>';
@@ -2402,7 +2430,7 @@ function shareScoreCard(){
 }
 
 // ─── OUTPUT ACTIONS ───────────────────────────────────────────────────────────
-function yfsStyledClone(){const src=document.querySelector('#outputBox .rb-page');if(!src)return null;const c=src.cloneNode(true);
+function yfsStyledClone(){const src=document.querySelector('#outputBox .rb-page');if(!src)return null;try{yfsStampScale(src);}catch(_){}const c=src.cloneNode(true);try{yfsUnstamp(src);}catch(_){}
   c.querySelectorAll('.ym-tips,.ym-lock,.yfs-blurzone,.rb-foot,.rb-wm,.ytp-pick,button').forEach(x=>x.remove());
   c.querySelectorAll('[contenteditable]').forEach(x=>x.removeAttribute('contenteditable'));c.classList.remove('rb-free');
   [...c.classList].filter(k=>/^tpl-/.test(k)).forEach(k=>c.classList.remove(k));c.classList.add(rbTplClass(selectedStyle));c.dataset.yfsLookExport='1';return c;}
@@ -2996,13 +3024,13 @@ if(typeof renderTool==='function'){const _r=renderTool;renderTool=function(){try
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 function jobLine(l){const p=l.split(/\s*\|\s*/).map(x=>x.trim()).filter(Boolean);
   return '<div class="rb-jh"><span><span class="rb-jt">'+esc(p[0]||'')+'</span>'+(p[1]?' <span class="rb-je">· '+esc(p[1])+'</span>':'')+'</span>'+(p[2]?'<span class="rb-jd">'+esc(p.slice(2).join(' · '))+'</span>':'')+'</div>';}
-function fmtLines(v,jobs){let h='',ul=false;const close=()=>{if(ul){h+='</ul>';ul=false;}};
+function fmtLines(v,jobs,noJoin){v=(!noJoin&&window.yfsJoinWraps?yfsJoinWraps(v):v);let h='',ul=false;const close=()=>{if(ul){h+='</ul>';ul=false;}};
   String(v).split('\n').forEach(raw=>{const l=raw.trim();if(!l){close();return;}const b=l.match(/^[•●▪◦\-*–]\s*(.+)$/);
     if(b){if(!ul){h+='<ul>';ul=true;}h+='<li>'+esc(b[1])+'</li>';return;}close();
     if(jobs&&/\|/.test(l))h+=jobLine(l);else h+='<p>'+esc(l.replace(/\s*\|\s*/g,' · '))+'</p>';});close();return h;}
 window.yfsRbFmt=function(f,v){v=String(v||'');if(!v.trim())return null;
   if(f==='experience')return fmtLines(v,true);
-  if(f==='skills'){if(/^\s*[•●\-*]/m.test(v))return fmtLines(v,false);return '<p>'+v.split(/\s*[,\n]\s*/).filter(Boolean).map(esc).join(' · ')+'</p>';}
+  if(f==='skills'){if(/^\s*[•●\-*]/m.test(v))return fmtLines(v,false,true);return '<p>'+v.split(/\s*[,\n]\s*/).filter(Boolean).map(esc).join(' · ')+'</p>';}
   if(f==='education'||f==='extra')return fmtLines(v,f==='extra'?false:true);
   return null;};
 function apply(){const pg=document.getElementById('rbPage');if(!pg||pg.contains(document.activeElement))return;
@@ -3760,7 +3788,8 @@ window.yfsDomModel=domModel;
 if(typeof window.yfsResumeModel==='function'){var _rm=window.yfsResumeModel;window.yfsResumeModel=function(){
   try{var builder=TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder&&document.getElementById('rbPage')&&document.getElementById('rbPage').offsetParent!==null;
     if(!builder){var pg=document.querySelector('#outputBox .rb-page');if(pg&&pg.querySelector('.rb-name')&&!pg.querySelector('.ym-lock')){var m=domModel(pg);if(m.name&&m.secs.length)return m;}}}catch(_){}
-  return _rm.apply(this,arguments);};}
+  return _rm.apply(this,arguments);};
+  var _rm2=window.yfsResumeModel;window.yfsResumeModel=function(){var m=_rm2.apply(this,arguments);try{if(m&&m.secs&&window.yfsJoinWraps)m.secs=m.secs.map(function(x){return /SKILL/i.test(x[0])?x:[x[0],yfsJoinWraps(x[1])];});}catch(_){}return m;};}
 })();
 </script>
 </body>
