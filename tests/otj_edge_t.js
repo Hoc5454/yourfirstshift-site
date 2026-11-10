@@ -6,25 +6,7 @@ const TYPES={'.html':'text/html; charset=utf-8','.json':'application/json','.js'
 const srv=http.createServer((q,s)=>{let u=decodeURIComponent(q.url.split('?')[0]);if(u.endsWith('/'))u+='index.html';const f=path.join(ROOT,u);
   if(!f.startsWith(ROOT)||!fs.existsSync(f)){s.writeHead(404);return s.end('nf');}s.writeHead(200,{'Content-Type':TYPES[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache'});fs.createReadStream(f).pipe(s);});
 let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
-const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');const T=ymd(new Date());const t0=new Date(T+'T07:00:00').getTime();
-const SET={rate:28,otRate:'',period:'weekly',anchor:T,weekStart:1,state:'FL',stateRate:'',filing:'single',k401:'',health:'',credits:'',extraWH:'',perDiem:'',perDiemNT:false};
-const base=x=>Object.assign({app:'yfs-on-the-job',v:1,created:Date.now(),settings:SET,labels:{proj:'Job / Project #',po:'PO # + Line',cost:'Cost Code',wo:'Work Order #'},jobs:[{id:'j1',name:'Gulf Coast Grocers',rate:'',otRate:'',active:true}],codes:[],entries:[],pto:{buckets:[]},clock:null,log:[],lastBackup:Date.now(),ui:{a2hsX:1}},x);
-const W=(o)=>Object.assign({id:'e'+Math.random(),kind:'work',date:T,start:t0,end:t0+8*3600e3,breakMin:0,jobId:'j1',codeId:'',splits:[],note:''},o);
-const XSS='<img src=x onerror="window.__pwn=1">';
-const CASES={
- 'missing lists (old/partial save)':{app:'yfs-on-the-job',v:1,settings:SET},
- 'lists are wrong types':base({jobs:null,codes:'x',entries:{},pto:null,log:5,labels:null,ui:null}),
- 'settings half-filled':base({settings:{rate:'abc',period:'nope',state:'ZZ',filing:'?',weekStart:9},entries:[W({})]}),
- 'no settings but has entries':base({settings:null,entries:[W({})]}),
- 'garbage entries':base({entries:[null,5,'x',{},W({start:'x',end:null}),W({date:'not-a-date'}),W({end:t0-3600e3}),W({breakMin:99999}),W({jobId:'gone'}),W({splits:[{codeId:'gone',hours:'x'},null]}),W({kind:'pto',bucket:'gone',hours:-5}),W({kind:'weird'})]}),
- 'extreme numbers':base({settings:Object.assign({},SET,{rate:1e12,k401:1e9,health:-500,extraWH:1e9,perDiem:1e7,credits:-1e6}),entries:[W({end:t0+400*3600e3}),W({date:'1900-01-01',start:-1e15,end:1e15})]}),
- 'negative + zero pay':base({settings:Object.assign({},SET,{rate:-20}),jobs:[{id:'j1',name:'',rate:0,otRate:-1,active:true}],entries:[W({})]}),
- 'hostile names':base({jobs:[{id:'j1',name:XSS,rate:'',otRate:'',active:true}],codes:[{id:'c1',nick:XSS,jobId:'j1',fields:{proj:XSS,po:XSS,cost:XSS,wo:XSS},active:true},{id:'c2',nick:XSS}],labels:{proj:XSS,po:XSS,cost:XSS,wo:XSS},entries:[W({note:XSS,codeId:'c1'})],pto:{buckets:[{id:'b1',name:XSS,type:XSS,earn:XSS,per:XSS}]},log:[{t:Date.now(),what:XSS,old:XSS,new:XSS,reason:XSS}]}),
- 'clock left running for a year':base({clock:{start:Date.now()-365*86400e3,jobId:'j1',breaks:[{s:Date.now()-1000}]}}),
- 'clock is garbage':base({clock:{start:'x',breaks:'y'}}),
- 'pto garbage':base({pto:{buckets:[null,{id:'b',name:'Vac',hours:'x',accrual:null,start:'bad'},{id:'c',name:'Sick',accrual:{type:'perHour',rate:1e9}}]},entries:[W({kind:'pto',bucket:'b',hours:1e9})]}),
- '5,000 entries':base({entries:Array.from({length:5000},(_,i)=>W({id:'e'+i,date:ymd(new Date(Date.now()-i*86400e3)),start:t0-i*86400e3,end:t0-i*86400e3+9*3600e3}))}),
-};
+const {CASES}=require('./otj_damaged_sets.js');
 (async()=>{await new Promise(r=>srv.listen(PORT,r));const b=await chromium.launch();
  for(const pro of (process.argv[4]==='pro'?[true]:process.argv[4]==='free'?[false]:[false,true]))for(const [name,state] of Object.entries(CASES)){if(ONLY&&!name.includes(ONLY))continue;
   const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
