@@ -124,6 +124,8 @@ textarea.i{min-height:80px;}
   <button type="button" data-v="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>More</button>
 </nav>
 <script>
+/* opened as /job (no slash, e.g. through a rewrite): put the slash back so the address matches the app's home (/job/) for offline use and Add to Home Screen */
+try{if(location.pathname==='/job')history.replaceState(null,'','/job/'+location.search+location.hash);}catch(_){}
 /* YourFirstShift — On the Job, Phase 1.
    Worker-owned record. Everything stays in this browser (localStorage). No GPS, no server, no employer access.
    Paycheck numbers are ESTIMATES from a dated table file (tax-2026.json). The employer's payroll is the final word. */

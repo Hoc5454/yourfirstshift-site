@@ -1599,7 +1599,10 @@ window.yfsPdfPrep=function(c){/* paginate: letter, real margins, full height, no
    1) if only a sliver (under 15% of a page) spills onto the last page, shrink type a little (3% steps, at most 4) until it fits one page fewer;
    2) padding alone can never add a page: the sheet is clamped to the pages its content really needs. */
 window.yfsPdfFit=function(c){const PH=yfsPdfPH(),root=c.parentNode||c;
- const bottom=()=>{const o=root.getBoundingClientRect();let b=0;c.querySelectorAll('*').forEach(e=>{if(e.children.length||e.classList.contains('yfs-pb-sp')||e.classList.contains('yfs-pdf-tail')||!e.textContent.trim())return;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')return;const r=e.getBoundingClientRect();if(r.height>0)b=Math.max(b,r.bottom-o.top);});return b;};
+ const bottom=()=>{const o=root.getBoundingClientRect();let b=0;c.querySelectorAll('*').forEach(e=>{if(e.classList.contains('yfs-pb-sp')||e.classList.contains('yfs-pdf-tail')||!e.textContent.trim())return;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')return;
+  if(!e.children.length){const r=e.getBoundingClientRect();if(r.height>0)b=Math.max(b,r.bottom-o.top);return;}
+  /* a block that mixes its own words with bold/italic parts ("<b>Lead:</b> ran a crew…"): measure the words themselves, line by line */
+  e.childNodes.forEach(n=>{if(n.nodeType!==3||!n.nodeValue.trim())return;const g=document.createRange();g.selectNodeContents(n);const rs=g.getClientRects();for(let i=0;i<rs.length;i++)if(rs[i].height>0)b=Math.max(b,rs[i].bottom-o.top);});});return b;};
  const px=(e,prop,f)=>{const v=parseFloat(e.style.getPropertyValue(prop));if(v)e.style.setProperty(prop,(v*f).toFixed(2)+'px','important');};
  const shrink=f=>{[c].concat([...c.querySelectorAll('*')]).forEach(e=>{if(e.classList.contains('yfs-pb-sp'))return;['font-size','line-height','margin-top','margin-bottom'].forEach(k=>px(e,k,f));});};
  let b=bottom(),pages=Math.max(1,Math.ceil(b/PH)),n=0;
@@ -2375,8 +2378,9 @@ function yfsHeadLine(r,l){const parts=l.split(/\s*(?:·|•|\||\s[-–—]\s)\s*
    Display-time only: the text saved in the Vault is never changed.
    Removes ONLY patterns an AI or markdown leaves behind, never a person's own wording:
    - horizontal rules (---), empty bullets ("-", "• —", "* **"), empty/label-only table rows, sections left with no content
-   - advice written TO the reader: a line that starts with ⚠/💡/Note:/Tip:/Reminder:/Recommendation: AND speaks to "you/your"
-     ("⚠ Note: if you hold … list them here"). "Note: Available for travel" or "⚠ Hazmat certified" are kept as written.
+   - advice written TO the reader: a line that starts with ⚠/💡/Note:/Tip:/Reminder:/Recommendation:, speaks to "you/your"
+     AND gives an instruction (add, list, include, consider…): "⚠ Note: if you hold … list them here".
+     "Note: Available for travel", "⚠ Hazmat certified" and "Note: Happy to relocate to your area" are kept as written.
    - bracket prompts ("[Add graduation date]")
    - markdown emphasis marks (**bold**, *italic*). A lone * in plain text ("rated 5* by customers") is kept. */
 function yfsUnMd(x){var had=/\*\*|(^|[\s(])\*[^\s*][^*]*[^\s*]\*(?=$|[\s.,;:)!?])|(^|[\s(])\*[^\s*]\*(?=$|[\s.,;:)!?])/.test(x);
@@ -2384,13 +2388,13 @@ function yfsUnMd(x){var had=/\*\*|(^|[\s(])\*[^\s*][^*]*[^\s*]\*(?=$|[\s.,;:)!?]
   if(had)x=x.replace(/([.!?:;,)\w])\*+\s*$/,'$1').replace(/^\*+(?=\S)/,''); /* unbalanced leftover from stripped markdown */
   return x;}
 window.yfsCleanResume=function(text){var LABEL=/^(name|phone|phone number|email|e-?mail|title|job title|company|employer|relationship|contact|contact info|reference|references|address|n\/?a|tbd|—|-)?$/i;
-  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i;
+  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i,TODO=/\b(?:add|adding|list|listing|include|including|consider|insert|inserting|mention|mentioning|update|updating|replace|replacing|remove|removing|fill|tailor|tailoring|customi[sz]e|edit|make sure|be sure|double[- ]check|verify)\b/i;
   var out=[];String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){var l=raw.replace(/\s+$/,''),t=l.trim();
     if(!t){out.push('');return;}
     if(/^#{1,4}\s/.test(t)){out.push(yfsUnMd(l));return;}
     if(/^([-*_—–=]\s*){3,}$/.test(t))return;                                   /* --- *** ___ rules */
     if(/^[-*•●▪◦–—·]\s*[—–\-*_·•\s]*$/.test(t)||/^[—–]+$/.test(t))return;        /* empty bullet */
-    var lead=t.match(ADVICE);if(lead&&lead[0].replace(/^[-*•●▪◦–\s*]+/,'')&&TOYOU.test(t.slice(lead[0].length)))return; /* AI advice addressed to the reader */
+    var lead=t.match(ADVICE);if(lead&&lead[0].replace(/^[-*•●▪◦–\s*]+/,'')&&TOYOU.test(t.slice(lead[0].length))&&TODO.test(t.slice(lead[0].length)))return; /* AI advice: speaks to the reader AND tells them to do something */
     if(/^[\[(](?:add|insert|include|list|your|optional)\b[^\])]*[\])]\.?\*?$/i.test(t))return;
     if(/^\|.*\|$/.test(t)||/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(t)){
       if(/^\|?[\s:|\-]+\|?$/.test(t))return;                                   /* table separator */
