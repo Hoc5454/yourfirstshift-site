@@ -18,7 +18,7 @@ async function ctxFor(b,pro,hangRun,hangExtract,state){const ctx=await b.newCont
  // T1: AI run never answers → after 45s a clear error with Try again, button usable, nothing burned
  {const st={calls:[]};const ctx=await ctxFor(b,true,true,false,st);const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
   await p.clock.install();await p.goto('http://yfs.local/app.html');await p.clock.runFor(1500);
-  await p.evaluate(()=>yfsOpenTool(3));await p.clock.runFor(300);await p.fill('#userInput','Lee County Public Works, Heavy Equipment Operator.');await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
+  await p.evaluate(()=>yfsOpenTool(3));await p.clock.runFor(300);await p.fill('#userInput','Demo County Public Works, Heavy Equipment Operator.');await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
   await p.click('.run-btn');await p.clock.runFor(10000);
   const mid=await p.evaluate(()=>({busy:!!window.yfsRunBusy,btn:document.querySelector('.run-btn').innerText}));
   ok(mid.busy,'T1a still working at 10s (no early give-up) ['+mid.btn.trim()+']');
@@ -29,7 +29,7 @@ async function ctxFor(b,pro,hangRun,hangExtract,state){const ctx=await b.newCont
  // T2: app in background for a long time → guard does NOT fire while hidden
  {const st={calls:[]};const ctx=await ctxFor(b,true,true,false,st);const p=await ctx.newPage();
   await p.clock.install();await p.goto('http://yfs.local/app.html');await p.clock.runFor(1500);
-  await p.evaluate(()=>yfsOpenTool(3));await p.clock.runFor(300);await p.fill('#userInput','Lee County Public Works, Heavy Equipment Operator.');await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
+  await p.evaluate(()=>yfsOpenTool(3));await p.clock.runFor(300);await p.fill('#userInput','Demo County Public Works, Heavy Equipment Operator.');await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
   await p.click('.run-btn');await p.clock.runFor(2000);
   await p.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>'hidden'});document.dispatchEvent(new Event('visibilitychange'));});
   await p.clock.runFor(120000);

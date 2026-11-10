@@ -33,7 +33,7 @@ let fails=0;const ok=(c,m)=>{console.log((c?'  PASS ':'  FAIL ')+m);if(!c)fails+
  // T5 deep link #tool-1 → card above X-Ray; free run one-tap; card goes away after the run
  {console.log('T5 ?src=tiktok#tool-1 → free run');const {ctx,p,log,errs}=await open('?src=tiktok#tool-1',{resume:true,dpr:2});
   ok(/ATS X-Ray/.test(await p.textContent('#toolTitle')),'X-Ray open');const c=await card(p);ok(c.shown,'card shown above tool (top '+c.top+')');await p.evaluate(()=>window.scrollTo(0,0));await p.waitForTimeout(200);await p.screenshot({path:'o/owen_xray_390.png'});
-  await p.fill('#xrayJd','Heavy Equipment Operator — Lee County. Must run dozer and motor grader, read grade stakes, CDL a plus. Full-time.');
+  await p.fill('#xrayJd','Heavy Equipment Operator — Demo County. Must run dozer and motor grader, read grade stakes, CDL a plus. Full-time.');
   await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});
   await p.evaluate(()=>document.getElementById('runBtn').scrollIntoView({block:'center',behavior:'instant'}));await p.waitForTimeout(700);
   const rb=await p.evaluate(()=>{const b=document.getElementById('runBtn');const r2=b.getBoundingClientRect();const e=document.elementFromPoint(r2.left+r2.width/2,r2.top+r2.height/2);return {dis:b.disabled,txt:b.textContent,hit:e===b||b.contains(e),at:e&&(e.id||e.className)};});
