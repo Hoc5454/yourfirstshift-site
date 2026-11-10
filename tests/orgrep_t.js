@@ -17,7 +17,7 @@ async function app(b,{orgOn=true,paid=false}={}){
   if(orgOn)await p.addInitScript(()=>{if(localStorage.getItem('yfs_org'))return;localStorage.setItem('yfs_pro','1');localStorage.setItem('yfs_pro_token','orgtok_A');localStorage.setItem('yfs_org',JSON.stringify({org:'Tri-County Tech',ends:Date.now()+30*864e5,tok:'orgtok_A'}));});
   if(paid)await p.addInitScript(()=>{localStorage.setItem('yfs_pro','1');localStorage.setItem('yfs_pro_token','stripe_tok');});
   await p.goto('http://yfs.local/app.html');await p.waitForTimeout(1200);return {ctx,p,errs,ev,ai};}
-async function run(p,i){await p.evaluate(i=>yfsOpenTool(i),i);await p.waitForTimeout(150);const has=await p.$('#userInput');if(has){await p.fill('#userInput','Heavy Equipment Operator — Lee County.');}
+async function run(p,i){await p.evaluate(i=>yfsOpenTool(i),i);await p.waitForTimeout(150);const has=await p.$('#userInput');if(has){await p.fill('#userInput','Heavy Equipment Operator — Demo County.');}
   await p.evaluate(()=>{try{updateRunBtn();}catch(_){}runTool();});await p.waitForTimeout(900);}
 (async()=>{const b=await chromium.launch();
  // T1 org Pro: open ping once per day, run events per tool
