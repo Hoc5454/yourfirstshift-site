@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script id="yfs-storage-safe">
+/* Storage safety net. Some phones block site storage (Safari "Block All Cookies", some in-app browsers) or run out of
+   space. Without this the app failed to start, or flagged a good result as an error. Falls back to memory for the visit. */
+(function(){
+function mem(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null;},setItem:function(k,v){m[k]=String(v);},
+  removeItem:function(k){delete m[k];},clear:function(){m={};},key:function(i){return Object.keys(m)[i]||null;},get length(){return Object.keys(m).length;}};}
+['localStorage','sessionStorage'].forEach(function(n){var ok=false;try{ok=!!window[n];}catch(_){}
+  if(!ok){try{Object.defineProperty(window,n,{configurable:true,value:mem()});window.yfsStorageBlocked=true;}catch(_){}}});
+try{var P=Storage.prototype,_s=P.setItem,_g=P.getItem,_r=P.removeItem,_c=P.clear,spill=new WeakMap();
+  var bag=function(st,mk){var b=spill.get(st);if(!b&&mk){b={};spill.set(st,b);}return b;};
+  P.setItem=function(k,v){try{_s.call(this,k,v);var b=bag(this);if(b)delete b[k];}catch(e){bag(this,true)[k]=String(v);window.yfsStorageFull=true;}};
+  P.getItem=function(k){var b=bag(this);if(b&&Object.prototype.hasOwnProperty.call(b,k))return b[k];return _g.call(this,k);};
+  P.removeItem=function(k){var b=bag(this);if(b)delete b[k];try{_r.call(this,k);}catch(_){}};
+  P.clear=function(){spill.delete(this);try{_c.call(this);}catch(_){}};
+}catch(_){}
+})();
+</script>
 <link rel="icon" href="/favicon.ico" type="image/x-icon"/>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
 <meta charset="UTF-8"/>
@@ -843,6 +860,8 @@ window.yfsRunFailed=function(e){
 /* overnight: small text links/buttons get a bigger invisible tap area (no layout change) */
 .yfs-using button,.yfs-pdf-cancel a,.paywall-sub a,.paywall-feat a,.cancel-1click a,#freePdfLine a,#rbFreeUsedBanner a,a[onclick*="yfsOpenCheckout"],#uploadZone .upload-sub span[onclick]{position:relative}
 .yfs-using button::after,.yfs-pdf-cancel a::after,.paywall-sub a::after,.paywall-feat a::after,.cancel-1click a::after,#freePdfLine a::after,#rbFreeUsedBanner a::after,a[onclick*="yfsOpenCheckout"]::after,#uploadZone .upload-sub span[onclick]::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
+/* long unbroken text (e.g. a long LinkedIn link) wraps instead of making the whole page scroll sideways */
+#outputBox,#yfsTease,#lockedRest,.rb-page,.yfs-blurzone,#errorBox{overflow-wrap:break-word}
 /* overnight: free X-Ray shows only score + verdict; don't pad it out with ~150px of blank paper */
 .output-box.yfs-paper:not(:has(p,ul,ol,li,table,div,pre,blockquote,h3,h4)){min-height:0}
 </style>
@@ -2882,7 +2901,7 @@ window.yfsGoHome=function(fromPop){yfsCloseSheets();setMode('home');try{yfsHomeV
 window.yfsOpenTool=function(i,fromPop){yfsCloseSheets();if(typeof switchTool==='function')switchTool(i);setMode('tool');
   if(!fromPop){try{history.pushState({yfs:'tool',i:i},'',location.pathname+location.search+'#tool-'+i);}catch(_){}}
   window.scrollTo(0,0);};
-window.addEventListener('popstate',function(){const m=location.hash.match(/^#tool-(\d)$/);if(m)yfsOpenTool(+m[1],true);else yfsGoHome(true);});
+window.addEventListener('popstate',function(){const m=location.hash.match(/^#tool-([0-5])$/);if(m)yfsOpenTool(+m[1],true);else yfsGoHome(true);});
 
 /* home vault strip mirrors the Resume Vault */
 window.yfsHomeVault=function(){const box=document.getElementById('yhVault');if(!box)return;let l=[],a=null;
@@ -2932,7 +2951,7 @@ if(typeof closeVault==='function'){const _cv=closeVault;closeVault=function(){co
 try{const th=document.querySelector('.tool-header');if(th&&!document.getElementById('yhBack')){const b=document.createElement('button');b.type='button';b.id='yhBack';b.className='yh-back';b.innerHTML='<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>All tasks';b.onclick=function(){yfsGoHome();};th.insertBefore(b,th.firstChild);}}catch(_){}
 
 /* first view: deep link #tool-N opens that tool; otherwise the Start screen */
-const m=location.hash.match(/^#tool-(\d)$/);
+const m=location.hash.match(/^#tool-([0-5])$/);
 if(m){try{switchTool(+m[1]);}catch(_){}setMode('tool');}else{setMode('home');}
 try{updateUsagePill();}catch(_){}try{yfsHomeVault();}catch(_){}
 })();
