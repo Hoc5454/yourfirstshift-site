@@ -174,7 +174,7 @@ function load(){try{var j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true;}catch(e){toast('Phone storage is full. Make a Backup, then free up space.');return false;}}
 /* safety copy made by Restore: kept 14 days, then dropped */
 var PREV=KEY+'_prev',PREV_T=KEY+'_prev_t',PREV_DAYS=14;
-function prevCopy(){try{var t=+localStorage.getItem(PREV_T)||0,raw=localStorage.getItem(PREV);if(!raw)return null;if(t&&Date.now()-t>PREV_DAYS*86400000){localStorage.removeItem(PREV);localStorage.removeItem(PREV_T);return null;}var d=JSON.parse(raw);return d&&typeof d==='object'?{t:t,data:d}:null;}catch(_){return null;}}
+function prevCopy(){try{var t=+localStorage.getItem(PREV_T)||0,raw=localStorage.getItem(PREV);if(!raw)return null;if(!t||Date.now()-t>PREV_DAYS*86400000){ /* no timestamp = treat as expired */localStorage.removeItem(PREV);localStorage.removeItem(PREV_T);return null;}var d=JSON.parse(raw);return d&&typeof d==='object'?{t:t,data:d}:null;}catch(_){return null;}}
 function undoRestore(){var pc=prevCopy();if(!pc){toast('Nothing to undo.');return;}var back;try{back=clean(pc.data);}catch(_){alert('The safety copy can\'t be read. Your records were not changed.');return;}
   var n=back.entries.length;if(!confirm('Undo the last restore? This brings back the records you had before it ('+n+(n===1?' entry':' entries')+').'))return;
   var cur=S,curRaw=null;try{curRaw=JSON.stringify(cur);}catch(_){}
@@ -612,12 +612,12 @@ function csvModal(){var pro=isPro();
     (S.codes.length?'<label class="f" for="xC">Charge code</label><select class="i" id="xC"><option value="">All codes</option>'+S.codes.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.nick)+'</option>';}).join('')+'</select>':''):'<div class="fine">Exports every entry you have (always free). Filtering by date, job or code is Pro.</div>')+
     '<button type="button" class="btn go block" style="margin-top:14px" id="xGo">Download CSV</button>'+(pro?'':'<button type="button" class="link" id="xUp">Filter by date, job or code (Pro)</button>'),function(){
     $('#xGo').addEventListener('click',function(){var f=pro?{from:($('#xF')||{}).value,to:($('#xT')||{}).value,job:($('#xJ')||{}).value,code:($('#xC')||{}).value}:{};
-      deliver(new Blob([buildCSV(f)],{type:'text/csv;charset=utf-8'}),'yfs-on-the-job-'+todayKey()+'.csv');closeModal();});
+      deliver(new Blob([buildCSV(f)],{type:'text/csv;charset=utf-8'}),'yfs-clocked-in-'+todayKey()+'.csv');closeModal();});
     var up=$('#xUp');if(up)up.addEventListener('click',function(){upsell('Filter your export by date range, job or charge code for timesheets and audits.');});});}
 function backupObj(){return {app:'yfs-on-the-job',kind:'backup',v:1,exported:Date.now(),data:S};}
 function deliver(blob,name){try{var file=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[file]})&&/iPhone|iPad|Android/.test(navigator.userAgent)){navigator.share({files:[file],title:name}).catch(function(){dl(blob,name);});return;}}catch(_){}dl(blob,name);}
 function dl(blob,name){var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},4000);}
-function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-on-the-job-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
+function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-clocked-in-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
 function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){
     /* Everything that can fail happens BEFORE the worker's current records are touched. */
     var j=null;try{j=JSON.parse(rd.result);}catch(_){}
@@ -630,7 +630,7 @@ function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;
     if(!confirm('Restore this backup from '+when+'? It replaces what\'s on this phone now ('+curN+(curN===1?' entry':' entries')+') with the backup ('+next.entries.length+(next.entries.length===1?' entry':' entries')+(skipped?'; '+skipped+' damaged record'+(skipped===1?'':'s')+' will be skipped':'')+').'))return;
     var prev=S;try{localStorage.setItem(PREV,JSON.stringify(prev));localStorage.setItem(PREV_T,String(Date.now()));}catch(_){}
     var okSave=false;try{S=next;log('backup','(restored)','',stamp+' · '+note);okSave=save();}catch(_){okSave=false;}
-    if(!okSave){S=prev;try{localStorage.setItem(KEY,JSON.stringify(prev));}catch(_){}try{render();}catch(_){}alert('Restore failed. Your records were not changed.');return;}
+    if(!okSave){S=prev;try{localStorage.setItem(KEY,JSON.stringify(prev));}catch(_){}try{localStorage.removeItem(PREV);localStorage.removeItem(PREV_T);}catch(_){}try{render();}catch(_){}alert('Restore failed. Your records were not changed.');return;}
     try{render();}catch(_){}toast('Restored'+(skipped?' ('+skipped+' damaged record'+(skipped===1?'':'s')+' skipped)':'')+'. Your records are back.');};
   rd.readAsText(f);ev.target.value='';}
 

@@ -1593,8 +1593,21 @@ window.yfsPdfPrep=function(c){/* paginate: letter, real margins, full height, no
  c.style.paddingBottom='24px';if(!c.classList.contains('tpl-trades'))c.style.paddingTop='8px';
  c.querySelectorAll('*').forEach(x=>{const cs=getComputedStyle(x);if(cs.overflow==='hidden'&&!x.classList.contains('rb-cert-chip'))x.style.overflow='visible';if(cs.maxHeight!=='none')x.style.maxHeight='none';});
  c.querySelectorAll('.yfs-pb-sp').forEach(x=>x.remove());
- const sp=document.createElement('div');sp.style.cssText='height:12px';c.appendChild(sp);
- yfsPdfBreaks(c);};
+ const sp=document.createElement('div');sp.className='yfs-pdf-tail';sp.style.cssText='height:12px';c.appendChild(sp);
+ yfsPdfBreaks(c);try{yfsPdfFit(c);}catch(_){}};
+/* last-page fit: a PDF must never end on a blank or nearly empty page.
+   1) if only a sliver (under 15% of a page) spills onto the last page, shrink type a little (3% steps, at most 4) until it fits one page fewer;
+   2) padding alone can never add a page: the sheet is clamped to the pages its content really needs. */
+window.yfsPdfFit=function(c){const PH=yfsPdfPH(),root=c.parentNode||c;
+ const bottom=()=>{const o=root.getBoundingClientRect();let b=0;c.querySelectorAll('*').forEach(e=>{if(e.children.length||e.classList.contains('yfs-pb-sp')||e.classList.contains('yfs-pdf-tail')||!e.textContent.trim())return;const cs=getComputedStyle(e);if(cs.visibility==='hidden'||cs.display==='none')return;const r=e.getBoundingClientRect();if(r.height>0)b=Math.max(b,r.bottom-o.top);});return b;};
+ const px=(e,prop,f)=>{const v=parseFloat(e.style.getPropertyValue(prop));if(v)e.style.setProperty(prop,(v*f).toFixed(2)+'px','important');};
+ const shrink=f=>{[c].concat([...c.querySelectorAll('*')]).forEach(e=>{if(e.classList.contains('yfs-pb-sp'))return;['font-size','line-height','margin-top','margin-bottom'].forEach(k=>px(e,k,f));});};
+ let b=bottom(),pages=Math.max(1,Math.ceil(b/PH)),n=0;
+ while(pages>1&&b-(pages-1)*PH<PH*0.15&&n<4){n++;shrink(0.97);c.querySelectorAll('.yfs-pb-sp').forEach(x=>x.remove());yfsPdfBreaks(c);b=bottom();pages=Math.max(1,Math.ceil(b/PH));}
+ const maxH=pages*PH-2;
+ if(root.getBoundingClientRect().height>maxH){c.style.paddingBottom='0px';c.querySelectorAll('.yfs-pdf-tail').forEach(x=>x.remove());
+  if(root.getBoundingClientRect().height>maxH){c.style.height=Math.floor(maxH-(c.getBoundingClientRect().top-root.getBoundingClientRect().top))+'px';c.style.overflow='hidden';}}
+ c.setAttribute('data-pdf-pages',String(pages));};
 /* smart pagebreaks: only nudge small atoms across page edges; headers kept with next line; never push whole sections (no dead bands) */
 window.yfsPdfBreaks=function(c){
  const PH=yfsPdfPH();const SEL='.rb-head,.rb-h,.rb-jh,.rb-jt,.rb-je,li,p,.rb-name,.rb-contact,h1,h2,h3';
@@ -2359,27 +2372,35 @@ function yfsHeadLine(r,l){const parts=l.split(/\s*(?:·|•|\||\s[-–—]\s)\s*
   if(c.length)r.contact=r.contact?r.contact+' · '+c.join(' · '):c.join(' · ');
   if(t.length){const tt=t.join(' · ');if(!r.target)r.target=tt;else if(!c.length&&r.target.indexOf(tt)<0)r.target+=' · '+tt;}}
 /* ── resume clean-up: AI leftovers must never reach the page or a download ──
-   Removes: horizontal rules (---), empty bullets ("-", "• —", "* **"), AI advice lines ("⚠ Note: …", "Tip: …", "[Add …]"),
-   empty/label-only table rows ("| Name | Phone |", "|---|---|"), stray * marks, and any section left with no content.
-   Real content is never dropped: table rows with data become "a · b" lines. */
+   Display-time only: the text saved in the Vault is never changed.
+   Removes ONLY patterns an AI or markdown leaves behind, never a person's own wording:
+   - horizontal rules (---), empty bullets ("-", "• —", "* **"), empty/label-only table rows, sections left with no content
+   - advice written TO the reader: a line that starts with ⚠/💡/Note:/Tip:/Reminder:/Recommendation: AND speaks to "you/your"
+     ("⚠ Note: if you hold … list them here"). "Note: Available for travel" or "⚠ Hazmat certified" are kept as written.
+   - bracket prompts ("[Add graduation date]")
+   - markdown emphasis marks (**bold**, *italic*). A lone * in plain text ("rated 5* by customers") is kept. */
+function yfsUnMd(x){var had=/\*\*|(^|[\s(])\*[^\s*][^*]*[^\s*]\*(?=$|[\s.,;:)!?])|(^|[\s(])\*[^\s*]\*(?=$|[\s.,;:)!?])/.test(x);
+  x=x.replace(/\*\*/g,'').replace(/(^|[\s(])\*([^\s*](?:[^*]*[^\s*])?)\*(?=$|[\s.,;:)!?])/g,'$1$2');
+  if(had)x=x.replace(/([.!?:;,)\w])\*+\s*$/,'$1').replace(/^\*+(?=\S)/,''); /* unbalanced leftover from stripped markdown */
+  return x;}
 window.yfsCleanResume=function(text){var LABEL=/^(name|phone|phone number|email|e-?mail|title|job title|company|employer|relationship|contact|contact info|reference|references|address|n\/?a|tbd|—|-)?$/i;
+  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i;
   var out=[];String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){var l=raw.replace(/\s+$/,''),t=l.trim();
     if(!t){out.push('');return;}
-    if(/^#{1,4}\s/.test(t)){out.push(l.replace(/\*+/g,''));return;}
+    if(/^#{1,4}\s/.test(t)){out.push(yfsUnMd(l));return;}
     if(/^([-*_—–=]\s*){3,}$/.test(t))return;                                   /* --- *** ___ rules */
     if(/^[-*•●▪◦–—·]\s*[—–\-*_·•\s]*$/.test(t)||/^[—–]+$/.test(t))return;        /* empty bullet */
-    if(/^(?:[-*•●▪◦–]\s*)?(?:⚠️?|❗|💡|📝|👉|ℹ️?)/.test(t))return;                 /* AI advice line */
-    if(/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:note|tip|reminder|suggestion|recommendation|pro tip)\*{0,2}\s*:/i.test(t))return;
+    var lead=t.match(ADVICE);if(lead&&lead[0].replace(/^[-*•●▪◦–\s*]+/,'')&&TOYOU.test(t.slice(lead[0].length)))return; /* AI advice addressed to the reader */
     if(/^[\[(](?:add|insert|include|list|your|optional)\b[^\])]*[\])]\.?\*?$/i.test(t))return;
     if(/^\|.*\|$/.test(t)||/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(t)){
       if(/^\|?[\s:|\-]+\|?$/.test(t))return;                                   /* table separator */
-      var cells=t.replace(/^\||\|$/g,'').split('|').map(function(c){return c.replace(/\*+/g,'').trim();});
+      var cells=t.replace(/^\||\|$/g,'').split('|').map(function(c){return yfsUnMd(c).trim();});
       if(cells.every(function(c){return LABEL.test(c);}))return;               /* header / empty row */
       out.push(cells.filter(Boolean).join(' · '));return;}
     if(/^[·|]\s*(?:[A-Za-z\/ -]{0,18}\s*[·|]\s*)+$/.test(t)&&t.replace(/[·|]/g,' ').split(/\s{2,}|\s[·|]\s/).every(function(c){return LABEL.test(c.trim());}))return; /* "· Name · Phone ·" */
     if(/^-{3,}\s*[·|]\s*-{3,}/.test(t))return;                                 /* "--- · ---" */
     var m=l.match(/^(\s*[-*•●▪◦–]\s+)(.*)$/);
-    out.push(m?m[1]+m[2].replace(/\*+/g,'').replace(/\s{2,}/g,' ').trim():l.replace(/\*+/g,'').replace(/[ \t]{2,}/g,' ').replace(/\s+$/,''));});
+    out.push(m?m[1]+yfsUnMd(m[2]).trim():yfsUnMd(l));});
   /* drop sections that are now empty */
   var res=[],i=0;while(i<out.length){if(/^##\s/.test(out[i].trim())){var j=i+1;while(j<out.length&&!out[j].trim())j++;if(j>=out.length||/^##\s/.test(out[j].trim())){i=j;continue;}}res.push(out[i]);i++;}
   return res.join('\n').replace(/\n{3,}/g,'\n\n').replace(/^\n+|\n+$/g,'');};
