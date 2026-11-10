@@ -305,6 +305,10 @@ function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=
   h+='<div class="row wrap" style="margin-bottom:14px"><button type="button" class="btn ghost small grow" data-a="add">+ Add hours</button><button type="button" class="btn ghost small grow" data-a="repeat">Repeat yesterday</button><button type="button" class="btn ghost small grow" data-a="addpto">PTO day</button></div>';
   var items=d.items.filter(function(it){return !it.e.live;});
   h+='<div class="card"><h2>Today · '+esc(dayName(tk,true))+'</h2>'+(items.length?entryList(items):'<div class="empty">Nothing logged today. Tap START when your shift begins, or add hours you forgot.</div>')+'</div>';
+  /* overnight shifts: a shift that started yesterday and ended today is counted on the day it started. Show it here too, so a night-shift worker who just clocked out can see it and fix it. */
+  try{var yk=addDays(tk,-1),yw=weekStartKey(yk)===weekStartKey(tk)?w:computeWeek(weekStartKey(yk));
+    var over=((yw.days[yk]||{}).items||[]).filter(function(it){var e=it.e;return !e.live&&e.kind!=='pto'&&e.end&&ymd(e.end)===tk;});
+    if(over.length)h+='<div class="card" id="overnight"><h2>Overnight shift · ended today</h2><div class="fine" style="margin-bottom:8px">Started '+esc(dayName(yk,true))+', so the hours and pay count on that day.</div>'+entryList(over)+'</div>';}catch(_){}
   return h;}
 function entryList(items){return '<ul class="list">'+items.map(function(it){var e=it.e;var tags='';
   if(e.kind==='pto')tags+='<span class="tag pto">PTO · '+esc(bucketName(e.bucket))+'</span>';
