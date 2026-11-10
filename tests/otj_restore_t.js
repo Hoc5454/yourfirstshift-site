@@ -49,4 +49,30 @@ const BAD=/NaN|undefined|\[object|Infinity|Invalid Date/;
  {const mixed=base({entries:[W({id:'g1'}),W({id:'g2'}),null,{},W({id:'b1',start:'x'})]});const r=await tryRestore('mixed',bk(mixed));const cf=r.dlg.find(d=>/^confirm/.test(d))||'';
   ok(/\(3 entries\)/.test(cf)&&/\(2 entries; 3 damaged records will be skipped\)/.test(cf)&&r.end.n===2&&/2 entries · 3 damaged skipped/.test(r.mid.log),'E 2 good + 3 damaged: confirm shows the cleaned count and "3 damaged records will be skipped" ['+cf.slice(cf.indexOf('It replaces'),cf.length).slice(0,150)+']');
   const one=await tryRestore('one',bk(base({entries:[W({id:'g1'})]})));ok(/\(1 entry\)\./.test(one.dlg.find(d=>/^confirm/.test(d))||''),'E wording: "1 entry", not "1 entries"');}
+
+ // F. Undo last restore, 14-day expiry, and a failed save never says "Restored"
+ {const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+  await c.addInitScript(v=>{if(!sessionStorage.getItem('s')){sessionStorage.setItem('s','1');localStorage.setItem('yfs_otj_v1',v);}},JSON.stringify(GOOD));
+  const p=await c.newPage();p.setDefaultTimeout(3000);const errs=[],dlg=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>{dlg.push(d.message());d.accept();});
+  await p.goto(O+'/job/');await p.waitForTimeout(500);await p.click('nav.tabs [data-v=more]');await p.waitForTimeout(200);
+  ok(!(await p.$('[data-a=undorestore]')),'F1 no "Undo last restore" before any restore');
+  await p.setInputFiles('#restoreFile',{name:'b.json',mimeType:'application/json',buffer:Buffer.from(bk(base({entries:[W({id:'n1'})]})))});await p.waitForTimeout(600);
+  ok(await p.evaluate(()=>OTJ.state().entries.length===1)&&!!(await p.$('[data-a=undorestore]')),'F2 after a restore, More shows "Undo last restore"');
+  await p.evaluate(()=>document.querySelector('[data-a=undorestore]').click());await p.waitForTimeout(500);
+  let ids=await p.evaluate(()=>OTJ.state().entries.map(e=>e.id).sort().join(','));
+  ok(ids==='k1,k2,k3'&&dlg.some(d=>/Undo the last restore\? This brings back the records you had before it \(3 entries\)/.test(d)),'F3 Undo brings the 3 earlier records back, after a clear confirm');
+  await p.reload();await p.waitForTimeout(500);ok(await p.evaluate(()=>OTJ.state().entries.length===3),'F4 the undo survives a reload');
+  await p.click('nav.tabs [data-v=more]');await p.waitForTimeout(200);await p.evaluate(()=>document.querySelector('[data-a=undorestore]').click());await p.waitForTimeout(500);
+  ok(await p.evaluate(()=>OTJ.state().entries.length===1&&OTJ.state().entries[0].id==='n1'),'F5 Undo again goes forward to the restored backup (nothing is lost either way)');
+  await p.evaluate(()=>localStorage.setItem('yfs_otj_v1_prev_t',String(Date.now()-15*86400000)));await p.reload();await p.waitForTimeout(500);await p.click('nav.tabs [data-v=more]');await p.waitForTimeout(200);
+  ok(!(await p.$('[data-a=undorestore]'))&&await p.evaluate(()=>localStorage.getItem('yfs_otj_v1_prev')===null),'F6 the safety copy is dropped after 14 days');
+  ok(!errs.length,'F7 no page errors '+errs.join('|').slice(0,150));await c.close();}
+ {const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+  await c.addInitScript(v=>{if(!sessionStorage.getItem('s')){sessionStorage.setItem('s','1');localStorage.setItem('yfs_otj_v1',v);}},JSON.stringify(GOOD));
+  const p=await c.newPage();p.setDefaultTimeout(3000);const dlg=[];p.on('dialog',d=>{dlg.push(d.message());d.accept();});
+  await p.goto(O+'/job/');await p.waitForTimeout(500);await p.click('nav.tabs [data-v=more]');await p.waitForTimeout(200);
+  await p.evaluate(()=>{const real=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k==='yfs_otj_v1'&&/"n1"/.test(v))throw new DOMException('QuotaExceededError','QuotaExceededError');return real.call(this,k,v);};});
+  await p.setInputFiles('#restoreFile',{name:'b.json',mimeType:'application/json',buffer:Buffer.from(bk(base({entries:[W({id:'n1'})]})))});await p.waitForTimeout(700);
+  const r=await p.evaluate(()=>({ids:OTJ.state().entries.map(e=>e.id).sort().join(','),saved:JSON.parse(localStorage.getItem('yfs_otj_v1')).entries.length,toasts:[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' | ')}));
+  ok(r.ids==='k1,k2,k3'&&r.saved===3&&dlg.some(d=>/Restore failed\. Your records were not changed\./.test(d))&&!/Restored/.test(r.toasts),'F8 save fails during restore → "Restore failed", no "Restored" toast, the 3 records stay ('+r.toasts.slice(0,60)+')');await c.close();}
  await b.close();srv.close();console.log(fails?fails+' FAIL':'ALL PASS');process.exit(fails?1:0);})();

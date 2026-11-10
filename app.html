@@ -15,6 +15,8 @@ try{var P=Storage.prototype,_s=P.setItem,_g=P.getItem,_r=P.removeItem,_c=P.clear
   P.getItem=function(k){var b=bag(this);if(b&&Object.prototype.hasOwnProperty.call(b,k))return b[k];return _g.call(this,k);};
   P.removeItem=function(k){var b=bag(this);if(b)delete b[k];try{_r.call(this,k);}catch(_){}};
   P.clear=function(){spill.delete(this);try{_c.call(this);}catch(_){}};
+  /* reset helper: drop in-memory fallback keys with a prefix (optionally keeping another prefix) */
+  window.yfsSpillWipe=function(pre,keep){[window.localStorage,window.sessionStorage].forEach(function(st){var b=bag(st);if(b)Object.keys(b).forEach(function(k){if(k.indexOf(pre)===0&&!(keep&&k.indexOf(keep)===0))delete b[k];});});};
 }catch(_){}
 })();
 </script>
@@ -831,15 +833,15 @@ function uaFam(){var u=navigator.userAgent||'';if(/SamsungBrowser/.test(u))retur
 document.addEventListener('visibilitychange',function(){if(window.yfsRunBusy&&document.visibilityState==='hidden'&&window.yfsRunState)window.yfsRunState.hidden=true;});
 document.addEventListener('freeze',function(){if(window.yfsRunBusy&&window.yfsRunState)window.yfsRunState.hidden=true;});
 var MSG={interrupted:'Your result was interrupted when you left the app.',network:'Lost connection while writing your result. Check your signal.',
-  busy:'Our AI is busy for a moment.',http_5xx:'Our server had a hiccup.',timeout:'Your result stopped coming in.',incomplete:'Your result got cut off before it finished.',
+  busy:'Our AI is busy for a moment.',limit:'You’ve made a lot of requests this hour.',http_5xx:'Our server had a hiccup.',timeout:'Your result stopped coming in.',incomplete:'Your result got cut off before it finished.',
   empty:'No result came back.',http_4xx:'That request didn’t go through.',other:'Something went wrong.'};
 window.yfsRunFailed=function(e){
   var st=window.yfsRunState||{},hidden=!!st.hidden||document.visibilityState==='hidden',t='other',m=String(e&&e.message||'');
-  if(m==='incomplete')t='incomplete';else if(e&&e.name==='AbortError')t='timeout';else if(m==='http')t=e.status>=500?'http_5xx':(e.status===429?'busy':'http_4xx');
+  if(m==='incomplete')t='incomplete';else if(e&&e.name==='AbortError')t='timeout';else if(m==='http')t=e.status>=500?'http_5xx':(e.status===429?'limit':'http_4xx');
   else if(m==='stream')t='busy';else if(m==='empty')t='empty';else if((e&&e.name==='TypeError')||/network|fetch|load/i.test(m))t='network';
   if(hidden&&(t==='network'||t==='incomplete'||t==='other'||t==='timeout'))t='interrupted';
   try{var A=(typeof YFS_API!=='undefined')?YFS_API:'https://yourfirstshift.culpepperhunter.workers.dev';
-    fetch(A+'/api/metrics/client_err',{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({t:t,ua:uaFam()})}).catch(function(){});}catch(_){}
+    fetch(A+'/api/metrics/client_err',{method:'POST',keepalive:true,headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({t:t==='limit'?'busy':t,ua:uaFam()})}).catch(function(){});}catch(_){}
   var box=document.getElementById('outputBox');
   if(box){box.querySelectorAll('.yfs-stream-note').forEach(function(n){n.remove();});
     if(box.textContent.trim()){if(!box.querySelector('.yfs-partial-note')){var pn=document.createElement('div');pn.className='yfs-partial-note';pn.textContent='⚠️ Incomplete — this result was cut off before it finished.';box.insertBefore(pn,box.firstChild);}}
@@ -848,7 +850,8 @@ window.yfsRunFailed=function(e){
   var free=!(typeof isPro!=='undefined'&&isPro),keep=free?' It won’t use your free run.':'';
   var auto=(t==='interrupted'&&(st.auto||0)<1);
   var eb=document.getElementById('errorBox');if(!eb)return;eb.innerHTML='';
-  var d=document.createElement('div');d.textContent=MSG[t]+(auto?' Picking it back up…':' Tap Try again.'+keep);eb.appendChild(d);
+  var wait=(t==='limit')?(e&&e.retry>0?' Please wait about '+Math.max(1,Math.ceil(e.retry/60))+' minute'+(Math.ceil(e.retry/60)===1?'':'s')+', then tap Try again.':' Please wait a few minutes, then tap Try again.'):' Tap Try again.';
+  var d=document.createElement('div');d.textContent=MSG[t]+(auto?' Picking it back up…':wait+keep);eb.appendChild(d);
   if(!auto){var b=document.createElement('button');b.type='button';b.className='yfs-retry-btn';b.textContent='Try again';b.onclick=function(){eb.style.display='none';runTool();};eb.appendChild(b);}
   eb.setAttribute('role','alert');eb.style.display='block';
   if(auto){st.auto=1;var go=function(){if(document.visibilityState!=='visible')return;document.removeEventListener('visibilitychange',go);setTimeout(function(){eb.style.display='none';runTool();},350);};
@@ -862,6 +865,9 @@ window.yfsRunFailed=function(e){
 .yfs-using button,.yfs-pdf-cancel a,.paywall-sub a,.paywall-feat a,.cancel-1click a,#freePdfLine a,#rbFreeUsedBanner a,#rbPdfErr a,#uploadZone .upload-sub span[onclick]{position:relative}
 .yfs-using button::after,.paywall-sub a::after,.paywall-feat a::after,.cancel-1click a::after,#freePdfLine a::after,#rbFreeUsedBanner a::after,#rbPdfErr a::after,#uploadZone .upload-sub span[onclick]::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
 .yfs-pdf-cancel a::after{content:"";position:absolute;left:-6px;right:-6px;top:-2px;bottom:-10px}
+/* every small inline "Unlock Pro" text link, wherever it is rendered; big buttons excluded by id/class */
+a[onclick*="yfsOpenCheckout"]:not(#yfsPdfCta):not(.paywall-btn):not(.yfs-pdf-cta):not(.btn){position:relative}
+a[onclick*="yfsOpenCheckout"]:not(#yfsPdfCta):not(.paywall-btn):not(.yfs-pdf-cta):not(.btn)::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
 /* long unbroken text (e.g. a long LinkedIn link) wraps instead of making the whole page scroll sideways */
 #outputBox,#yfsTease,#lockedRest,.rb-page,.yfs-blurzone,#errorBox{overflow-wrap:break-word}
 /* overnight: free X-Ray shows only score + verdict; don't pad it out with ~150px of blank paper */
@@ -1364,7 +1370,8 @@ function yfsReadState(){
 window.yfsRunGen=window.yfsRunGen||0;
 function yfsResetFreeClient(){
   window.yfsRunGen++; // invalidates any in-flight run so it can't re-mark "used" after reset
-  const wipe=()=>{try{Object.keys(localStorage).filter(k=>k.indexOf('yfs_')===0).forEach(k=>localStorage.removeItem(k));}catch(_){}
+  const wipe=()=>{try{Object.keys(localStorage).filter(k=>k.indexOf('yfs_')===0&&k.indexOf('yfs_otj_')!==0).forEach(k=>localStorage.removeItem(k));}catch(_){}
+    try{window.yfsSpillWipe&&window.yfsSpillWipe('yfs_','yfs_otj_');}catch(_){}
     try{Object.keys(sessionStorage).filter(k=>k.indexOf('yfs_')===0).forEach(k=>sessionStorage.removeItem(k));}catch(_){}};
   wipe();
   usageCount=0; isPro=false; try{savedResume='';}catch(_){} try{rbSummary='';}catch(_){}
@@ -2025,7 +2032,7 @@ async function extractTextFromPDF(base64,filename){
     const res=await fetch(YFS_API,{
       method:'POST',
       signal:_g.signal,
-      headers:proHeaders({'X-YFS-Kind':'extract'}),
+      headers:proHeaders({'X-YFS-Kind':'extract','X-YFS-Dev':yfsDev()}),
       body:JSON.stringify({
         model:'claude-sonnet-4-6',max_tokens:3000,
         messages:[{role:'user',content:[
@@ -2050,7 +2057,7 @@ async function extractTextFromImage(base64,mediaType,filename){
     const res=await fetch(YFS_API,{
       method:'POST',
       signal:_g.signal,
-      headers:proHeaders({'X-YFS-Kind':'extract'}),
+      headers:proHeaders({'X-YFS-Kind':'extract','X-YFS-Dev':yfsDev()}),
       body:JSON.stringify({
         model:'claude-sonnet-4-6',max_tokens:3000,
         messages:[{role:'user',content:[
@@ -2216,7 +2223,7 @@ async function runTool(){
       updateUsagePill(); renderTool(); // shows existing locked/upgrade UI
       return;
     }
-    if(!res.ok){const he=new Error('http');he.status=res.status;throw he;}
+    if(!res.ok){const he=new Error('http');he.status=res.status;if(res.status===429){try{const jb=await res.clone().json();he.retry=Math.max(0,+jb.retry_after||0);}catch(_){}}throw he;}
     text=await yfsReadStream(res,!isPro,_ac);
     }
     if(!text) throw new Error('empty');
@@ -3828,6 +3835,23 @@ function go(){var sh=document.getElementById('yfsPlans');if(sh&&sh.classList.con
 try{history.replaceState(null,'',location.pathname+location.search);}catch(_){}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(go,350);});else setTimeout(go,350);
 window.addEventListener('load',function(){setTimeout(go,350);});})();
+</script>
+<script id="yfs-storage-note">
+/* Tell the user, in plain words, when this phone can't save their work (storage blocked or full). Shown once per visit, dismissible. */
+(function(){
+function show(kind){try{if(document.getElementById('yfsStoreNote'))return;var ac=document.getElementById('appContent');if(!ac||!ac.parentNode)return;
+  var d=document.createElement('div');d.id='yfsStoreNote';d.setAttribute('role','status');
+  d.style.cssText='background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;border-radius:8px;padding:10px 12px;margin:0 0 12px;font:600 14px/1.4 system-ui,sans-serif;display:flex;gap:10px;align-items:flex-start';
+  var t=document.createElement('span');t.style.flex='1';
+  t.textContent=kind==='blocked'?'Heads up: your browser is blocking saved data, so your resume and results will be gone when you close this page. To keep them, turn off “Block All Cookies” (or leave private mode) and reload.'
+    :'Heads up: this phone’s storage is full, so new results may not be saved. Download or copy anything you want to keep.';
+  var b=document.createElement('button');b.type='button';b.textContent='OK';b.setAttribute('aria-label','Dismiss');
+  b.style.cssText='min-width:44px;min-height:44px;border:0;border-radius:8px;background:#92400E;color:#fff;font-weight:800;cursor:pointer';b.onclick=function(){d.remove();window.__yfsStoreNoteX=true;};
+  d.appendChild(t);d.appendChild(b);ac.parentNode.insertBefore(d,ac);}catch(_){}}
+function check(){if(window.__yfsStoreNoteX)return;if(window.yfsStorageBlocked)show('blocked');else if(window.yfsStorageFull)show('full');}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',check);else check();
+setInterval(check,4000);
+})();
 </script>
 <script id="yfs-paywall-below">
 /* overnight: free run used + a saved result for this tool on screen -> show the result first and the
