@@ -28,7 +28,7 @@ const ai=log=>log.filter(x=>/workers\.dev\/?$/.test(x.u));
   await p.evaluate(()=>yfsOpenTool(3));await p.evaluate(()=>yfsGoHome());await p.evaluate(()=>yfsOpenPlans());await p.evaluate(()=>yfsCloseSheets());
   await p.evaluate(()=>yfsOpenTool(1));await p.waitForTimeout(150);
   ok(await p.evaluate(()=>yfsSrc())==='tiktok','src survives SPA navigation (home/tool/sheets)');
-  await p.fill('#xrayJd','Heavy Equipment Operator — Lee County. Must run dozer and motor grader, read grade stakes, CDL a plus. Full-time.');
+  await p.fill('#xrayJd','Heavy Equipment Operator — Demo County. Must run dozer and motor grader, read grade stakes, CDL a plus. Full-time.');
   await p.evaluate(()=>{try{updateRunBtn()}catch(_){}});await p.evaluate(()=>runTool());await p.waitForTimeout(1500);
   ok(ai(log).length===1,'1 AI run');
   ok(metric(log,'free_run').length===1&&metric(log,'free_run')[0].u.endsWith('?src=tiktok'),'free_run metric carries ?src=tiktok');
