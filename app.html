@@ -2361,6 +2361,7 @@ function yfsMd(md){const L=String(md||'').replace(/\r/g,'').split('\n');let h=''
     if(!l){fp();fl();continue;}
     if(/^([-*_]\s*){3,}$/.test(l)){fp();fl();h+='<hr>';continue;}
     if((m=l.match(/^(#{1,6})\s+(.*?)\s*#*$/))){fp();fl();const n=Math.min(3,m[1].length);h+='<h'+n+'>'+yfsInline(m[2])+'</h'+n+'>';continue;}
+    if(window.yfsNoText&&yfsNoText(l))continue; /* never a bullet or line with no text */
     if((m=l.match(/^[-*+•]\s+(.*)$/))){fp();if(list!=='ul'){fl();h+='<ul>';list='ul';}h+='<li>'+yfsInline(m[1])+'</li>';continue;}
     if((m=l.match(/^\d+[.)]\s+(.*)$/))){fp();if(list!=='ol'){fl();h+='<ol>';list='ol';}h+='<li>'+yfsInline(m[1])+'</li>';continue;}
     if((m=l.match(/^>\s?(.*)$/))){fl();para.push(m[1]);continue;}
@@ -2379,19 +2380,24 @@ function yfsHeadLine(r,l){const parts=l.split(/\s*(?:·|•|\||\s[-–—]\s)\s*
    Removes ONLY patterns an AI or markdown leaves behind, never a person's own wording:
    - horizontal rules (---), empty bullets ("-", "• —", "* **"), empty/label-only table rows, sections left with no content
    - advice written TO the reader: a line that starts with ⚠/💡/Note:/Tip:/Reminder:/Recommendation:, speaks to "you/your"
-     AND gives an instruction (add, list, include, consider…): "⚠ Note: if you hold … list them here".
+     AND gives an instruction (add, list, include, consider, "here"…): "⚠ Note: if you hold … list them here".
      "Note: Available for travel", "⚠ Hazmat certified" and "Note: Happy to relocate to your area" are kept as written.
    - bracket prompts ("[Add graduation date]")
    - markdown emphasis marks (**bold**, *italic*). A lone * in plain text ("rated 5* by customers") is kept. */
+/* A line with no letter and no digit ("•", "-", "* **", "• —", a Word symbol bullet, a zero-width space) is never resume content.
+   One rule, used by every renderer and download, so a bullet with no text can never be drawn. A lone "o" is Word's hollow bullet. */
+window.yfsNoText=function(l){l=String(l==null?'':l);return !/[\p{L}\p{N}]/u.test(l)||/^[\s\u00a0\u200b-\u200d\ufeff]*o[\s\u00a0\u200b-\u200d\ufeff]*$/.test(l);};
 function yfsUnMd(x){var had=/\*\*|(^|[\s(])\*[^\s*][^*]*[^\s*]\*(?=$|[\s.,;:)!?])|(^|[\s(])\*[^\s*]\*(?=$|[\s.,;:)!?])/.test(x);
   x=x.replace(/\*\*/g,'').replace(/(^|[\s(])\*([^\s*](?:[^*]*[^\s*])?)\*(?=$|[\s.,;:)!?])/g,'$1$2');
   if(had)x=x.replace(/([.!?:;,)\w])\*+\s*$/,'$1').replace(/^\*+(?=\S)/,''); /* unbalanced leftover from stripped markdown */
   return x;}
 window.yfsCleanResume=function(text){var LABEL=/^(name|phone|phone number|email|e-?mail|title|job title|company|employer|relationship|contact|contact info|reference|references|address|n\/?a|tbd|—|-)?$/i;
-  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i,TODO=/\b(?:add|adding|list|listing|include|including|consider|insert|inserting|mention|mentioning|update|updating|replace|replacing|remove|removing|fill|tailor|tailoring|customi[sz]e|edit|make sure|be sure|double[- ]check|verify)\b/i;
+  var ADVICE=/^(?:[-*•●▪◦–]\s*)?\*{0,2}(?:(?:⚠️?|❗|💡|📝|👉|ℹ️?)\s*)?(?:(?:note|tip|pro tip|reminder|suggestion|recommendation)\*{0,2}\s*:)?/i,TOYOU=/\b(?:you|your|you['’]re|you['’]ve)\b/i,TODO=/\b(?:add|adding|list|listing|include|including|consider|insert|inserting|mention|mentioning|update|updating|replace|replacing|remove|removing|fill|tailor|tailoring|customi[sz]e|edit|make sure|be sure|double[- ]check|verify|here)\b/i;
   var out=[];String(text||'').replace(/\r/g,'').split('\n').forEach(function(raw){var l=raw.replace(/\s+$/,''),t=l.trim();
     if(!t){out.push('');return;}
     if(/^#{1,4}\s/.test(t)){out.push(yfsUnMd(l));return;}
+    if(yfsNoText(t))return;                                                     /* a bullet mark or separator with no words after it */
+    l=l.replace(/^(\s*)[\uf0a7\uf0b7\uf0d8\uf076\u25cb\u25ef\u27a2\u27a4\u25ba\u25b6\u2713\u2714\u25c6\u25c7\u25a0\u25a1\u2756\u2023\u2043\u2219][\s\u00a0]*(?=\S)/,'$1• ');t=l.trim(); /* Word/PDF bullet symbols become a normal bullet */
     if(/^([-*_—–=]\s*){3,}$/.test(t))return;                                   /* --- *** ___ rules */
     if(/^[-*•●▪◦–—·]\s*[—–\-*_·•\s]*$/.test(t)||/^[—–]+$/.test(t))return;        /* empty bullet */
     var lead=t.match(ADVICE);if(lead&&lead[0].replace(/^[-*•●▪◦–\s*]+/,'')&&TOYOU.test(t.slice(lead[0].length))&&TODO.test(t.slice(lead[0].length)))return; /* AI advice: speaks to the reader AND tells them to do something */
@@ -2422,8 +2428,9 @@ function yfsSecHtml(title,body){const b=(/SKILL/i.test(String(title))?String(bod
   const cl=()=>{if(ul){h+='</ul>';ul=false;}};
   const isSkills=/SKILL/i.test(title);
   if(isSkills&&!/^\s*[-*•]/m.test(b))return '<div class="rb-sec"><div class="rb-h">'+yfsEsc(title)+'</div><p>'+yfsInline(b.replace(/\n+/g,' · '))+'</p></div>';
-  if(isSkills){return '<div class="rb-sec"><div class="rb-h">'+yfsEsc(title)+'</div><p>'+L.map(x=>x.trim().replace(/^[-*•]\s+/,'')).filter(Boolean).map(yfsInline).join('  ·  ')+'</p></div>';}
+  if(isSkills){return '<div class="rb-sec"><div class="rb-h">'+yfsEsc(title)+'</div><p>'+L.filter(x=>!yfsNoText(x)).map(x=>x.trim().replace(/^[-*•]\s+/,'')).filter(Boolean).map(yfsInline).join('  ·  ')+'</p></div>';}
   for(const raw of L){const l=raw.trim();let m;if(!l||/^([-*_]\s*){3,}$/.test(l)){cl();continue;}
+    if(yfsNoText(l))continue; /* never a bullet or line with no text */
     if((m=l.match(/^[-*+•]\s+(.*)$/))){if(!ul){h+='<ul>';ul=true;}h+='<li>'+yfsInline(m[1])+'</li>';continue;}
     cl();const hl=l.replace(/^#{3,}\s+/,'');
     if(/^###\s/.test(l)||/^\*\*.+\*\*/.test(l)||(/\|/.test(l)&&/EXPERIENCE|EMPLOY|WORK/i.test(title))){const p=hl.split('|').map(x=>x.replace(/\*\*/g,'').trim()).filter(Boolean);
@@ -2818,7 +2825,7 @@ async function yfsDoRestore(ev){
 // ─── Pro export: Word (.docx) + Text (.txt) — client-side, no CDN ───────────
 (function(){
 function pro(){return localStorage.getItem('yfs_pro')==='1';}
-function clean(s){return String(s||'').replace(/\r/g,'').replace(/^```.*$/gm,'').replace(/\*\*|__/g,'').replace(/`/g,'').replace(/^#{1,6}\s+/gm,'').replace(/^\s*[-*+•]\s+/gm,'• ').replace(/\n{3,}/g,'\n\n').trim();}
+function clean(s){return String(s||'').replace(/\r/g,'').split('\n').filter(function(l){return !l.trim()||!(window.yfsNoText&&yfsNoText(l));}).join('\n') /* Word/Text: never a bullet or line with no text */.replace(/^```.*$/gm,'').replace(/\*\*|__/g,'').replace(/`/g,'').replace(/^#{1,6}\s+/gm,'').replace(/^\s*[-*+•]\s+/gm,'• ').replace(/\n{3,}/g,'\n\n').trim();}
 function rbActive(){const pg=document.getElementById('rbPage');return !!(pg&&pg.offsetParent!==null&&typeof TOOLS!=='undefined'&&TOOLS[activeTool]&&TOOLS[activeTool].hasBuilder);}
 function boxText(){const b=document.getElementById('outputBox');return b?(b.dataset.full||b.dataset.md||''):'';}
 function isResumeResult(){if(rbActive())return true;const t=boxText();return typeof yfsResumeLike==='function'&&yfsResumeLike(t);}
@@ -3111,12 +3118,12 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 function jobLine(l){const p=l.split(/\s*\|\s*/).map(x=>x.trim()).filter(Boolean);
   return '<div class="rb-jh"><span><span class="rb-jt">'+esc(p[0]||'')+'</span>'+(p[1]?' <span class="rb-je">· '+esc(p[1])+'</span>':'')+'</span>'+(p[2]?'<span class="rb-jd">'+esc(p.slice(2).join(' · '))+'</span>':'')+'</div>';}
 function fmtLines(v,jobs,noJoin){v=(!noJoin&&window.yfsJoinWraps?yfsJoinWraps(v):v);let h='',ul=false;const close=()=>{if(ul){h+='</ul>';ul=false;}};
-  String(v).split('\n').forEach(raw=>{const l=raw.trim();if(!l){close();return;}const b=l.match(/^[•●▪◦\-*–]\s*(.+)$/);
+  String(v).split('\n').forEach(raw=>{const l=raw.trim();if(!l){close();return;}if(window.yfsNoText&&yfsNoText(l))return; /* a stray bullet mark is never drawn */const b=l.match(/^[•●▪◦\-*–]\s*(.+)$/);
     if(b){if(!ul){h+='<ul>';ul=true;}h+='<li>'+esc(b[1])+'</li>';return;}close();
     if(jobs&&/\|/.test(l))h+=jobLine(l);else h+='<p>'+esc(l.replace(/\s*\|\s*/g,' · '))+'</p>';});close();return h;}
 window.yfsRbFmt=function(f,v){v=String(v||'');if(!v.trim())return null;
   if(f==='experience')return fmtLines(v,true);
-  if(f==='skills'){if(/^\s*[•●\-*]/m.test(v))return fmtLines(v,false,true);return '<p>'+v.split(/\s*[,\n]\s*/).filter(Boolean).map(esc).join(' · ')+'</p>';}
+  if(f==='skills'){if(/^\s*[•●\-*]/m.test(v))return fmtLines(v,false,true);return '<p>'+v.split(/\s*[,\n]\s*/).filter(x=>x&&!(window.yfsNoText&&yfsNoText(x))).map(esc).join(' · ')+'</p>';}
   if(f==='education'||f==='extra')return fmtLines(v,f==='extra'?false:true);
   return null;};
 function apply(){const pg=document.getElementById('rbPage');if(!pg||pg.contains(document.activeElement))return;
@@ -3637,7 +3644,7 @@ window.yfsResumeFields=function(raw){
 window.yfsFieldsToMd=function(f){var o=['# '+(f.name||'')];if(f.target)o.push(f.target);
   var c=['location','phone','email','links'].map(function(k){return f[k];}).filter(Boolean);if(c.length)o.push(c.join(' · '));
   var sec=function(h,v,exp){if(!v||!String(v).trim())return;o.push('');o.push('## '+h);
-    String(v).split('\n').forEach(function(l){var t=l.trim();if(!t){o.push('');return;}var b=t.match(/^[•\-*]\s*(.+)$/);if(b){o.push('- '+b[1]);return;}o.push(exp&&/\|/.test(t)?'### '+t:t);});};
+    String(v).split('\n').forEach(function(l){var t=l.trim();if(!t){o.push('');return;}if(window.yfsNoText&&yfsNoText(t))return;var b=t.match(/^[•\-*]\s*(.+)$/);if(b){o.push('- '+b[1]);return;}o.push(exp&&/\|/.test(t)?'### '+t:t);});};
   sec('PROFESSIONAL SUMMARY',f.summary);sec('EXPERIENCE',f.experience,true);sec('SKILLS',f.skills);sec('EDUCATION & TRAINING',f.education);sec('ADDITIONAL',f.extra);
   return o.join('\n').replace(/\n{3,}/g,'\n\n').trim()+'\n';};
 function curFields(){var f={};(typeof RB_FIELDS!=='undefined'?RB_FIELDS:[]).forEach(function(k){f[k]=rbVal(k);});f.summary=typeof rbSummary!=='undefined'?rbSummary:'';return f;}
@@ -3860,9 +3867,9 @@ function domModel(pg){var t=function(sel){var e=pg.querySelector(sel);return e?(
   var secs=[];pg.querySelectorAll('.rb-sec').forEach(function(s){if(s.closest('.ym-lock,.ym-tips'))return;var h=s.querySelector('.rb-h');var head=h?(h.innerText||h.textContent).trim():'';var lines=[];
     Array.prototype.forEach.call(s.children,function(ch){if(ch===h)return;
       (function walk(n){if(n.nodeType!==1)return;if(n.classList.contains('rb-jh')){var jt=n.querySelector('.rb-jt'),je=n.querySelector('.rb-je'),jd=n.querySelector('.rb-jd');lines.push([jt&&jt.textContent.trim(),je&&je.textContent.replace(/^[·\s]+/,'').trim(),jd&&jd.textContent.replace(/\s*·\s*/g,' – ').trim()].filter(Boolean).join(' | '));return;}
-        if(n.tagName==='LI'){lines.push('• '+n.textContent.replace(/\s+/g,' ').trim());return;}
+        if(n.tagName==='LI'){if(!yfsNoText(n.textContent))lines.push('• '+n.textContent.replace(/\s+/g,' ').trim());return;}
         if(n.tagName==='UL'||n.tagName==='OL'||n.tagName==='DIV'&&n.children.length&&!n.classList.contains('rb-fmt-line')){Array.prototype.forEach.call(n.children,walk);if(n.tagName==='DIV'&&!n.children.length&&n.textContent.trim())lines.push(n.textContent.trim());return;}
-        var tx=(n.innerText||n.textContent||'').replace(/[ \t]+/g,' ').trim();if(tx)tx.split(/\n+/).forEach(function(x){x=x.trim();if(x)lines.push(/^[•\-*]\s/.test(x)?'• '+x.replace(/^[•\-*]\s*/,''):x);});})(ch);});
+        var tx=(n.innerText||n.textContent||'').replace(/[ \t]+/g,' ').trim();if(tx)tx.split(/\n+/).forEach(function(x){x=x.trim();if(x&&!yfsNoText(x))lines.push(/^[•\-*]\s/.test(x)?'• '+x.replace(/^[•\-*]\s*/,''):x);});})(ch);});
     if(head&&lines.length)secs.push([head,lines.join('\n')]);});
   return {name:t('.rb-name'),target:t('.rb-target'),contact:t('.rb-contact').replace(/\s*·\s*/g,'  ·  '),secs:secs};}
 

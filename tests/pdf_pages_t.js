@@ -7,7 +7,7 @@ const APP=fs.readFileSync(path.resolve(process.argv[2]||'../app.html'),'utf8');c
 const LIB=path.join(__dirname,'node_modules/html2pdf.js/dist/html2pdf.bundle.min.js');
 if(!fs.existsSync(LIB)){console.log('FAIL html2pdf library missing: run "npm i" in tests/');process.exit(1);}
 const API='https://yourfirstshift.culpepperhunter.workers.dev';let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
-const CASES=[['dirty 3-job resume',fs.readFileSync(path.join(__dirname,'fixtures','dirty_resume.txt'),'utf8'),1],['7-job resume',fs.readFileSync(path.join(__dirname,'sample2.md'),'utf8'),2],['short 2-job resume',fs.readFileSync(path.join(__dirname,'raw_resume.txt'),'utf8'),1]];
+const CASES=[['dirty 3-job resume',fs.readFileSync(path.join(__dirname,'fixtures','dirty_resume.txt'),'utf8'),1],['7-job resume',fs.readFileSync(path.join(__dirname,'sample2.md'),'utf8'),2],['short 2-job resume',fs.readFileSync(path.join(__dirname,'raw_resume.txt'),'utf8'),1],['resume whose sections end with stray bullets',fs.readFileSync(path.join(__dirname,'fixtures','trailing_bullets_resume.txt'),'utf8'),1]];
 function ink(pdf,page){const base=path.join(OUT,'pg');cp.execFileSync('pdftoppm',['-r','40','-f',String(page),'-l',String(page),'-png',pdf,base]);
   const f=fs.readdirSync(OUT).filter(x=>x.startsWith('pg')&&x.endsWith('.png')).map(x=>path.join(OUT,x))[0];
   const r=cp.execFileSync('python3',['-c','import sys\nfrom PIL import Image\nim=Image.open(sys.argv[1]).convert("L");w,h=im.size;px=im.load()\nrows=[y for y in range(h) if sum(1 for x in range(w) if px[x,y]<200)>=2]\nprint((max(rows)-min(rows)+1)/h if rows else 0, len(rows)/h)',f]).toString().trim().split(' ').map(Number);fs.unlinkSync(f);return {extent:r[0],rows:r[1]};}
@@ -29,5 +29,8 @@ function ink(pdf,page){const base=path.join(OUT,'pg');cp.execFileSync('pdftoppm'
   ok(first.extent>0.2,`[${look}] ${name}: page 1 has content (${(first.extent*100).toFixed(0)}%)`);
   const txt=cp.execFileSync('pdftotext',['-layout',file,'-']).toString();
   ok(/Harbor Line Builders/.test(txt)&&!/⚠|Note: if you hold|Name\s*·\s*Phone|City, ST|\(555\) 123-4567|\+ Add /.test(txt)&&!/^\s*[•·\-]\s*[—–-]?\s*$/m.test(txt),`[${look}] ${name}: PDF text layer has the real content and no junk (${txt.length} chars)`);
+  {const empty=txt.split('\n').map(x=>x.trim()).filter(x=>x&&(!/[\p{L}\p{N}]/u.test(x)||/^o$/.test(x)));
+   ok(!empty.length,`[${look}] ${name}: real PDF text has no bullet or line without text ${JSON.stringify(empty).slice(0,80)}`);
+   if(/stray bullets/.test(name))ok(/Kept the daily fit-up log/.test(txt)&&/Ran the pipe threader/.test(txt)&&/Blueprint reading/.test(txt)&&/OSHA 10 card/.test(txt),`[${look}] ${name}: the last real line of every section is in the PDF`);}
   ok(!errs.length,`[${look}] ${name}: no page errors ${errs.join('|').slice(0,120)}`);await c.close();}
  await b.close();console.log(fails?fails+' FAIL':'ALL PASS');process.exit(fails?1:0);})();
