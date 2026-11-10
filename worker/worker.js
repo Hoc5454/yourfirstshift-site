@@ -1980,6 +1980,8 @@ function cors(origin) { if (!originOk(origin)) return { 'Vary': 'Origin' }; retu
 function requestOriginAllowed(request) { const o = request.headers.get('Origin'); if (o) return originOk(o); const r = request.headers.get('Referer'); if (!r) return false; try { return originOk(new URL(r).origin); } catch { return false; } }
 async function rateLimit(request) { const ip = request.headers.get('CF-Connecting-IP') || 'unknown'; const hour = Math.floor(Date.now() / 3600000); const key = new Request(`https://rl.internal/rl:${ip}:${hour}`); const cache = caches.default; const hit = await cache.match(key); const count = hit ? parseInt(await hit.text(), 10) || 0 : 0; if (count >= RL_LIMIT) return { ok: false, count }; await cache.put(key, new Response(String(count + 1), { headers: { 'Cache-Control': 'max-age=3600' } })); return { ok: true, count: count + 1 }; }
 // sec-fix 3: a valid Pro/org/pack token is limited per subscription/seat (not per IP); free callers per IP.
+// v4: the AI route (POST / and /api/claude) is the only caller. /api/pro/{verify,checkout,restore,status,refresh}
+// stay on the unchanged live limiter rateLimit(request): 20/h per IP, Cache API, shared rl:<ip> key.
 const RL_FREE_PER_HOUR = 60, RL_PRO_PER_HOUR = 120;
 const RL_FREE_IP_CEIL = 300; // per-IP ceiling across all devices (classrooms / shared Wi-Fi); stops device-id rotation
 function yfsRlId(p) { if (!p) return ''; if (p.org) { const c = yfsOrgCode(p.org), d = yfsOrgDevice(p.did); return c && d ? 'org:' + c + ':' + d : ''; } if (p.sub) return 'sub:' + String(p.sub); if (p.pack) return 'pack:' + String(p.pack); return ''; }
@@ -2161,8 +2163,8 @@ async function handleYfsProStripeWebhook(request, env) {
 // ---- POST /api/pro/restore {email} (P0.9 cross-device restore) ----
 async function handleProRestore(request, env, origin) {
   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
-  const rl = await yfsRateLimit(request, env);
-  if (!rl.ok) return yfsRateLimited(rl, origin);
+  const rl = await rateLimit(request);
+  if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
   let email; try { email = String((await request.json()).email || '').trim(); } catch {}
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return j({ error: 'bad email' }, 400, origin);
   const variants = [...new Set([email, email.toLowerCase()])];
@@ -2213,8 +2215,8 @@ function yfsSubCancelFields(o) {
 // ---- POST /api/pro/status {token} -> Stripe-confirmed sub state ----
 async function handleProStatus(request, env, origin) {
   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
-  const rl = await yfsRateLimit(request, env);
-  if (!rl.ok) return yfsRateLimited(rl, origin);
+  const rl = await rateLimit(request);
+  if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
   let token; try { token = String((await request.json()).token || ''); } catch {}
   if (!token || !token.includes('.')) return j({ error: 'bad token' }, 400, origin);
   const [body, sig] = token.split('.');
@@ -2451,8 +2453,8 @@ async function handleHeardAbout(request, env, origin) {
 const PRO_REFRESH_GRACE_S = 90 * 86400;
 async function handleProRefresh(request, env, origin) {
   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
-  const rl = await yfsRateLimit(request, env);
-  if (!rl.ok) return yfsRateLimited(rl, origin);
+  const rl = await rateLimit(request);
+  if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
   let token; try { token = String((await request.json()).token || ''); } catch {}
   if (!token || !token.includes('.')) return j({ error: 'bad token' }, 400, origin);
   const [body, sig] = token.split('.');

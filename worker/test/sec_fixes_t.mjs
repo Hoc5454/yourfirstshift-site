@@ -103,7 +103,8 @@ ok(r.s === 200 && last().tools === undefined && last().temperature === undefined
 
 // ── 3) Rate limit ──
 cache.clear(); rl.clear();
-const status = (ip, pro) => W.fetch(new Request('https://w.example/api/pro/status', { method: 'POST', headers: { Origin: ORIGIN, 'CF-Connecting-IP': ip, 'Content-Type': 'application/json', ...(pro ? { 'X-YFS-Pro': pro } : {}) }, body: '{"token":"bogus.x"}' }), env).then(x => x.status);
+// v4: the new limiter runs only on the AI route; drive it with a cheap AI request (counted, then 400, no Anthropic call)
+const status = (ip, pro) => W.fetch(new Request('https://w.example/', { method: 'POST', headers: { Origin: ORIGIN, 'CF-Connecting-IP': ip, 'Content-Type': 'application/json', ...(pro ? { 'X-YFS-Pro': pro } : {}) }, body: '{"messages":"nope"}' }), env).then(x => x.status);
 let codes = []; for (let i = 0; i < 61; i++) codes.push(await status('3.3.3.1'));
 ok(codes.slice(0, 60).every(c => c !== 429) && codes[60] === 429, 'free IP: 60 requests/hour allowed, 61st → 429');
 ok(await status('3.3.3.2') !== 429, 'another IP unaffected');
@@ -134,14 +135,14 @@ ok(rlDdl === 1, 'table created once per isolate');
 rlFail = true; ok(await status('3.3.3.1') !== 429, 'counter store down → fail open (no false 429)'); rlFail = false;
 // checkout keeps its legacy limiter untouched (shared helper not used)
 const SRC = (await import('node:fs')).readFileSync(new URL('../worker.js', import.meta.url), 'utf8');
-for (const fn of ['handleProCheckout', 'handleProVerify']) ok(/\n  const rl = await rateLimit\(request\);\n  if \(!rl\.ok\) return j\(\{ error: 'Rate limit' \}, 429, origin, \{ 'Retry-After': '3600' \}\);/.test(SRC.split('async function ' + fn)[1].split('\n').slice(0, 4).join('\n')), fn + ' still uses the live limiter line (byte-identical)');
+for (const fn of ['handleProCheckout', 'handleProVerify', 'handleProRestore', 'handleProStatus', 'handleProRefresh']) ok(/\n  const rl = await rateLimit\(request\);\n  if \(!rl\.ok\) return j\(\{ error: 'Rate limit' \}, 429, origin, \{ 'Retry-After': '3600' \}\);/.test(SRC.split('async function ' + fn)[1].split('\n').slice(0, 4).join('\n')), fn + ' still uses the live limiter line (byte-identical)');
 // verify keeps live behaviour: legacy 20/h per IP, old 429 body
 cache.clear();
 const verify = ip => W.fetch(new Request('https://w.example/api/pro/verify', { method: 'POST', headers: { Origin: ORIGIN, 'CF-Connecting-IP': ip, 'Content-Type': 'application/json' }, body: '{}' }), env);
 codes = []; let vr; for (let i = 0; i < 21; i++) { vr = await verify('6.6.6.6'); codes.push(vr.status); }
 ok(codes.slice(0, 20).every(c => c === 400) && codes[20] === 429 && JSON.parse(await vr.text()).error === 'Rate limit' && vr.headers.get('Retry-After') === '3600', 'verify: unchanged legacy limiter (20/h per IP, old 429 body)');
 // 429 body for the new limiter
-rl.clear(); let lastR; for (let i = 0; i < 61; i++) lastR = await W.fetch(new Request('https://w.example/api/pro/status', { method: 'POST', headers: { Origin: ORIGIN, 'CF-Connecting-IP': '7.7.7.7', 'Content-Type': 'application/json' }, body: '{"token":"bogus.x"}' }), env);
+rl.clear(); let lastR; for (let i = 0; i < 61; i++) lastR = await W.fetch(new Request('https://w.example/', { method: 'POST', headers: { Origin: ORIGIN, 'CF-Connecting-IP': '7.7.7.7', 'Content-Type': 'application/json' }, body: '{"messages":"nope"}' }), env);
 const lb = JSON.parse(await lastR.text()), ra = Number(lastR.headers.get('Retry-After'));
 ok(lastR.status === 429 && lb.error === 'rate_limited' && /Please wait about \d+ minutes/.test(lb.message) && lb.retry_after === ra && ra >= 60 && ra <= 3600 && lb.limit_per_hour === 60, '429 JSON: rate_limited + message + retry_after == Retry-After header');
 ok(lastR.headers.get('Access-Control-Allow-Origin') === ORIGIN, '429 keeps CORS so the app can read it');
@@ -162,5 +163,37 @@ rl.clear(); rlHang = true; const t0 = Date.now(); const hs = await status('3.3.3
 ok(hs !== 429 && dt >= 1400 && dt < 2500, 'hung D1: request continues after ~1.5 s timeout, fails open (' + dt + ' ms)');
 rlHang = true; const t1 = Date.now(); const hp = await post('/', { stream: true, messages: [{ role: 'user', content: 'resume' }] }, { ip: '3.3.3.10', pro: PRO }); rlHang = false;
 ok(hp.s === 200 && Date.now() - t1 < 2500, 'hung D1: paying user run still served (fail open)');
+
+// ── v4: /api/pro/{restore,status,refresh} back on the live limiter (20/h per IP, shared rl:<ip> key, old 429 body) ──
+const pro = (path, ip, extra = {}) => W.fetch(new Request('https://w.example' + path, { method: 'POST', headers: { Origin: ORIGIN, 'CF-Connecting-IP': ip, 'Content-Type': 'application/json', ...extra }, body: '{}' }), env);
+cache.clear(); rl.clear();
+let rr; codes = []; for (let i = 0; i < 21; i++) { rr = await pro('/api/pro/restore', '11.0.0.1'); codes.push(rr.status); }
+ok(codes.slice(0, 20).every(c => c !== 429) && codes[20] === 429, 'restore: 20/h per IP, 21st → 429 (live behaviour)');
+ok(JSON.parse(await rr.text()).error === 'Rate limit' && rr.headers.get('Retry-After') === '3600', 'restore 429 keeps the live body + Retry-After 3600');
+ok(rl.size === 0, 'restore never touches the new D1 counter');
+cache.clear(); codes = []; for (let i = 0; i < 21; i++) codes.push((await pro('/api/pro/restore', '11.0.0.2', { 'X-YFS-Dev': D(5000 + i) })).status);
+ok(codes.slice(0, 20).every(c => c !== 429) && codes[20] === 429, 'restore: forged/rotating X-YFS-Dev does NOT raise the 20/h cap');
+cache.clear(); codes = []; for (let i = 0; i < 21; i++) codes.push((await pro('/api/pro/restore', '11.0.0.3', { 'X-YFS-Pro': PRO })).status);
+ok(codes[20] === 429, 'restore: a valid Pro token does not raise the 20/h cap either');
+cache.clear(); codes = [];
+for (let i = 0; i < 7; i++) codes.push((await pro('/api/pro/restore', '11.0.0.4')).status);
+for (let i = 0; i < 7; i++) codes.push((await pro('/api/pro/status', '11.0.0.4')).status);
+for (let i = 0; i < 6; i++) codes.push((await pro('/api/pro/refresh', '11.0.0.4')).status);
+ok(codes.every(c => c !== 429) && (await pro('/api/pro/verify', '11.0.0.4')).status === 429, 'restore/status/refresh/verify share one live 20/h per-IP bucket (as live)');
+cache.clear(); codes = []; for (let i = 0; i < 21; i++) codes.push((await pro('/api/pro/status', '11.0.0.5')).status);
+ok(codes[20] === 429, 'status: 20/h per IP (live)');
+cache.clear(); codes = []; for (let i = 0; i < 21; i++) codes.push((await pro('/api/pro/refresh', '11.0.0.6')).status);
+ok(codes[20] === 429, 'refresh: 20/h per IP (live)');
+// file read with no device id → works, uses the IP-only bucket (not any device bucket)
+rl.clear(); calls = [];
+r = await post('/', { messages: [{ role: 'user', content: [PDF, { type: 'text', text: 'x' }] }] }, { ip: '12.0.0.1', kind: 'extract' });
+ok(r.s === 200 && calls.length === 1 && /^Extract ALL text/.test(last().messages[0].content[1].text), 'file read with NO X-YFS-Dev → 200, extracted');
+ok(rl.size === 1 && [...rl.values()][0] === 1, 'file read with no device id counts once in the IP-only bucket');
+for (let i = 0; i < 59; i++) await post('/', { messages: [{ role: 'user', content: [PDF] }] }, { ip: '12.0.0.1', kind: 'extract' });
+ok((await post('/', { messages: [{ role: 'user', content: [PDF] }] }, { ip: '12.0.0.1', kind: 'extract' })).s === 429, 'file reads with no device id: 61st per IP → 429');
+ok((await post('/', { messages: [{ role: 'user', content: [PDF] }] }, { ip: '12.0.0.1', kind: 'extract', dev: D(77) })).s === 200, 'a device-tagged request on that IP uses its own ip+device bucket');
+// /api/claude 410 shape
+r = await post('/api/claude', { tool: 'resume', messages: [{ role: 'user', content: 'x' }] }, { ip: '13.0.0.1', e: envLive });
+ok(r.s === 410 && r.text === JSON.stringify({ error: 'gone', message: 'This endpoint was retired. Use the app at yourfirstshiftapp.com.' }) && /application\/json/.test(r.h.get('Content-Type') || '') && r.h.get('Access-Control-Allow-Origin') === ORIGIN, '/api/claude 410: exact JSON body, JSON content-type, CORS');
 console.log(fail ? `\n${fail} FAILED, ${pass} passed` : `ALL PASS (${pass} checks)`);
 process.exit(fail ? 1 : 0);
