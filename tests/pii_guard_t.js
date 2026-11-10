@@ -43,6 +43,8 @@ const files=cp.execSync('git ls-files',{cwd:ROOT,maxBuffer:1<<26}).toString().sp
 let hits=0;
 for(const f of files){let t;try{t=fs.readFileSync(path.join(ROOT,f),'utf8');}catch(_){continue;}
   const lines=t.split('\n');
+  /* also catch unresolved merge conflict markers */
+  if(!/pii_guard_t\.js$/.test(f))lines.forEach((l,i)=>{if(/^(<{7} |>{7} |={7}$)/.test(l)){hits++;console.log('FAIL '+f+':'+(i+1)+' merge conflict marker');}});
   for(let li=0;li<lines.length;li++){const w=lines[li].toLowerCase().match(/[a-z0-9]+/g)||[];
     for(let i=0;i<w.length;i++)for(let n=1;n<=3&&i+n<=w.length;n++){if(BLOCKED.has(sha(w.slice(i,i+n).join(' ')))){hits++;console.log('FAIL '+f+':'+(li+1)+' blocked term ('+n+' word'+(n>1?'s':'')+', hash '+sha(w.slice(i,i+n).join(' ')).slice(0,10)+'…)');}}}}
 console.log(hits?hits+' FAIL':'PASS pii guard: 0 blocked terms in '+files.length+' text files ('+BLOCKED.size+' hashes)');

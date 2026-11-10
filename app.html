@@ -857,19 +857,13 @@ window.yfsRunFailed=function(e){
 })();
 </script>
 <style id="yfs-tap-css">
-<<<<<<< HEAD
-/* overnight: small text links/buttons get a bigger invisible tap area (no layout change) */
-.yfs-using button,.yfs-pdf-cancel a,.paywall-sub a,.paywall-feat a,.cancel-1click a,#freePdfLine a,#rbFreeUsedBanner a,a[onclick*="yfsOpenCheckout"],#uploadZone .upload-sub span[onclick]{position:relative}
-.yfs-using button::after,.yfs-pdf-cancel a::after,.paywall-sub a::after,.paywall-feat a::after,.cancel-1click a::after,#freePdfLine a::after,#rbFreeUsedBanner a::after,a[onclick*="yfsOpenCheckout"]::after,#uploadZone .upload-sub span[onclick]::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
-/* long unbroken text (e.g. a long LinkedIn link) wraps instead of making the whole page scroll sideways */
-#outputBox,#yfsTease,#lockedRest,.rb-page,.yfs-blurzone,#errorBox{overflow-wrap:break-word}
-=======
 /* small text links/buttons get a bigger invisible tap area (no layout change). Big buttons (#yfsPdfCta, .paywall-btn) are never padded,
    and "manage billing" pads downward only so it cannot cover the Restore button above it. */
 .yfs-using button,.yfs-pdf-cancel a,.paywall-sub a,.paywall-feat a,.cancel-1click a,#freePdfLine a,#rbFreeUsedBanner a,#rbPdfErr a,#uploadZone .upload-sub span[onclick]{position:relative}
 .yfs-using button::after,.paywall-sub a::after,.paywall-feat a::after,.cancel-1click a::after,#freePdfLine a::after,#rbFreeUsedBanner a::after,#rbPdfErr a::after,#uploadZone .upload-sub span[onclick]::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
 .yfs-pdf-cancel a::after{content:"";position:absolute;left:-6px;right:-6px;top:-2px;bottom:-10px}
->>>>>>> claude/overnight-fixes
+/* long unbroken text (e.g. a long LinkedIn link) wraps instead of making the whole page scroll sideways */
+#outputBox,#yfsTease,#lockedRest,.rb-page,.yfs-blurzone,#errorBox{overflow-wrap:break-word}
 /* overnight: free X-Ray shows only score + verdict; don't pad it out with ~150px of blank paper */
 .output-box.yfs-paper:not(:has(p,ul,ol,li,table,div,pre,blockquote,h3,h4)){min-height:0}
 </style>
