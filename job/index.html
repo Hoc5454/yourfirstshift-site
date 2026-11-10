@@ -612,12 +612,12 @@ function csvModal(){var pro=isPro();
     (S.codes.length?'<label class="f" for="xC">Charge code</label><select class="i" id="xC"><option value="">All codes</option>'+S.codes.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.nick)+'</option>';}).join('')+'</select>':''):'<div class="fine">Exports every entry you have (always free). Filtering by date, job or code is Pro.</div>')+
     '<button type="button" class="btn go block" style="margin-top:14px" id="xGo">Download CSV</button>'+(pro?'':'<button type="button" class="link" id="xUp">Filter by date, job or code (Pro)</button>'),function(){
     $('#xGo').addEventListener('click',function(){var f=pro?{from:($('#xF')||{}).value,to:($('#xT')||{}).value,job:($('#xJ')||{}).value,code:($('#xC')||{}).value}:{};
-      deliver(new Blob([buildCSV(f)],{type:'text/csv;charset=utf-8'}),'yfs-on-the-job-'+todayKey()+'.csv');closeModal();});
+      deliver(new Blob([buildCSV(f)],{type:'text/csv;charset=utf-8'}),'yfs-clocked-in-'+todayKey()+'.csv');closeModal();});
     var up=$('#xUp');if(up)up.addEventListener('click',function(){upsell('Filter your export by date range, job or charge code for timesheets and audits.');});});}
 function backupObj(){return {app:'yfs-on-the-job',kind:'backup',v:1,exported:Date.now(),data:S};}
 function deliver(blob,name){try{var file=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[file]})&&/iPhone|iPad|Android/.test(navigator.userAgent)){navigator.share({files:[file],title:name}).catch(function(){dl(blob,name);});return;}}catch(_){}dl(blob,name);}
 function dl(blob,name){var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},4000);}
-function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-on-the-job-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
+function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-clocked-in-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
 function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){
     /* Everything that can fail happens BEFORE the worker's current records are touched. */
     var j=null;try{j=JSON.parse(rd.result);}catch(_){}

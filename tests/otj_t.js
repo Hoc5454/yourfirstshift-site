@@ -111,7 +111,7 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
   await p.click('nav.tabs [data-v=more]');const csv=await p.evaluate(()=>OTJ.buildCSV({}));const lines=csv.trim().split('\r\n');
   ok(lines.length===3&&/Tie-in Station 9/.test(lines[1])&&/Yard \+ Staging/.test(lines[2])&&lines[0].startsWith('Date,Day,Job'),'6g CSV export works on Free (one row per code split)');
   const [dlp]=await Promise.all([p.waitForEvent('download',{timeout:5000}).catch(()=>null),(async()=>{await p.click('[data-a=csv]');await p.click('#xGo');})()]);
-  ok(DEV==='desktop'?!!dlp:true,'6h CSV download fires (desktop; phones use the share sheet)');await shot(p,'9-more-export');
+  ok(DEV==='desktop'?!!dlp:true,'6h CSV download fires (desktop; phones use the share sheet)');if(dlp)ok(/^yfs-clocked-in-\d{4}-\d\d-\d\d\.csv$/.test(dlp.suggestedFilename()),'6i CSV file is named yfs-clocked-in-<date>.csv ('+dlp.suggestedFilename()+')');await shot(p,'9-more-export');
   ok(!errs.length,'6 no page errors '+errs.join('|'));await c.close();}
  // ── 7. Pro: change history view + filtered export; data stays readable if Pro lapses ──
  {const st=seed({entries:[W('a',D(0),'06:00','16:00')],codes:[{id:'c1',nick:'Tie-in',jobId:'j1',fields:{proj:'P1'},active:true}],log:[{t:Date.now()-5000,id:'a',field:'end',old:'4:00pm',new:'4:30pm',reason:'forgot to clock out'}]});
@@ -124,7 +124,7 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
  {const st=seed({entries:[W('a',D(0),'06:00','16:00'),W('b',D(1),'06:00','18:00')],codes:[{id:'c1',nick:'Tie-in',jobId:'j1',fields:{proj:'P1'},active:true}],pto:{buckets:[{id:'v',name:'Vacation',type:'none',start:24,startDate:D(0)}]},log:[{t:1,id:'a',field:'(created)',old:'',new:'x',reason:''}]});
   const {c,p,errs}=await ctx(st);await p.click('nav.tabs [data-v=more]');
   const [dl]=await Promise.all([p.waitForEvent('download',{timeout:5000}).catch(()=>null),p.evaluate(()=>{navigator.canShare=null;}).then(()=>p.click('[data-a=backup]'))]);
-  ok(!!dl,'8a Back up now → one .json file');const fpath=dl?await dl.path():null;const file=fpath?fs.readFileSync(fpath,'utf8'):'{}';const bj=JSON.parse(file);
+  ok(!!dl,'8a Back up now → one .json file');ok(!!dl&&/^yfs-clocked-in-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()),'8a2 backup file is named yfs-clocked-in-backup-<date>.json ('+(dl?dl.suggestedFilename():'')+')');const fpath=dl?await dl.path():null;const file=fpath?fs.readFileSync(fpath,'utf8'):'{}';const bj=JSON.parse(file);
   const h0=crypto.createHash('sha256').update(JSON.stringify(bj.data)).digest('hex');ok(bj.app==='yfs-on-the-job'&&bj.data.entries.length===2,'8b backup holds every entry, code, PTO and history');
   await shot(p,'11-backup');
   await p.evaluate(()=>{localStorage.clear();});await p.reload();await p.waitForTimeout(500);ok(await p.isVisible('text=Set up your pay'),'8c site data cleared → app is empty');
@@ -145,6 +145,9 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
  // ── 10. resume app: new tab, nothing else ──
  {const c=await b.newContext({...DEVS[DEV]});await c.route(/workers\.dev/,r=>r.fulfill({body:'{}',contentType:'application/json'}));await c.route(/fonts\.g|cdnjs|jsdelivr|unpkg/,r=>r.fulfill({body:'',contentType:'text/plain'}));const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
   await p.goto(O+'/app.html');await p.waitForTimeout(1200);const n=await p.evaluate(()=>{const a=document.getElementById('ybnJob');const r=a.getBoundingClientRect();return {href:a.getAttribute('href'),w:r.width,txt:a.innerText.trim(),cols:getComputedStyle(document.getElementById('yfsBottomNav')).gridTemplateColumns.split(' ').length};});
+  {const mf=JSON.parse(fs.readFileSync(path.join(ROOT,'job/manifest.webmanifest'),'utf8'));const html=fs.readFileSync(path.join(ROOT,'job/index.html'),'utf8');
+   ok(mf.name==='YourFirstShift — Clocked In'&&mf.short_name==='Clocked In'&&mf.start_url.indexOf('/job/')===0&&mf.scope==='/job/','10c manifest: name "YourFirstShift — Clocked In", short name "Clocked In", /job/ address unchanged');
+   ok(/<title>Clocked In · YourFirstShift<\/title>/.test(html)&&/apple-mobile-web-app-title" content="Clocked In"/.test(html)&&!/>On the Job</.test(html)&&html.indexOf("j.app!=='yfs-on-the-job'")>0,'10d page title + home-screen title say Clocked In; no "On the Job" label left; backup format marker unchanged');}
   ok(n.href==='/job/'&&n.txt==='Clocked In'&&n.cols===5&&n.w>50,'10a resume app bottom nav has the "Clocked In" tab '+JSON.stringify(n));
   const p2=await c.newPage();await p2.goto(O+'/job/');await p2.goto(O+'/app.html#plans');await p2.waitForTimeout(2500);ok(await p2.evaluate(()=>document.getElementById('yfsPlans').classList.contains('open')),'10b "See Pro plans" opens the plans sheet');
   ok(!errs.filter(e=>!/Unexpected token/.test(e)).length,'10 no page errors '+errs.join('|'));await c.close();}
