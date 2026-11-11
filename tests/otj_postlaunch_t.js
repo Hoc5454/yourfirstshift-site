@@ -28,21 +28,27 @@ const W=(id,a,b,x)=>Object.assign({id,kind:'work',date:T,start:ms(a),end:ms(b),b
   // ── 1. times ──
   {const {c,p,errs}=await open(seed());await p.click('[data-a=add]');await p.waitForTimeout(150);
    await p.fill('#eStart','');await save(p);let s=await st(p);ok(s.entries.length===0&&/Enter a start time/.test(await err(p))&&await p.isVisible('#eSave'),'1a '+T0+'Start cleared → Save blocked, "Enter a start time" shown, nothing saved');
+   ok(!(await p.$('.toast'))&&(await p.$$('#eErr')).length===1,'1a2 '+T0+'the error shows once, in the sheet (no second copy in a toast)');
    ok(/Enter a start time and an end time/.test(await p.textContent('#eCalc')),'1b '+T0+'the hours line asks for the times instead of showing a made-up total');
    await p.fill('#eStart','07:00');await p.fill('#eEnd','');await save(p);s=await st(p);ok(s.entries.length===0&&/Enter an end time/.test(await err(p)),'1c '+T0+'End cleared → Save blocked, "Enter an end time" shown, nothing saved');
    await p.fill('#eStart','');await save(p);s=await st(p);ok(s.entries.length===0&&/Enter a start time/.test(await err(p)),'1d '+T0+'both blank → blocked');
-   await p.fill('#eStart','07:00');await p.fill('#eEnd','07:00');await save(p);s=await st(p);ok(s.entries.length===0&&/same time/.test(await err(p)),'1e '+T0+'Start = End → blocked');
-   await p.fill('#eEnd','15:30');await p.fill('#eBrk','600');await save(p);s=await st(p);ok(s.entries.length===0&&/break is as long as the shift/.test(await err(p)),'1f '+T0+'a break longer than the shift → blocked');
-   await p.fill('#eBrk','30');await save(p);s=await st(p);ok(s.entries.length===1&&s.entries[0].start===ms('07:00')&&s.entries[0].end===ms('15:30')&&s.entries[0].breakMin===30,'1g '+T0+'real times → saved (7:00–3:30, 30 min break)');
+   await p.fill('#eStart','07:00');await p.fill('#eEnd','07:00');await save(p);s=await st(p);ok(s.entries.length===0&&/same time/.test(await err(p))&&await p.isVisible('#e24W')&&!(await p.isChecked('#e24')),'1e '+T0+'Start = End → blocked, and a "This is a full 24-hour shift" box appears');
+   await p.fill('#eBrk','0');await p.check('#e24');ok(/24 hrs/.test(await p.textContent('#eCalc')),'1e2 '+T0+'ticking the box shows "This entry: 24 hrs"');await save(p);s=await st(p);
+   ok(s.entries.length===1&&s.entries[0].end-s.entries[0].start===86400000&&!(await p.$('#otjModal')),'1e3 '+T0+'a confirmed 24-hour shift (7:00 to 7:00) saves in one tap: 24 hrs');
+   await p.click('[data-edit="'+s.entries[0].id+'"]');await p.waitForTimeout(150);ok(await p.isChecked('#e24')&&await p.isVisible('#e24W'),'1e4 '+T0+'reopening it shows the 24-hour box ticked');
+   await p.uncheck('#e24');await save(p);ok(/same time/.test(await err(p))&&(await st(p)).entries[0].end-(await st(p)).entries[0].start===86400000,'1e5 '+T0+'unticking it blocks Save again; the saved shift is untouched');
+   await p.click('#eDel');await p.click('#eDelYes');await p.waitForTimeout(200);s=await st(p);await p.click('[data-a=add]');await p.waitForTimeout(150);await p.fill('#eStart','07:00');
+   await p.fill('#eEnd','15:30');await p.fill('#eBrk','600');await save(p);s=await st(p);ok(live(s).length===0&&/break is as long as the shift/.test(await err(p)),'1f '+T0+'a break longer than the shift → blocked');
+   await p.fill('#eBrk','30');await save(p);s=await st(p);s.entries=s.entries.filter(e=>!e.deleted);ok(s.entries.length===1&&s.entries[0].start===ms('07:00')&&s.entries[0].end===ms('15:30')&&s.entries[0].breakMin===30,'1g '+T0+'real times → saved (7:00–3:30, 30 min break)');
    // edit: clearing a time cannot damage the saved entry
-   const id=s.entries[0].id;await p.click('[data-edit="'+id+'"]');await p.waitForTimeout(150);await p.fill('#eEnd','');await save(p);s=await st(p);
+   const id=s.entries[0].id;await p.click('[data-edit="'+id+'"]');await p.waitForTimeout(150);await p.fill('#eEnd','');await save(p);s=await st(p);s.entries=s.entries.filter(e=>!e.deleted);
    ok(s.entries.length===1&&s.entries[0].end===ms('15:30')&&/Enter an end time/.test(await err(p))&&!s.log.some(l=>l.field==='end'),'1h '+T0+'editing: End cleared → blocked; the saved entry and its history are untouched');
-   await p.fill('#eStart','');await p.fill('#eEnd','15:30');await save(p);s=await st(p);ok(s.entries[0].start===ms('07:00'),'1i '+T0+'editing: Start cleared → blocked; the saved start stays 7:00');await p.click('[data-close]');
+   await p.fill('#eStart','');await p.fill('#eEnd','15:30');await save(p);s=await st(p);s.entries=s.entries.filter(e=>!e.deleted);ok(s.entries[0].start===ms('07:00'),'1i '+T0+'editing: Start cleared → blocked; the saved start stays 7:00');await p.click('[data-close]');
    // hours-only and PTO limits
    await p.click('[data-a=add]');await p.waitForTimeout(150);await p.check('#eHO');await p.fill('#eHrs','25');await save(p);s=await st(p);ok(live(s).length===1&&/more than 24 hours/.test(await err(p)),'1j '+T0+'"Just enter total hours" = 25 → blocked (over 24)');
    await p.fill('#eHrs','');await save(p);s=await st(p);ok(live(s).length===1&&/Enter the hours worked/.test(await err(p)),'1k '+T0+'total hours blank → blocked');
    await p.fill('#eHrs','17');await save(p);s=await st(p);const w1=await err(p);ok(live(s).length===1&&/17 hours in one entry/.test(w1)&&/tap Save again/.test(w1),'1l '+T0+'17 hrs → a warning first, not saved yet');
-   await save(p);s=await st(p);ok(live(s).length===2&&s.entries[1].manualHours===17,'1m '+T0+'Save again → the 17-hr entry is allowed');
+   await save(p);s=await st(p);ok(live(s).length===2&&live(s)[1].manualHours===17,'1m '+T0+'Save again → the 17-hr entry is allowed');
    await p.click('[data-a=add]');await p.waitForTimeout(150);await p.fill('#eStart','05:00');await p.fill('#eEnd','22:00');await p.fill('#eBrk','0');await save(p);s=await st(p);ok(live(s).length===2&&/17 hours/.test(await err(p)),'1n '+T0+'5:00am–10:00pm (17 hrs) → warning first');
    await p.fill('#eEnd','21:30');await save(p);s=await st(p);ok(live(s).length===2&&/16\.5 hours/.test(await err(p)),'1o '+T0+'changing the times after the warning warns again for the new total');
    await p.fill('#eEnd','13:00');await save(p);s=await st(p);ok(live(s).length===3,'1p '+T0+'8 hrs → saves with no warning');
@@ -66,13 +72,21 @@ const W=(id,a,b,x)=>Object.assign({id,kind:'work',date:T,start:ms(a),end:ms(b),b
    ok(del.vis&&/Delete entry/.test(del.txt),'2b '+T0+'the edit sheet has a Delete button that can be scrolled into view and tapped');
    await p.click('#eDel');await p.waitForTimeout(100);const ask=await p.textContent('#eDelAsk');ok(/Delete this entry\?/.test(ask)&&/Change history/.test(ask)&&await p.isVisible('#eDelYes')&&await p.isVisible('#eDelNo')&&dialogs.length===0,'2c '+T0+'Delete asks inside the sheet ("Delete this entry? … Change history"), with no browser pop-up');
    if(SHOTS)await p.screenshot({path:path.join(SHOTS,dev+'-pl-1-delete-confirm.png')});
-   await p.click('#eDelNo');await p.waitForTimeout(150);let s=await st(p);ok(live(s).length===1&&!(await p.$('#otjModal')),'2d '+T0+'"Keep it" closes the sheet and deletes nothing');
+   await p.click('#eDelNo');await p.waitForTimeout(150);let s=await st(p);ok(live(s).length===1&&!!(await p.$('#otjModal'))&&!(await p.$('#eDelAsk'))&&await p.isVisible('#eDel')&&await p.isVisible('#eSave'),'2d '+T0+'"Keep it" closes only the confirm: the editor stays open with its Delete button back; nothing deleted');
+   await p.click('#eDel');await p.waitForTimeout(100);ok(await p.isVisible('#eDelAsk'),'2d2 '+T0+'Delete still works after "Keep it"');await p.click('#eDelNo');await p.click('[data-close]');await p.waitForTimeout(150);
    await p.click('#sheet [data-edit="ZQXONLY1"]');await p.waitForTimeout(150);await p.click('#eDel');await p.click('#eDelYes');await p.waitForTimeout(250);s=await st(p);
    const wk=(await p.textContent('#view')).replace(/\s+/g,' ');
    ok(live(s).length===0&&!(await p.$('#sheet [data-row="ZQXONLY1"]'))&&/Gross so far\s*\$0\.00/.test(wk)&&/Est\. take-home\s*~\$0\.00/.test(wk)&&/Hours\s*0 worked/.test(wk),'2e '+T0+'"Yes, delete" removes the only entry on its day; the Timesheet shows 0 hrs, $0.00 gross and $0.00 take-home right away');
    const toast=await p.textContent('.toast');ok(/Deleted\./.test(toast)&&await p.isVisible('.toast button')&&/Undo/.test(await p.textContent('.toast button')),'2f '+T0+'the "Deleted." message has an Undo button');if(SHOTS)await p.screenshot({path:path.join(SHOTS,dev+'-pl-2-deleted-undo.png')});
    await p.click('nav.tabs [data-v=today]');await p.waitForTimeout(150);m=await money();ok(m.today==='$0.00'&&m.week==='$0.00'&&/Nothing logged today/.test(await p.textContent('#view')),'2g '+T0+'Clock tab: Earned today and This week are back to $0.00');
    ok(s.log.some(l=>l.id==='ZQXONLY1'&&l.field==='(deleted)')&&s.entries.length===1,'2h '+T0+'the delete is written to Change history (and the record stays in the backup data)');
+   // the message bar never blocks a tap
+   {const tb=await p.evaluate(()=>{const t=document.querySelector('.toast');if(!t)return null;const r=t.getBoundingClientRect(),x=r.left+r.width*0.25,y=r.top+r.height/2;const hit=document.elementFromPoint(x,y);return {pe:getComputedStyle(t).pointerEvents,hitToast:!!(hit&&hit.closest('.toast')&&!hit.closest('.toast button'))};});
+    ok(tb&&tb.pe==='none'&&!tb.hitToast,'2f2 '+T0+'the message bar lets taps through (pointer-events: none); a tap on its text lands on what is underneath');
+    await p.click('nav.tabs [data-v=today]');await p.click('[data-a=add]');await p.waitForTimeout(120);await p.fill('#eStart','05:00');await p.fill('#eEnd','05:30');await p.fill('#eBrk','0');
+    await p.evaluate(()=>{const b=document.getElementById('eSave');b.scrollIntoView({block:'end'});});const vis=await p.isVisible('.toast');await p.click('#eSave',{timeout:2500});await p.waitForTimeout(200);const s2=await st(p);
+    ok(vis&&live(s2).length===1&&live(s2)[0].start===ms('05:00'),'2f3 '+T0+'Save works while the "Deleted." message is on screen');
+    const nid=live(s2)[0].id;await p.click('[data-edit="'+nid+'"]');await p.click('#eDel');await p.click('#eDelYes');await p.waitForTimeout(200);await p.click('nav.tabs [data-v=week]');await p.waitForTimeout(150);}
    // undo
    await p.click('nav.tabs [data-v=week]');await p.waitForTimeout(150);await p.click('#sheet [data-day="'+T+'"]');await p.waitForTimeout(150);await p.click('#dAdd');await p.waitForTimeout(150);await p.fill('#eStart','08:00');await p.fill('#eEnd','10:00');await p.fill('#eBrk','0');await save(p);s=await st(p);const id2=live(s)[0].id;
    await p.click('#sheet [data-edit="'+id2+'"]');await p.waitForTimeout(150);await p.click('#eDel');await p.click('#eDelYes');await p.waitForTimeout(200);await p.click('.toast button');await p.waitForTimeout(250);s=await st(p);const wk2=(await p.textContent('#view')).replace(/\s+/g,' ');
