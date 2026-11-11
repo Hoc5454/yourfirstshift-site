@@ -168,7 +168,7 @@ function hasCodes(c){return !!c&&CODE_F.some(function(f){return !!c[f[0]];});}
 function codesText(c){c=c||{};return CODE_F.filter(function(f){return c[f[0]];}).map(function(f){return f[2]+' '+c[f[0]];}).join(' · ');}
 function codesLine(c){if(!hasCodes(c))return '';return '<span class="codes">'+CODE_F.filter(function(f){return c[f[0]];}).map(function(f){return '<span class="cd" data-code="'+f[0]+'"><i>'+f[2]+'</i>'+esc(c[f[0]])+'</span>';}).join('')+'</span>';}
 function codeInputs(pfx,c){c=c||{};var ph={job:'e.g. 4471 or Station 9',task:'e.g. WELD',cost:'e.g. 03-100',pay:'REG, OT, PTO',po:'e.g. 4500-18'};
-  return '<div class="cgrid">'+CODE_F.map(function(f){return '<div'+(f[0]==='job'?' class="w2"':'')+'><label class="f" for="'+pfx+f[0]+'">'+f[1]+'</label><input class="i" id="'+pfx+f[0]+'" value="'+esc(c[f[0]]||'')+'" maxlength="'+f[3]+'" placeholder="'+ph[f[0]]+'" autocomplete="off" autocorrect="off" spellcheck="false"'+(f[0]==='pay'?' list="payList"':'')+'></div>';}).join('')+'<div class="w2 fine" data-payhelp style="margin-top:4px">Pay code is for your timesheet only. We figure your OT for you.</div></div><datalist id="payList"><option value="REG"><option value="OT"><option value="DT"><option value="PTO"><option value="HOL"><option value="SICK"></datalist>';}
+  return '<div class="cgrid">'+CODE_F.map(function(f){return '<div'+(f[0]==='job'?' class="w2"':'')+'><label class="f" for="'+pfx+f[0]+'">'+f[1]+'</label><input class="i" id="'+pfx+f[0]+'" value="'+esc(c[f[0]]||'')+'" maxlength="'+f[3]+'" placeholder="'+ph[f[0]]+'" autocomplete="off" autocorrect="off" spellcheck="false"'+(f[0]==='pay'?' list="payList"':'')+'></div>';}).join('')+'<div class="w2 fine" data-payhelp style="margin-top:4px">Pay code: Optional. Only for your employer\'s timesheet. Overtime is tracked for you.</div></div><datalist id="payList"><option value="REG"><option value="OT"><option value="DT"><option value="PTO"><option value="HOL"><option value="SICK"></datalist>';}
 /* Recent code sets: the last 5 different sets a worker used, newest first. One tap fills every box, so nobody retypes when they switch jobs. */
 var RECENT_MAX=5;
 function recentCodes(){return Array.isArray(S.ui.recentCodes)?S.ui.recentCodes:[];}
@@ -256,7 +256,7 @@ function ruleText(job){var o=otOf(job);var t=o.mode==='daily'?'OT after '+hrs(o.
 function otRateOf(job){var o=+(job&&job.otRate)||+(S.settings&&S.settings.otRate)||0;return o||rateOf(job)*otOf(job).mult;}
 function dtRateOf(job){return rateOf(job)*2;}
 function otFields(pfx,ot){var o=cleanOt(ot);var opt=function(v,t){return '<option value="'+v+'"'+(o.mode===v?' selected':'')+'>'+t+'</option>';};
-  return '<label class="f" for="'+pfx+'mode">When does your overtime kick in?</label><select class="i" id="'+pfx+'mode">'+opt('weekly','After so many hours in a week (most common)')+opt('daily','After so many hours in a day')+opt('both','Both: daily and weekly')+'</select>'+
+  return '<div class="fine" data-autoot style="margin-top:14px;font-weight:700;color:#0F172A">We track your overtime automatically. Just tell us when it kicks in.</div><label class="f" for="'+pfx+'mode" style="margin-top:6px">When does your overtime kick in?</label><select class="i" id="'+pfx+'mode">'+opt('weekly','After so many hours in a week (most common)')+opt('daily','After so many hours in a day')+opt('both','Both: daily and weekly')+'</select>'+
   '<div class="row"><div class="grow" id="'+pfx+'wW"><label class="f" for="'+pfx+'week">OT after, hrs/week</label><input class="i" id="'+pfx+'week" inputmode="decimal" value="'+esc(o.weekN)+'"></div><div class="grow" id="'+pfx+'dW"><label class="f" for="'+pfx+'day">OT after, hrs/day</label><input class="i" id="'+pfx+'day" inputmode="decimal" value="'+esc(o.dayN)+'"></div></div>'+
   '<div class="row"><div class="grow"><label class="f" for="'+pfx+'dt">Double time after, hrs/day</label><input class="i" id="'+pfx+'dt" inputmode="decimal" value="'+esc(o.dtN)+'" placeholder="none"></div><div class="grow"><label class="f" for="'+pfx+'mult">OT pays, × your rate</label><input class="i" id="'+pfx+'mult" inputmode="decimal" value="'+esc(o.mult)+'"></div></div>'+
   '<div class="fine" id="'+pfx+'say" style="margin-top:6px"></div>';}
@@ -398,7 +398,7 @@ function splitTags(it){return (it.ot>0||it.dt>0?' <span class="fine">'+hrs(it.re
 function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=otAlert(w);
   h+='<div class="card">';
   if(c&&c.start){var onB=!!c.onBreak;h+=stillOn(c)+'<div class="state'+(onB?' brk':'')+'" id="clkState">'+(onB?'On break (not counted)':'On the clock')+'</div><div class="timer" id="clkT">0:00:00</div>'+
-    '<div class="muted" style="text-align:center">'+esc(jobOf(c.jobId).name)+' · since '+hm(c.start)+'</div>'+clockCodes(c.codes)+
+    '<div class="muted" style="text-align:center">'+esc(jobOf(c.jobId).name)+' · since '+hm(c.start)+'</div>'+'<div id="liveOT" style="text-align:center;margin-top:10px">'+liveSplitHTML(w)+'</div>'+clockCodes(c.codes)+
     '<div class="row" style="margin-top:14px"><button type="button" class="btn ghost grow" data-a="break">'+(onB?'End break':'Start break')+'</button></div>'+
     '<div style="margin-top:10px"><button type="button" class="btn stop huge block" data-a="stop">STOP</button></div>';}
   else{h+='<h2>Clock in</h2>'+jobPicker('cJob',S.ui.lastJob)+clockCodes(S.ui.lastCodes)+'<div style="margin-top:12px"><button type="button" class="btn go huge block" data-a="start">START</button></div>';}
@@ -416,6 +416,13 @@ function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=
     if(over.length)h+='<div class="card" id="overnight"><h2>Overnight shift · ended today</h2><div class="fine" style="margin-bottom:8px">Started '+esc(dayName(yk,true))+', so the hours and pay count on that day.</div>'+entryList(over)+'</div>';}catch(_){}
   return h;}
 /* the codes filled in for the next clock-in (or the running shift), with one button to change them */
+/* Clock screen, while on the clock: what today and this week come to under the job's own OT rule, and a badge the moment the running shift is earning overtime. */
+function splitText(o){return hrs(o.reg)+' reg · '+hrs(o.ot)+' OT'+(o.dt>0?' · '+hrs(o.dt)+' DT':'');}
+function liveSplitHTML(w){var d=w.days[todayKey()]||{reg:0,ot:0,dt:0,items:[]},live=null;w.keys.forEach(function(k){w.days[k].items.forEach(function(it){if(it.e.live)live=it;});});
+  var d0=live?w.days[entryDate(live.e)]:d,now=!!live&&(live.ot>0||live.dt>0),job=jobOf(S.clock&&S.clock.jobId);
+  return (now?'<div><span class="tag ot" id="otNow" style="font-size:15px;padding:5px 12px">'+(live.dt>0?'Double time now':'Overtime now')+'</span></div>':'')+
+    '<div id="liveToday" style="font-weight:800;font-size:18px;margin-top:6px">Today: '+splitText(d0)+'</div><div id="liveWeek" class="muted" style="font-weight:700">This week: '+splitText(w.tot)+'</div>'+
+    '<div class="fine" id="liveRule">Tracked for you · '+esc(ruleText(job))+' · <span class="est">estimate</span></div>';}
 function clockCodes(c){var has=hasCodes(c);return '<div id="clkCodes" style="margin-top:10px;text-align:center">'+(has?codesLine(c):'')+'<button type="button" class="link" data-a="clkcodes">'+(has?'Change codes':'+ Add job codes (Job #, PO #, cost code)')+'</button></div>';}
 function entryWhen(e){return e.kind==='pto'?'':(e.manualHours!=null&&e.manualHours!==''?'Hours only':(!e.end&&!e.live?'Missing end time · tap to fix':hm(e.start)+'–'+(e.end?hm(e.end):'now')));}
 function oldSplit(e){return e.splits&&e.splits.length?'<span class="fine" style="display:block">Split: '+e.splits.map(function(sp){return esc(codeName(sp.codeId))+' '+hrs(+sp.hours||0)+'h';}).join(' + ')+'</span>':'';}
@@ -433,7 +440,7 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
   /* The timesheet: every day, every shift, with in/out, hours, overtime and the codes, readable without opening anything. */
   h+='<div class="card" id="sheet" style="padding:4px 12px">';
   w.keys.forEach(function(k){var d=w.days[k];
-    h+='<div class="tsday'+(k===tk?' today':'')+'"><button type="button" class="tsd" data-day="'+k+'"><span class="grow"><span class="d">'+esc(dayName(k))+'</span> <span class="dd">'+esc(shortDate(k))+'</span>'+(d.ot?' <span class="tag ot">'+hrs(d.ot)+' OT</span>':'')+(d.dt?' <span class="tag ot">'+hrs(d.dt)+' DT</span>':'')+(d.pto?' <span class="tag pto">'+hrs(d.pto)+' PTO</span>':'')+'</span>'+
+    h+='<div class="tsday'+(k===tk?' today':'')+'"><button type="button" class="tsd" data-day="'+k+'"><span class="grow"><span class="d">'+esc(dayName(k))+'</span> <span class="dd">'+esc(shortDate(k))+'</span>'+(d.pto?' <span class="tag pto">'+hrs(d.pto)+' PTO</span>':'')+(d.reg+d.ot+d.dt>0?'<br><span class="dd" data-daysplit>'+splitText(d)+'</span>':'')+'</span>'+
       (d.items.length?'<span class="tsh">'+hrs(d.hours)+' hrs</span><span class="tsp">'+money(d.gross+d.perDiem)+'</span>':'<span class="muted" style="font-size:14px">+ Add</span>')+'</button>';
     if(d.items.length)h+='<ul class="list tsl">'+d.items.map(function(it){var e=it.e;
       var top=e.kind==='pto'?'<b>PTO</b> '+hrs(it.hours)+' hrs · '+esc(bucketName(e.bucket)):(e.live?'<b>On the clock</b> since '+hm(e.start)+' · '+hrs(it.hours)+' hrs so far':'<b>'+esc(entryWhen(e))+'</b> · '+hrs(it.hours)+' hrs'+splitTags(it));
@@ -443,7 +450,7 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
   h+='</div>';
   /* ONE card: this week's hours, gross and take-home; the paycheck (pay period) it belongs to; the year so far. */
   var s=S.settings,ws=weekShare(w),wk=s.period==='weekly';
-  h+='<div class="card" id="weekCard"><h2>This week</h2><div class="tot"><span class="k">Hours</span><span class="v">'+hrs(w.tot.worked)+' worked'+(w.tot.ot?' · '+hrs(w.tot.ot)+' OT':'')+(w.tot.dt?' · '+hrs(w.tot.dt)+' DT':'')+(w.tot.pto?' · '+hrs(w.tot.pto)+' PTO':'')+'</span></div>'+
+  h+='<div class="card" id="weekCard"><h2>This week</h2><div class="tot"><span class="k">Hours</span><span class="v" style="text-align:right">'+hrs(w.tot.worked)+' worked'+(w.tot.pto?' · '+hrs(w.tot.pto)+' PTO':'')+'<br><span class="fine" id="wkSplit" style="font-weight:700">'+splitText(w.tot)+'</span></span></div>'+
     '<div class="tot main"><span class="k">Gross so far</span><span class="v" id="wkGross">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
     '<div class="tot main"><span class="k">Est. take-home</span><span class="v" id="wkNet" style="color:var(--go)">~'+money(ws.net)+'</span></div>'+
     (wk?'':'<div class="fine" id="wkHow">You\'re paid '+esc(freqText())+', so this is the week\'s share of that paycheck. Taxes are figured on the whole pay period.</div>'+
@@ -529,7 +536,7 @@ function wire(){var v=$('#view');
   var cj=$('#cJob');if(cj&&cj.tagName==='SELECT')cj.addEventListener('change',function(){S.ui.lastJob=cj.value;save();render();});
   var rf=$('#restoreFile');if(rf)rf.addEventListener('change',restoreFile);
   if(S.clock&&S.clock.start&&VIEW==='today'){var t=function(){var el=$('#clkT');if(!el)return;var live={kind:'work',start:S.clock.start,breaks:(S.clock.breaks||[]).concat(S.clock.onBreak?[{s:S.clock.onBreak}]:[])};var nw=Date.now(),brk=live.breaks.reduce(function(x,b){return x+((b.e||nw)-b.s);},0);var sec=Math.max(0,Math.floor((nw-live.start-brk)/1000));el.textContent=Math.floor(sec/3600)+':'+pad(Math.floor(sec%3600/60))+':'+pad(sec%60);
-      var w=weekNow(),d=w.days[todayKey()];var a=$('#earnToday'),b=$('#earnWeek');if(a)a.textContent=money(d.gross+d.perDiem);if(b)b.textContent=money(w.tot.gross+w.tot.perDiem);};t();TICK=setInterval(t,1000);}}
+      var w=weekNow(),d=w.days[todayKey()];var a=$('#earnToday'),b=$('#earnWeek');if(a)a.textContent=money(d.gross+d.perDiem);if(b)b.textContent=money(w.tot.gross+w.tot.perDiem);var lo=$('#liveOT');if(lo){var hh=liveSplitHTML(w);if(lo.innerHTML!==hh)lo.innerHTML=hh;}};t();TICK=setInterval(t,1000);}}
 function act(a,el){
   if(a==='a2hsx'){S.ui.a2hsX=1;save();render();return;}
   if(a==='install'&&BIP){BIP.prompt();BIP.userChoice.finally(function(){BIP=null;render();});return;}

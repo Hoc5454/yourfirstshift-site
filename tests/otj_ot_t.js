@@ -62,14 +62,14 @@ const near=(a,b)=>Math.abs(a-b)<0.006;
    const ban=await p.textContent('.alert.ot');ok(/Overtime: 2 hrs this week/.test(ban)&&/OT after 8 hrs\/day/.test(ban)&&/estimate/.test(ban),'2e '+T0+'OT banner: "Overtime: 2 hrs this week · OT after 8 hrs/day", still labelled estimate');
    await p.click('nav.tabs [data-v=week]');await p.waitForTimeout(200);s=await st(p);const row=(await p.textContent('#sheet [data-row="'+s.entries[0].id+'"]')).replace(/\s+/g,' ');
    ok(/10 hrs/.test(row)&&/8 reg/.test(row)&&/2 OT/.test(row),'2f '+T0+'timesheet row shows the app\'s own split: 10 hrs = 8 reg + 2 OT');
-   const card=(await p.textContent('#weekCard')).replace(/\s+/g,' ');ok(/10 worked · 2 OT/.test(card)&&/\$308\.00/.test(card)&&/Estimate only/.test(card)&&/OT after 8 hrs\/day/.test(await p.textContent('#otRules')),'2g '+T0+'week card: 10 worked · 2 OT, $308.00, "Estimate only"; the rule is named under it');
+   const card=(await p.textContent('#weekCard')).replace(/\s+/g,' ');ok(/10 worked/.test(card)&&/8 reg · 2 OT/.test(card)&&/\$308\.00/.test(card)&&/Estimate only/.test(card)&&/OT after 8 hrs\/day/.test(await p.textContent('#otRules')),'2g '+T0+'week card: 10 worked, 8 reg · 2 OT, $308.00, "Estimate only"; the rule is named under it');
    await p.click('[data-a=math]');await p.waitForTimeout(200);const mt=(await p.textContent('#otjModal')).replace(/\s+/g,' ');ok(/Regular 8 hrs × \$28\.00/.test(mt)&&/Overtime 2 hrs × \$42\.00/.test(mt)&&/OT rule: OT after 8 hrs\/day/.test(mt)&&/Estimate only/.test(mt),'2h '+T0+'Show the math: 8 × $28.00, 2 × $42.00, and "OT rule: OT after 8 hrs/day"');await p.click('[data-close]');
    const csv=csvParse(await p.evaluate(()=>OTJ.buildCSV({})));const Hd=csv[0],r1=csv[1];const col=nm=>r1[Hd.indexOf(nm)];
    ok(col('Regular')==='8'&&col('Overtime')==='2'&&col('Double time')==='0'&&col('OT rule')==='OT after 8 hrs/day'&&col('Gross (estimate)')==='308','2i '+T0+'CSV: Regular 8, Overtime 2, Double time 0, OT rule column says which rule applied');
    // change the rule in Pay setup (one job) → numbers follow; history says it in words
    await p.click('nav.tabs [data-v=more]');await p.click('[data-a=setup]');await p.waitForTimeout(150);ok(await p.inputValue('#sO_mode')==='daily','2j '+T0+'Pay setup shows this job\'s rule');
    await p.selectOption('#sO_mode','weekly');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);await p.click('nav.tabs [data-v=week]');await p.waitForTimeout(200);const card2=(await p.textContent('#weekCard')).replace(/\s+/g,' ');
-   ok(/10 worked/.test(card2)&&!/OT/.test(card2.split('Gross')[0])&&/\$280\.00/.test(card2)&&!(await p.$('.alert.ot')),'2k '+T0+'switching the job to Weekly 40: the same 10-hr day is all regular, $280.00, no OT banner');
+   ok(/10 worked/.test(card2)&&/10 reg · 0 OT/.test(card2)&&/\$280\.00/.test(card2)&&!(await p.$('.alert.ot')),'2k '+T0+'switching the job to Weekly 40: the same 10-hr day is all regular, $280.00, no OT banner');
    const hist=await p.evaluate(()=>OTJ.logLines().map(x=>x.text));ok(hist.some(x=>/Edited job Harbor Line Builders: OT rule OT after 8 hrs\/day → OT after 40 hrs\/week/.test(x))&&!/[{}]/.test(hist.join('')),'2l '+T0+'Change history: "Edited job …: OT rule OT after 8 hrs/day → OT after 40 hrs/week"');
    // job screen under More
    await p.click('nav.tabs [data-v=more]');ok(/OT after 40 hrs\/week/.test(await p.textContent('[data-job]')),'2m '+T0+'More → Jobs lists each job with its rule');
@@ -94,10 +94,38 @@ const near=(a,b)=>Math.abs(a-b)<0.006;
    await week(p,mk('REG'));await p.click('nav.tabs [data-v=today]');await p.click('nav.tabs [data-v=week]');await p.waitForTimeout(200);big=await p.textContent('#sheet [data-row="big"]');small=await p.textContent('#sheet [data-row="small"]');
    ok(/Pay code says REG, but by your OT rule 2 of these hours are overtime/.test(big)&&!/Pay code says/.test(small),'3c '+T0+'typed REG on a 10-hr day with 2 OT hrs → a note on that row only');
    const fit=await p.evaluate(()=>{const n=document.querySelector('[data-paynote]');const r=n.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+0.5&&document.documentElement.scrollWidth-innerWidth<=1;});ok(fit,'3d '+T0+'the note fits the screen');if(SHOTS)await p.screenshot({path:path.join(SHOTS,dev+'-ot-1-paynote.png'),fullPage:true});
-   await p.click('#sheet [data-edit="big"]');await p.waitForTimeout(150);ok(/Pay code is for your timesheet only\. We figure your OT for you\./.test(await p.textContent('[data-payhelp]'))&&await p.isVisible('[data-payhelp]'),'3e '+T0+'helper text under the codes: "Pay code is for your timesheet only. We figure your OT for you."');
+   await p.click('#sheet [data-edit="big"]');await p.waitForTimeout(150);ok(/Optional\. Only for your employer's timesheet\. Overtime is tracked for you\./.test(await p.textContent('[data-payhelp]'))&&await p.isVisible('[data-payhelp]'),'3e '+T0+'pay code helper text in the editor: "Optional. Only for your employer\'s timesheet. Overtime is tracked for you."');
    await p.fill('#eC_pay','OT');await p.click('#eSave');await p.waitForTimeout(250);const s=await st(p);ok(s.entries.find(e=>e.id==='big').codes.pay==='OT'&&!(await p.$('#otjModal')),'3f '+T0+'the note never blocks: any pay code still saves');
    const csv=csvParse(await p.evaluate(()=>OTJ.buildCSV({})));const Hd=csv[0];const rb=csv.find(r=>r[Hd.length-1]==='big');ok(rb[Hd.indexOf('Pay code')]==='OT'&&rb[Hd.indexOf('Regular')]==='8'&&rb[Hd.indexOf('Overtime')]==='2','3g '+T0+'CSV keeps the typed pay code and shows the app\'s own split beside it (Pay code OT, Regular 8, Overtime 2)');
    ok(!errs.length,'3 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
+
+  // ── 5. auto-OT is obvious ──
+  {const {c,p,errs}=await open(null);
+   ok(/We track your overtime automatically\. Just tell us when it kicks in\./.test(await p.textContent('[data-autoot]'))&&await p.evaluate(()=>{const a=document.querySelector('[data-autoot]'),m=document.getElementById('sO_mode');return a.getBoundingClientRect().bottom<=m.getBoundingClientRect().top&&m.getBoundingClientRect().top-a.getBoundingClientRect().bottom<90;}),'5a '+T0+'first-run pay setup, right above the OT rule: "We track your overtime automatically. Just tell us when it kicks in."');
+   ok(!errs.length,'5 '+T0+'no page errors (setup) '+errs.join('|').slice(0,140));await c.close();}
+  {const live=async(state)=>{const o=await open(state);const v=await o.p.evaluate(wk=>{const w=OTJ.computeWeek(wk);const n=new Date();const tk=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');const d=w.days[tk];const r=x=>Math.round(x*10)/10;
+      const g=id=>(document.getElementById(id)||{}).textContent||'';return {today:g('liveToday'),week:g('liveWeek'),rule:g('liveRule'),badge:g('otNow'),d:[r(d.reg),r(d.ot),r(d.dt)],t:[r(w.tot.reg),r(w.tot.ot),r(w.tot.dt)],fit:document.documentElement.scrollWidth-innerWidth<=1};},D(0));return Object.assign(o,{v});};
+   const num=s=>(s.match(/[\d.]+(?= reg)|[\d.]+(?= OT)|[\d.]+(?= DT)/g)||[]).map(x=>Math.round(+x*10)/10);const eq=(a,b)=>a.length>=2&&a.every((x,i)=>Math.abs(x-b[i])<=0.11);
+   const clk=h=>({start:NOW.getTime()-h*3600e3,jobId:'j1',breaks:[],onBreak:null});
+   // Daily 8, 10 hrs into the shift (started 2am today)
+   let o=await live(seed({jobs:[job({mode:'daily',dayN:8})],clock:clk(10)}));
+   ok(/^Today: 8 reg · 2(\.\d+)? OT$/.test(o.v.today)&&eq(num(o.v.today),o.v.d)&&o.v.badge==='Overtime now','5b '+T0+'Daily 8, on the clock 10 hrs: "'+o.v.today+'" with an "Overtime now" badge; matches the pay engine');
+   ok(/^This week: /.test(o.v.week)&&eq(num(o.v.week),o.v.t)&&/Tracked for you · OT after 8 hrs\/day · estimate/.test(o.v.rule)&&o.v.fit,'5c '+T0+'plus "'+o.v.week+'" and "Tracked for you · OT after 8 hrs/day · estimate"; fits the screen');if(SHOTS)await o.p.screenshot({path:path.join(SHOTS,dev+'-ot-3-clock-live.png')});
+   ok(!o.errs.length,'5 '+T0+'no page errors (daily) '+o.errs.join('|').slice(0,140));await o.c.close();
+   o=await live(seed({jobs:[job({mode:'daily',dayN:8})],clock:clk(5)}));ok(/^Today: 5(\.\d+)? reg · 0 OT$/.test(o.v.today)&&!o.v.badge,'5d '+T0+'Daily 8, 5 hrs in: "'+o.v.today+'", no badge before the rule is crossed');await o.c.close();
+   // Weekly 40: 38 hrs already this week (hours-only entries on other days of the week) + 3 hrs running
+   o=await live(seed({jobs:[job({mode:'weekly',weekN:40})],entries:[H(T,19,{start:at(T,'00:01')}),H(T,19,{start:at(T,'00:02')})],clock:clk(3)}));
+   ok(eq(num(o.v.today),o.v.d)&&eq(num(o.v.week),o.v.t)&&o.v.t[0]===40&&Math.abs(o.v.t[1]-1)<=0.11&&o.v.badge==='Overtime now'&&/OT after 40 hrs\/week/.test(o.v.rule),'5e '+T0+'Weekly 40, 38 hrs already logged + 3 hrs on the clock: "'+o.v.today+'", "'+o.v.week+'", badge on; matches the pay engine');await o.c.close();
+   o=await live(seed({jobs:[job({mode:'daily',dayN:8,dtN:11})],clock:clk(11.5)}));ok(/^Today: 8 reg · 3 OT · 0\.5\d? DT$/.test(o.v.today)&&o.v.badge==='Double time now','5f '+T0+'double time after 11: "'+o.v.today+'", badge says "Double time now"');await o.c.close();
+   // the split updates live without a reload (cross the line while watching)
+   o=await live(seed({jobs:[job({mode:'daily',dayN:8})],clock:{start:NOW.getTime()-8*3600e3+40000,jobId:'j1',breaks:[],onBreak:null}}));const before=o.v.badge;
+   await o.p.evaluate(()=>{const s=OTJ.state();s.clock.start-=60000;});await o.p.waitForFunction(()=>!!document.getElementById('otNow'),null,{timeout:6000}).catch(()=>{});
+   ok(!before&&await o.p.evaluate(()=>!!document.getElementById('otNow')),'5g '+T0+'the badge turns on by itself once the 8th hour passes (the screen updates every second, no reload)');await o.c.close();
+   // timesheet: every day row and the week total show reg and OT separately
+   o=await open(seed({jobs:[job({mode:'daily',dayN:8})],entries:[Wk(D(0),'06:00','16:00'),Wk(D(1),'06:00','13:00')]}));await o.p.click('nav.tabs [data-v=week]');await o.p.waitForTimeout(200);
+   const rows=await o.p.evaluate(()=>({days:[...document.querySelectorAll('#sheet [data-daysplit]')].map(x=>x.textContent),tot:document.getElementById('wkSplit').textContent,fit:document.documentElement.scrollWidth-innerWidth<=1}));
+   ok(rows.days.join('|')==='8 reg · 2 OT|7 reg · 0 OT'&&rows.tot==='15 reg · 2 OT'&&rows.fit,'5h '+T0+'each day row shows its own split ('+rows.days.join(' | ')+') and the week total shows '+rows.tot);if(SHOTS)await o.p.screenshot({path:path.join(SHOTS,dev+'-ot-4-day-split.png'),fullPage:true});
+   ok(!o.errs.length,'5 '+T0+'no page errors (timesheet) '+o.errs.join('|').slice(0,140));await o.c.close();}
 
   // ── 4. one gross, one take-home ──
   {const money=s=>+String(s).replace(/[^\d.\-]/g,'');
