@@ -99,6 +99,24 @@ const W=(id,a,b,x)=>Object.assign({id,kind:'work',date:T,start:ms(a),end:ms(b),b
    ok(live(s).length===0&&dialogs.length===0,'2l '+T0+'the last entry can be deleted from the day sheet too; no browser pop-ups were used anywhere');
    ok(!errs.length,'2 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
 
+  // ── 4. forgot to clock in / tapped START late ──
+  {const {c,p,errs}=await open(seed());const se=async()=>(await p.isVisible('#sErr'))?await p.textContent('#sErr'):'';
+   ok(/Forgot to clock in\? Pick your start time/.test(await p.textContent('[data-a=forgotin]'))&&await p.evaluate(()=>document.querySelector('[data-a=forgotin]').getBoundingClientRect().height>=44),'4a '+T0+'under START: "Forgot to clock in? Pick your start time", big enough to tap');
+   await p.click('[data-a=forgotin]');await p.waitForTimeout(150);ok(/When did you start\?/.test(await p.textContent('#otjModal')),'4b '+T0+'it asks "When did you start?"');
+   await p.fill('#sT','13:00');await p.click('#sGo');await p.waitForTimeout(150);let s=await st(p);ok(!s.clock&&/hasn't happened yet/.test(await se()),'4c '+T0+'a start time in the future is refused');
+   const y=new Date(NOW.getTime()-86400e3);await p.fill('#sD',y.getFullYear()+'-'+String(y.getMonth()+1).padStart(2,'0')+'-'+String(y.getDate()).padStart(2,'0'));await p.fill('#sT','11:00');await p.click('#sGo');await p.waitForTimeout(150);s=await st(p);
+   ok(!s.clock&&/more than 24 hours ago/.test(await se()),'4d '+T0+'more than 24 hours back is refused (points to "+ Add hours")');
+   await p.fill('#sD',T);await p.fill('#sT','07:00');ok(/5 hrs/.test(await p.textContent('#sCalc')),'4e '+T0+'7:00 AM at noon shows "5 hrs on the clock so far"');await p.click('#sGo');await p.waitForTimeout(250);s=await st(p);
+   ok(s.clock&&s.clock.start===ms('07:00')&&/^5:0\d:\d\d$/.test(await p.textContent('#clkT'))&&/since 7:00am/.test(await p.textContent('#view')),'4f '+T0+'the clock runs from 7:00 AM: timer shows about 5 hours');if(SHOTS)await p.screenshot({path:path.join(SHOTS,dev+'-pl-4-forgot-in.png')});
+   // tapped START late: change the start of the running shift
+   await p.click('[data-a=fixstart]');await p.waitForTimeout(150);ok(/Change your start time/.test(await p.textContent('#otjModal'))&&await p.inputValue('#sT')==='07:00','4g '+T0+'while on the clock, "Change start" opens with the current start');
+   await p.fill('#sT','06:30');await p.click('#sGo');await p.waitForTimeout(250);s=await st(p);ok(s.clock.start===ms('06:30')&&/since 6:30am/.test(await p.textContent('#view')),'4h '+T0+'the running shift now starts 6:30 AM');
+   await p.evaluate(b=>{const s=OTJ.state();s.clock.breaks=[{s:b,e:b+1800e3}];},ms('09:00'));await p.click('[data-a=fixstart]');await p.waitForTimeout(150);await p.fill('#sT','09:30');await p.click('#sGo');await p.waitForTimeout(150);s=await st(p);
+   ok(s.clock.start===ms('06:30')&&/first break started at 9:00am/.test(await se()),'4i '+T0+'a start after the first break is refused');await p.click('[data-close]');
+   await p.click('[data-a=stop]');await p.waitForTimeout(250);s=await st(p);const e=s.entries.filter(x=>!x.deleted).pop();ok(!s.clock&&e.start===ms('06:30')&&e.breakMin===30,'4j '+T0+'STOP saves the shift from 6:30 AM, break counted');
+   const H=await p.evaluate(()=>OTJ.logLines().map(x=>x.text).join('\n'));ok(/Clocked in, start set to 7:00 AM \(forgot to clock in\)/.test(H)&&/Changed the running shift's start: 7:00 AM → 6:30 AM/.test(H)&&!/[{}]/.test(H),'4k '+T0+'Change history: "Clocked in, start set to 7:00 AM (forgot to clock in)" and "Changed the running shift\'s start: 7:00 AM → 6:30 AM"');
+   ok(!errs.length,'4 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
+
   // ── 3. change history in plain English ──
   {const t0=NOW.getTime()-86400e3*2;const oldSet={rate:28,otRate:'',period:'weekly',anchor:T,weekStart:1,state:'FL',stateRate:'',filing:'single',k401:'',health:'',credits:'',extraWH:'',perDiem:'',perDiemNT:false};
    const log=[{t:t0,id:'settings',field:'(setup)',old:'',new:'rate 28, weekly, FL',reason:''},

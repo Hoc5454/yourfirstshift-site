@@ -416,10 +416,10 @@ function splitTags(it){return (it.ot>0||it.dt>0?' <span class="fine">'+hrs(it.re
 function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=otAlert(w);
   h+='<div class="card">';
   if(c&&c.start){var onB=!!c.onBreak;h+=stillOn(c)+'<div class="state'+(onB?' brk':'')+'" id="clkState">'+(onB?'On break (not counted)':'On the clock')+'</div><div class="timer" id="clkT">0:00:00</div>'+
-    '<div class="muted" style="text-align:center">'+esc(jobOf(c.jobId).name)+' · since '+hm(c.start)+'</div>'+'<div id="liveOT" style="text-align:center;margin-top:10px">'+liveSplitHTML(w)+'</div>'+clockCodes(c.codes)+
+    '<div class="muted" style="text-align:center">'+esc(jobOf(c.jobId).name)+' · since '+hm(c.start)+' · <button type="button" class="link" data-a="fixstart" style="font-size:inherit">Change start</button></div>'+'<div id="liveOT" style="text-align:center;margin-top:10px">'+liveSplitHTML(w)+'</div>'+clockCodes(c.codes)+
     '<div class="row" style="margin-top:14px"><button type="button" class="btn ghost grow" data-a="break">'+(onB?'End break':'Start break')+'</button></div>'+
     '<div style="margin-top:10px"><button type="button" class="btn stop huge block" data-a="stop">STOP</button></div>';}
-  else{h+='<h2>Clock in</h2>'+jobPicker('cJob',S.ui.lastJob)+clockCodes(S.ui.lastCodes)+'<div style="margin-top:12px"><button type="button" class="btn go huge block" data-a="start">START</button></div>';}
+  else{h+='<h2>Clock in</h2>'+jobPicker('cJob',S.ui.lastJob)+clockCodes(S.ui.lastCodes)+'<div style="margin-top:12px"><button type="button" class="btn go huge block" data-a="start">START</button><button type="button" class="link block" data-a="forgotin" style="display:block;margin:12px auto 0;min-height:44px">Forgot to clock in? Pick your start time</button></div>';}
   h+='</div>';
   h+='<div class="card"><div class="tot main"><span class="k">Earned today</span><span class="v" id="earnToday">'+money(d.gross+d.perDiem)+'</span></div>'+
     '<div class="tot"><span class="k">This week so far</span><span class="v mid" id="earnWeek">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
@@ -574,6 +574,7 @@ function act(a,el){
   if(a==='addbucket')return bucketModal(null);
   if(a==='addjob'){if(!isPro()&&S.jobs.length>=FREE_JOBS)return upsell('Free covers 1 job. Pro tracks every job you work, with overtime figured separately for each employer.');return jobModal(null);}
   if(a==='clkcodes')return clockCodesModal();
+  if(a==='forgotin'||a==='fixstart')return startTimeModal();
   if(a==='setup'){$('#view').innerHTML=setupHTML(false);wireSetup(false);return;}
   if(a==='backup')return backup();
   if(a==='restore'){$('#restoreFile').click();return;}
@@ -606,6 +607,22 @@ function forgotModal(){var c=S.clock;if(!c)return;var guess=Math.min(Date.now(),
     ['fD','fT'].forEach(function(id){$('#'+id).addEventListener('input',calc);});calc();
     $('#fSave').addEventListener('click',function(){if(!calc())return;var e=end();closeModal();clockStop(e,'forgot to clock out');});});}
 /* Codes for the next clock-in (or the shift that is running). Typed once, then remembered until the worker changes or clears them. */
+/* Forgot to tap START, or tapped it late: pick the real start time (up to 24 hours back). Starts the clock, or moves the start of the running shift. */
+function startTimeModal(){var c=S.clock&&S.clock.start?S.clock:null,now=Date.now(),guess=c?c.start:now-3600000;
+  var firstBrk=c?((c.breaks||[]).map(function(b){return b.s;}).concat(c.onBreak?[c.onBreak]:[]).sort()[0]):null;
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+(c?'Change your start time':'When did you start?')+'</h3><div class="fine">'+(c?'You tapped START at '+hm(c.start)+'. Put in when you really started.':'Put in when you really started. The clock runs from then.')+'</div>'+
+    '<label class="f" for="sD">Day</label><input class="i" type="date" id="sD" value="'+esc(ymd(guess))+'"><label class="f" for="sT">Start time</label><input class="i" type="time" id="sT" value="'+timeVal(guess)+'">'+
+    (c?'':jobPicker('sJ',S.ui.lastJob))+'<div class="fine" id="sCalc" style="margin-top:8px"></div><div class="err" id="sErr" role="alert" hidden></div>'+
+    '<button type="button" class="btn go block" style="margin-top:14px" id="sGo">'+(c?'Save start time':'Start the clock from then')+'</button>',function(){
+    function t(){var d=$('#sD').value,v=$('#sT').value;return d&&v?toMs(d,v):0;}
+    function bad(){var x=t(),n=Date.now();if(!x)return 'Pick a day and a time.';if(x>n)return 'That time hasn\'t happened yet.';if(n-x>24*3600000)return 'That\'s more than 24 hours ago. Use "+ Add hours" for an earlier shift.';
+      if(firstBrk&&x>=firstBrk)return 'Your first break started at '+hm(firstBrk)+'. Pick a time before that.';return '';}
+    function calc(){var b=bad();$('#sErr').hidden=true;$('#sCalc').innerHTML=b?'':'That makes <b>'+hrs(r2((Date.now()-t())/3600000))+' hrs</b> on the clock so far (breaks come off).';}
+    ['sD','sT'].forEach(function(id){$('#'+id).addEventListener('input',calc);});calc();
+    $('#sGo').addEventListener('click',function(){var b=bad();if(b){$('#sErr').textContent=b;$('#sErr').hidden=false;return;}var x=t();
+      if(c){var was=c.start;c.start=x;log('clock','start',hmAP(was),hmAP(x));}
+      else{var jid=($('#sJ')||{}).value||(S.jobs[0]&&S.jobs[0].id);S.clock={start:x,jobId:jid,codes:cleanCodes(S.ui.lastCodes),breaks:[],onBreak:null};S.ui.lastJob=jid;log('clock','(started late)','',hmAP(x)+(ymd(x)!==todayKey()?' '+shortDate(ymd(x)):''));}
+      save();closeModal();render();toast(c?'Start time changed to '+hm(x)+'.':'On the clock since '+hm(x)+'.');});});}
 function clockCodesModal(){var c=S.clock&&S.clock.start?S.clock.codes:S.ui.lastCodes;
   modal('<button class="x" data-close aria-label="Close">×</button><h3>Job codes</h3><div class="fine">What your employer\'s timesheet asks for. Fill in only what you need. We remember them for your next shift.</div>'+codeInputs('kC_',c)+recentRow('kC_')+
     '<button type="button" class="btn go block" style="margin-top:14px" id="kSave">Save</button><button type="button" class="btn ghost block" style="margin-top:8px" id="kClr">Clear codes</button>',function(){
@@ -768,6 +785,8 @@ function logLines(){var CAT={backup:1,clock:1,job:1,pto:1,settings:1,labels:1,co
   var user=function(r){r=str(r);return r&&['clock','manual','repeat yesterday'].indexOf(r)<0?' · “'+plain(r)+'”':'';};
   function one(l,grp){var f=str(l.field),o=str(l.old),n=str(l.new),id=str(l.id);
     if(id==='backup')return f==='(restore undone)'?'Undid the last restore ('+plain(n)+')':'Restored a backup ('+plain(n.replace(/^(\d{4}-\d\d-\d\d)T[\d:.]+Z?/,function(_,d){return 'made '+shortDate(d);}).replace(/^unknown date/,'date unknown'))+')';
+    if(id==='clock'&&f==='(started late)')return 'Clocked in, start set to '+plain(n)+' (forgot to clock in)';
+    if(id==='clock'&&f==='start')return 'Changed the running shift\'s start: '+plain(o)+' → '+plain(n);
     if(id==='clock')return o&&n?'Changed codes on the running shift: '+arrow(o,n):n?'Added job codes to the running shift: '+plain(n):'Cleared the codes on the running shift';
     if(id==='job'){if(f==='(added)')return 'Added job: '+plain(n);var jp=jdiff(o,n,{name:'name',rate:'hourly rate',otRate:'overtime rate',active:'open'},setFmt);try{var ja=JSON.parse(o),jb=JSON.parse(n);if(jp&&ruleText(ja)!==ruleText(jb)){var hb=otHistOf(jb),fr=hb[hb.length-1].effectiveFrom;jp.push('OT rule '+ruleText(ja)+' → '+ruleText(jb)+(fr===BEGIN?', for all weeks':', starting the week of '+shortDate(fr)));}if(jp&&otOf(ja).mult!==otOf(jb).mult)jp.push('OT pays ×'+otOf(ja).mult+' → ×'+otOf(jb).mult);}catch(_){}return 'Edited job '+plain(f)+(jp&&jp.length?': '+jp.join('; '):'');}
     if(id==='pto'){if(f==='(bucket added)')return 'Added PTO bucket: '+plain(n);if(f==='(buckets)')return 'Added PTO buckets: '+plain(n);var pp=jdiff(o,n,{name:'name',start:'starting balance',startDate:'start date',type:'how it is earned',earn:'hours earned',per:'per hours worked',cap:'max balance',carry:'carryover limit'},setFmt);return 'Edited PTO '+plain(f)+(pp&&pp.length?': '+pp.join('; '):'');}
