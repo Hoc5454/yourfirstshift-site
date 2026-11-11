@@ -26,6 +26,12 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .hd a.back{font-size:14px;font-weight:700;color:var(--blue);text-decoration:none;padding:8px 4px;}
 .pro-pill{font-size:12px;font-weight:800;color:var(--go);background:#ECFDF5;border:1px solid #A7F3D0;border-radius:999px;padding:3px 9px;}
 main{padding:14px 16px calc(96px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;}
+.exp>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;min-height:48px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:#F8FAFC;font-weight:800;-webkit-tap-highlight-color:transparent;}
+.exp>summary::-webkit-details-marker{display:none;}
+.exp>summary .sh{flex:none;color:var(--blue);font-size:15px;font-weight:800;white-space:nowrap;}
+.exp>summary .sh::after{content:'Show ▾';}
+.exp[open]>summary .sh::after{content:'Hide ▴';}
+.exp[open]>summary{margin-bottom:6px;}
 .pdchk{display:flex;justify-content:flex-end;align-items:center;gap:8px;min-height:44px;margin:-6px 0 2px;font-size:14px;font-weight:700;color:var(--ink2);cursor:pointer;-webkit-tap-highlight-color:transparent;}.pdchk input{width:22px;height:22px;margin:0;accent-color:var(--go);}
 #storeBar{max-width:720px;margin:0 auto;padding:14px 16px 0;}#storeBar:empty{display:none;}#storeBar>div{margin:0!important;}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px;}
@@ -493,9 +499,9 @@ function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=
     '<div style="margin-top:10px"><button type="button" class="btn stop huge block" data-a="stop">STOP</button></div>';}
   else{h+='<h2>Clock in</h2>'+jobPicker('cJob',S.ui.lastJob)+clockCodes(S.ui.lastCodes)+'<div style="margin-top:12px"><button type="button" class="btn go huge block" data-a="start">START</button><button type="button" class="link block" data-a="forgotin" style="display:block;margin:12px auto 0;min-height:44px">Forgot to clock in? Pick your start time</button></div>';}
   h+='</div>';
-  h+='<div class="card"><div class="tot main"><span class="k">Earned today</span><span class="v" id="earnToday">'+money(d.gross+d.perDiem)+'</span></div>'+
-    (pdAny()?'<div class="tot" id="pdToday"><span class="k">Per diem today<br><span class="fine">included above</span></span><span class="v mid" id="pdTodayAmt">'+money(d.perDiem)+'</span></div>':'')+
-    '<div class="tot"><span class="k">This week so far</span><span class="v mid" id="earnWeek">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
+  h+='<div class="card"><div class="tot main"><span class="k">Earned today</span><span class="v" id="earnToday">'+money(d.gross)+'</span></div>'+
+    (pdAny()?'<div class="tot" id="pdToday"><span class="k">Per diem today<br><span class="fine">on top of your pay</span></span><span class="v mid" id="pdTodayAmt">'+money(d.perDiem)+'</span></div>':'')+
+    '<div class="tot"><span class="k">This week so far</span><span class="v mid" id="earnWeek">'+money(w.tot.gross)+'</span></div>'+
     '<div class="fine">'+hrs(w.tot.worked)+' hrs worked'+(w.tot.ot?' ('+hrs(w.tot.ot)+' OT)':'')+(w.tot.pto?' + '+hrs(w.tot.pto)+' PTO':'')+' · gross, before taxes · <span class="est">estimate</span></div>'+
     '<button type="button" class="link" data-a="gopay">See take-home + show the math →</button></div>';
   h+='<div class="row wrap" style="margin-bottom:14px"><button type="button" class="btn ghost small grow" data-a="add">+ Add hours</button><button type="button" class="btn ghost small grow" data-a="repeat">Repeat yesterday</button><button type="button" class="btn ghost small grow" data-a="addpto">PTO day</button></div>';
@@ -532,7 +538,7 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
   h+='<div class="card" id="sheet" style="padding:4px 12px">';
   w.keys.forEach(function(k){var d=w.days[k];
     h+='<div class="tsday'+(k===tk?' today':'')+'"><button type="button" class="tsd" data-day="'+k+'"><span class="grow"><span class="d">'+esc(dayName(k))+'</span> <span class="dd">'+esc(shortDate(k))+'</span>'+(d.pto?' <span class="tag pto">'+hrs(d.pto)+' PTO</span>':'')+(d.reg+d.ot+d.dt>0?'<br><span class="dd" data-daysplit>'+splitText(d)+(d.perDiem>0?' · <span data-daypd>'+money(d.perDiem)+' per diem</span>':'')+'</span>':(d.perDiem>0?'<br><span class="dd"><span data-daypd>'+money(d.perDiem)+' per diem</span></span>':''))+'</span>'+
-      (d.items.length||d.perDiem>0?'<span class="tsh">'+hrs(d.hours)+' hrs</span><span class="tsp">'+money(d.gross+d.perDiem)+'</span>':'<span class="muted" style="font-size:14px">+ Add</span>')+'</button>'+
+      (d.items.length?'<span class="tsh">'+hrs(d.hours)+' hrs</span><span class="tsp">'+money(d.gross)+'</span>':'<span class="muted" style="font-size:14px">+ Add</span>')+'</button>'+
       (pdAny()?'<label class="pdchk"><input type="checkbox" data-pdday="'+k+'"'+(d.perDiem>0?' checked':'')+'><span>Per diem</span></label>':'');
     if(d.items.length)h+='<ul class="list tsl">'+d.items.map(function(it){var e=it.e;
       var top=e.kind==='pto'?'<b>PTO</b> '+hrs(it.hours)+' hrs · '+esc(bucketName(e.bucket)):(e.live?'<b>On the clock</b> since '+hm(e.start)+' · '+hrs(it.hours)+' hrs so far':'<b>'+esc(entryWhen(e))+'</b> · '+hrs(it.hours)+' hrs'+splitTags(it));
@@ -543,12 +549,12 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
   /* ONE card: this week's hours, gross and take-home; the paycheck (pay period) it belongs to; the year so far. */
   var s=S.settings,ws=weekShare(w),wk=s.period==='weekly';
   h+='<div class="card" id="weekCard"><h2>This week</h2><div class="tot"><span class="k">Hours</span><span class="v" style="text-align:right">'+hrs(w.tot.worked)+' worked'+(w.tot.pto?' · '+hrs(w.tot.pto)+' PTO':'')+'<br><span class="fine" id="wkSplit" style="font-weight:700">'+splitText(w.tot)+'</span></span></div>'+
-    '<div class="tot main"><span class="k">Gross so far</span><span class="v" id="wkGross">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
-    (pdAny()?(function(){var n=w.keys.filter(function(k){return w.days[k].perDiem>0;}).length;var ch=w.tot.perDiem>0?pdCharge(wsk,w):null;return '<div class="tot" id="wkPd"><span class="k">Per diem<br><span class="fine">'+n+(n===1?' day':' days')+' · included above</span></span><span class="v mid" id="wkPdAmt">'+money(w.tot.perDiem)+'</span></div>'+
+    '<div class="tot main"><span class="k">Gross so far</span><span class="v" id="wkGross">'+money(w.tot.gross)+'</span></div>'+
+    (pdAny()?(function(){var n=w.keys.filter(function(k){return w.days[k].perDiem>0;}).length;var ch=w.tot.perDiem>0?pdCharge(wsk,w):null;return '<div class="tot" id="wkPd"><span class="k">Per diem<br><span class="fine">'+n+(n===1?' day':' days')+' · not part of gross</span></span><span class="v mid" id="wkPdAmt">'+money(w.tot.perDiem)+'</span></div>'+
       (ch?'<div class="fine" id="wkPdTo" style="margin:-2px 0 6px">Per diem charged to: <b id="wkPdToJob">'+esc(ch.label)+'</b>'+(ch.over?' (your choice)':'')+' · <button type="button" class="link" data-a="pdcharge" data-wk="'+wsk+'" style="font-size:inherit;min-height:44px">Change</button></div>':'');})():'')+
     '<div class="tot main"><span class="k">Est. take-home</span><span class="v" id="wkNet" style="color:var(--go)">~'+money(ws.net)+'</span></div>'+
     (wk?'':'<div class="fine" id="wkHow">You\'re paid '+esc(freqText())+', so this is the week\'s share of that paycheck. Taxes are figured on the whole pay period.</div>'+
-      ws.parts.map(function(p,i){return '<div class="tot" data-period="'+p.pr.from+'" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><span class="k">Paycheck for '+esc(shortDate(p.pr.from))+' – '+esc(shortDate(p.pr.to))+'<br><span class="fine">'+money(p.pt.gross+p.pt.perDiem)+' gross so far</span></span><span class="v mid" style="color:var(--go)">~'+money(p.th.net)+'</span></div>';}).join(''))+
+      ws.parts.map(function(p,i){return '<div class="tot" data-period="'+p.pr.from+'" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><span class="k">Paycheck for '+esc(shortDate(p.pr.from))+' – '+esc(shortDate(p.pr.to))+'<br><span class="fine" data-ppsplit>'+money(p.pt.gross)+' gross so far'+(p.pt.perDiem>0?' + '+money(p.pt.perDiem)+' per diem':'')+'</span></span><span class="v mid" style="color:var(--go)">~'+money(p.th.net)+'</span></div>';}).join(''))+
     bonusLine(addDays(wsk,6),wsk)+
     '<div class="fine" style="margin-top:8px"><span class="est">Estimate only</span> Your employer\'s payroll is the final word. '+esc(TAX.label)+'.</div>'+
     '<button type="button" class="btn ghost block" style="margin-top:10px" data-a="math" data-scope="week">Show the math</button>'+ptoLine()+yearLine(addDays(wsk,6))+'</div>';
@@ -629,7 +635,7 @@ function bonusLine(upTo,wsk){try{var c=bonusCalc(upTo);if(!c)return '';var b=c.b
     ' About <b id="bonusNet">'+money(c.net)+'</b> after taxes (22% federal flat rate for bonuses, Social Security, Medicare'+(c.state?', your state rate':'')+').'+
     ' Your employer decides the final amount. It can be more, less, or nothing.</div></div>';}catch(_){return '';}}
 function bonusFields(){var b=bonusOf(),multi=S.jobs.length>1;var opt=function(v,t){return '<option value="'+v+'"'+(b.basis===v?' selected':'')+'>'+t+'</option>';};
-  return '<details style="margin-top:12px"'+(b.basis!=='none'?' open':'')+' id="bonusBox"><summary style="font-weight:800;min-height:44px;display:flex;align-items:center">Bonus (optional)</summary>'+
+  return '<details class="exp" style="margin-top:12px"'+(b.basis!=='none'?' open':'')+' id="bonusBox"><summary><span class="grow">Bonus (optional)<span class="fine" style="display:block;font-weight:600">A percent of your pay or a flat amount.</span></span><span class="sh" aria-hidden="true"></span></summary>'+
   '<label class="f" for="sBb">How is your bonus figured?</label><select class="i" id="sBb">'+opt('none','No bonus')+opt('all','A percent of all my pay for the year (regular + overtime)')+opt('base','A percent of my regular pay only (no overtime)')+(multi?opt('job','A percent of my pay from one job'):'')+opt('flat','A flat dollar amount')+'</select>'+
   '<div id="sBpW"><label class="f" for="sBp">Bonus percent, %</label><input class="i" id="sBp" inputmode="decimal" value="'+esc(b.pct)+'" placeholder="e.g. 9"></div>'+
   (multi?'<div id="sBjW"><label class="f" for="sBj">Which job</label><select class="i" id="sBj">'+S.jobs.map(function(j){return '<option value="'+esc(j.id)+'"'+(j.id===b.jobId?' selected':'')+'>'+esc(j.name)+'</option>';}).join('')+'</select></div>':'')+
@@ -639,7 +645,7 @@ function bonusFields(){var b=bonusOf(),multi=S.jobs.length>1;var opt=function(v,
 function wireBonus(){var m=$('#sBb');if(!m)return;var upd=function(){var v=m.value;$('#sBpW').hidden=v==='none'||v==='flat';$('#sBaW').hidden=v!=='flat';$('#sBprW').hidden=v==='none'||v==='flat';var j=$('#sBjW');if(j)j.hidden=v!=='job';};m.addEventListener('change',upd);upd();}
 function readBonus(){var m=$('#sBb');if(!m)return bonusOf();return cleanBonus({basis:m.value,pct:($('#sBp')||{}).value,amount:($('#sBa')||{}).value,jobId:($('#sBj')||{}).value||(S.jobs[0]&&S.jobs[0].id)||'',prior:($('#sBpr')||{}).value,priorYear:todayKey().slice(0,4)});}
 function yearLine(upTo){try{var y=upTo.slice(0,4),end=upTo<todayKey()?upTo:todayKey();if(end.slice(0,4)!==y)end=y+'-12-31';var t=rangeTotals(y+'-01-01',end);if(!(t.hours>0))return '';
-  return '<div class="fine" id="yearLine" style="margin-top:10px"><b>'+y+' so far:</b> '+hrs(r2(t.reg+t.ot+t.dt))+' hrs worked'+(t.ot+t.dt>0?' ('+hrs(r2(t.ot+t.dt))+' OT)':'')+(t.pto?' + '+hrs(t.pto)+' PTO':'')+' · '+money(t.gross+t.perDiem)+' gross</div>';}catch(_){return '';}}
+  return '<div class="fine" id="yearLine" style="margin-top:10px"><b>'+y+' so far:</b> '+hrs(r2(t.reg+t.ot+t.dt))+' hrs worked'+(t.ot+t.dt>0?' ('+hrs(r2(t.ot+t.dt))+' OT)':'')+(t.pto?' + '+hrs(t.pto)+' PTO':'')+' · '+money(t.gross)+' gross'+(t.perDiem>0?' + '+money(t.perDiem)+' per diem':'')+'</div>';}catch(_){return '';}}
 function ptoLine(){if(!S.pto.buckets.length)return '';return '<div class="fine" style="margin-top:10px"><b>PTO balance:</b> '+S.pto.buckets.map(function(b){return esc(b.name)+' '+hrs(ptoBalance(b).balance)+' hrs';}).join(' · ')+'</div>';}
 
 function ptoHTML(){var h='<div class="card"><h2>PTO balances</h2>';
@@ -682,7 +688,7 @@ function setupHTML(first){var s=S.settings||{state:'FL',period:'weekly',filing:'
   '<div class="fine" id="stateNote"></div>'+
   '<label class="f" for="sFil">Filing status on your W-4</label><select class="i" id="sFil">'+[['single','Single or married filing separately'],['mfj','Married filing jointly'],['hoh','Head of household']].map(function(o){return '<option value="'+o[0]+'"'+(s.filing===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
   bonusFields()+
-  '<details style="margin-top:12px"'+(first?'':' open')+'><summary style="font-weight:800;min-height:44px;display:flex;align-items:center">More (optional): 401(k), health</summary>'+
+  '<details class="exp" id="preTaxBox" style="margin-top:12px"'+(first?'':' open')+'><summary><span class="grow">Take anything out before taxes?<span class="fine" style="display:block;font-weight:600">401(k), health insurance, W-4 extras. Optional.</span></span><span class="sh" aria-hidden="true"></span></summary>'+
   '<label class="f" for="sK">Pre-tax 401(k) per check, $</label><input class="i" id="sK" inputmode="decimal" value="'+esc(s.k401||'')+'">'+
   '<label class="f" for="sH">Pre-tax health insurance per check, $</label><input class="i" id="sH" inputmode="decimal" value="'+esc(s.health||'')+'">'+
   '<label class="f" for="sCr">W-4 Step 3 credits (yearly total), $</label><input class="i" id="sCr" inputmode="decimal" value="'+esc(s.credits||'')+'">'+
@@ -716,7 +722,7 @@ function wire(){var v=$('#view');
   var cj=$('#cJob');if(cj&&cj.tagName==='SELECT')cj.addEventListener('change',function(){S.ui.lastJob=cj.value;save();render();});
   var rf=$('#restoreFile');if(rf)rf.addEventListener('change',restoreFile);
   if(S.clock&&S.clock.start&&VIEW==='today'){var t=function(){var el=$('#clkT');if(!el)return;var live={kind:'work',start:S.clock.start,breaks:(S.clock.breaks||[]).concat(S.clock.onBreak?[{s:S.clock.onBreak}]:[])};var nw=Date.now(),brk=live.breaks.reduce(function(x,b){return x+((b.e||nw)-b.s);},0);var sec=Math.max(0,Math.floor((nw-live.start-brk)/1000));el.textContent=Math.floor(sec/3600)+':'+pad(Math.floor(sec%3600/60))+':'+pad(sec%60);
-      var w=weekNow(),d=w.days[todayKey()];var a=$('#earnToday'),b=$('#earnWeek'),pt=$('#pdTodayAmt');if(pt)pt.textContent=money(d.perDiem);if(a)a.textContent=money(d.gross+d.perDiem);if(b)b.textContent=money(w.tot.gross+w.tot.perDiem);var lo=$('#liveOT');if(lo){var hh=liveSplitHTML(w);if(lo.innerHTML!==hh)lo.innerHTML=hh;}};t();TICK=setInterval(t,1000);}}
+      var w=weekNow(),d=w.days[todayKey()];var a=$('#earnToday'),b=$('#earnWeek'),pt=$('#pdTodayAmt');if(pt)pt.textContent=money(d.perDiem);if(a)a.textContent=money(d.gross);if(b)b.textContent=money(w.tot.gross);var lo=$('#liveOT');if(lo){var hh=liveSplitHTML(w);if(lo.innerHTML!==hh)lo.innerHTML=hh;}};t();TICK=setInterval(t,1000);}}
 function act(a,el){
   if(a==='a2hsx'){S.ui.a2hsX=1;save();render();return;}
   if(a==='install'&&BIP){BIP.prompt();BIP.userChoice.finally(function(){BIP=null;render();});return;}
@@ -883,7 +889,7 @@ function hmAP(ms){var d=new Date(ms);var h=d.getHours();return (h%12||12)+':'+pa
 function rangeText(e){if(!e)return '';if(e.kind==='pto')return 'PTO '+hrs(+e.hours||0)+' hrs';if(e.manualHours!=null&&e.manualHours!=='')return hrs(+e.manualHours)+' hrs';if(typeof e.start!=='number')return '';return hmAP(e.start)+'–'+(e.end?hmAP(e.end):'no end time');}
 
 function dayModal(k){var wk=computeWeek(weekStartKey(k)),d=wk.days[k];var items=d.items.filter(function(it){return !it.e.live;});
-  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+esc(dayName(k,true))+'</h3><div class="muted">'+hrs(d.hours)+' hrs · '+money(d.gross+d.perDiem)+' <span class="est">estimate</span></div>'+(items.length?entryList(items):'<div class="empty">Nothing logged this day.</div>')+'<button type="button" class="btn go block" style="margin-top:12px" id="dAdd">+ Add hours</button><button type="button" class="btn ghost block" style="margin-top:8px" id="dPto">PTO</button>',function(m){
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+esc(dayName(k,true))+'</h3><div class="muted">'+hrs(d.hours)+' hrs · '+money(d.gross)+(d.perDiem>0?' + '+money(d.perDiem)+' per diem':'')+' <span class="est">estimate</span></div>'+(items.length?entryList(items):'<div class="empty">Nothing logged this day.</div>')+'<button type="button" class="btn go block" style="margin-top:12px" id="dAdd">+ Add hours</button><button type="button" class="btn ghost block" style="margin-top:8px" id="dPto">PTO</button>',function(m){
     m.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){editEntry(b.dataset.edit);});});
     $('#dAdd').addEventListener('click',function(){editEntry(null,{date:k});});$('#dPto').addEventListener('click',function(){if(!S.pto.buckets.length)ptoDefaults();editEntry(null,{date:k,kind:'pto'});});});}
 
@@ -907,7 +913,7 @@ function mathModal(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=comp
   var note=(TAX.state_notes&&TAX.state_notes[S.settings.state]&&S.settings.state==='WA')?'<p class="fine">'+esc(TAX.state_notes.WA)+'</p>':'';
   modal('<button class="x" data-close aria-label="Close">×</button><h3>Show the math</h3><div class="muted">Week of '+esc(shortDate(wsk))+'</div><table class="math">'+rows+'</table>'+note+
     '<p class="fine" id="mathFreq">Pay frequency used: <b>'+esc(freqText())+'</b> ('+th.periods+' paychecks a year). Taxes are figured on the whole pay period, the way payroll does it'+(whole?'.':', then this week gets its share.')+'</p>'+
-    '<p class="fine">Federal: annualized pay ('+money(th.fitWages)+' × '+th.periods+' checks) minus the IRS Worksheet 1A adjustment, run through the 2026 annual table, then ÷ '+th.periods+'. '+(th.pdNT?'Per diem left out of taxes because you marked it non-taxable. ':'')+'Social Security stops after $184,500 earned in the year (not tracked across checks here).</p>'+
+    '<p class="fine">Federal: annualized taxable pay ('+money(th.fitWages)+' × '+th.periods+' checks) minus the IRS Worksheet 1A adjustment, run through the 2026 annual table, then ÷ '+th.periods+'. '+(th.pdNT?'Per diem left out of taxes because you marked it non-taxable. ':'')+'Social Security stops after $184,500 earned in the year (not tracked across checks here).</p>'+
     '<p class="fine"><span class="est">Estimate only.</span> Your employer\'s payroll is the final word. '+esc(TAX.label)+'.</p>');}
 
 /* ── PTO ── */
