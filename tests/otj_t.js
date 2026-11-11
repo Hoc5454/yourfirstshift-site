@@ -114,7 +114,7 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
  // ── 7. Pro: change history view + filtered export; data stays readable if Pro lapses ──
  {const st=seed({entries:[W('a',D(0),'06:00','16:00')],codes:[{id:'c1',nick:'Tie-in',jobId:'j1',fields:{proj:'P1'},active:true}],log:[{t:Date.now()-5000,id:'a',field:'end',old:'4:00pm',new:'4:30pm',reason:'forgot to clock out'}]});
   const {c,p,errs}=await ctx(st,{pro:true});await p.click('nav.tabs [data-v=more]');await p.click('[data-a=logview]');await p.waitForTimeout(200);
-  const lv=await p.textContent('.sheet');ok(/was: 4:00pm/.test(lv)&&/now: 4:30pm/.test(lv)&&/forgot to clock out/.test(lv),'7a Pro: change history shows when, old, new, why');await shot(p,'10-change-history');await p.click('[data-close]');
+  const lv=await p.textContent('.sheet');ok(/end 4:00 PM → 4:30 PM/.test(lv)&&/forgot to clock out/.test(lv)&&!/[{}]/.test(lv),'7a Pro: change history shows when, old → new, why, in plain words');await shot(p,'10-change-history');await p.click('[data-close]');
   await p.click('[data-a=csv]');ok(await p.isVisible('#xF'),'7b Pro: export filters (date/job/code)');await p.click('[data-close]');
   await p.evaluate(()=>{localStorage.removeItem('yfs_pro');OTJ.reload();});await p.click('nav.tabs [data-v=week]');ok(/\$280\.00/.test(await p.textContent('#view')),'7c Pro lapses → records still readable');
   ok(!errs.length,'7 no page errors '+errs.join('|'));await c.close();}
