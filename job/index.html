@@ -499,7 +499,7 @@ function upsell(what){modal('<button class="x" data-close aria-label="Close">×<
 function go(v){if(!NAVPOP&&S&&S.settings){closeModalDom();while(NAV.length&&navTop().t!=='tab')NAV.pop();
     if(v==='today')NAV.length=0;                                   /* Clock is home: nothing left to go back to, so back leaves the app */
     else if(v!==VIEW){var tp=navTop();if(tp&&tp.from===v)NAV.pop();else NAV.push({t:'tab',from:VIEW});}
-    if(NAV.length>NAVH)navSync();else navLater();}
+    navSync();}
   VIEW=v;try{S.ui.view=v;save(true);}catch(_){}render();window.scrollTo(0,0);}
 $$('.tabs button').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.v);});});
 
@@ -1097,11 +1097,13 @@ document.getElementById('storeBar').addEventListener('click',function(e){var id=
 window.OTJ={logLines:logLines,bonusCalc:bonusCalc,otOf:otOf,weekShare:weekShare,ruleText:ruleText,cleanOt:cleanOt,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();paintStore();render();},pdCharge:pdCharge,store:function(){return {stale:STORE.stale,ok:STORE.ok,ro:STORE.ro,dirty:STORE.dirty,note:STORE.note,bad:storeBad()};},DATA_V:DATA_V,storeTest:storeTest,tax:function(){return TAX;},autoClock:autoClockHook,
   hash:function(o){var t=new TextEncoder().encode(JSON.stringify(o||S));return crypto.subtle.digest('SHA-256',t).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}};
 STORE.ok=storeTest();S=load();paintStore();VIEW=(S.ui&&S.ui.view)||'today';if(VIEW==='codes')VIEW='week';
-NAVH=navDepth();if(S.settings&&VIEW!=='today')NAV.push({t:'tab',from:'today'});if(NAV.length<NAVH)navLater();
+NAVH=navDepth();if(S.settings&&VIEW!=='today')NAV.push({t:'tab',from:'today'});/* steps left over from before a reload are walked back once the page has finished loading (doing it mid-load can cut the load short) */
+if(NAV.length<NAVH){if(document.readyState==='complete')navLater();else window.addEventListener('load',function(){setTimeout(navSync,60);});}
 fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();}).catch(function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});
 /* a new version of the app took over: reload once, and only when nothing unsaved or half-typed is on screen */
 var swHad=false,swWant=false,swDone=false;
 function swMaybeReload(){if(!swWant||swDone)return;if(storeBad()||document.getElementById('otjModal')||document.getElementById('sRate'))return;
+  if(NAVWAIT||NAVT!=null){setTimeout(swMaybeReload,150);return;}   /* let a back-step that is still in flight land first: a reload fired on top of it gets dropped */
   try{var k='otj_sw_reload',t=+sessionStorage.getItem(k)||0;if(t&&Date.now()-t<15000){swDone=true;return;}sessionStorage.setItem(k,String(Date.now()));}catch(_){}
   swDone=true;location.reload();}
 if('serviceWorker' in navigator){swHad=!!navigator.serviceWorker.controller;
