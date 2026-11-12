@@ -454,11 +454,53 @@ function toast(m,btn,fn){var bad=false;if(STORE.just&&storeBad()){m=storeMsg();b
   $$('.toast').forEach(function(x){x.remove();});var t=document.createElement('div');t.className='toast';if(bad){t.style.background='#B91C1C';t.setAttribute('data-bad','1');}t.setAttribute('role','status');t.textContent=m;
   if(btn){var b=document.createElement('button');b.type='button';b.textContent=btn;b.addEventListener('click',function(){t.remove();fn();});t.appendChild(b);}
   document.body.appendChild(t);setTimeout(function(){t.remove();},bad?6000:(btn?7000:2600));}
-function modal(html,onOpen){closeModal();var m=document.createElement('div');m.className='modal';m.id='otjModal';m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';
+/* ── phone back button ──
+   NAV is the list of things "back" should undo, newest last: a tab change ({t:'tab',from}), an open sheet ({t:'modal',day}), or Edit pay setup ({t:'setup'}).
+   The browser's history is kept the same LENGTH as NAV (each entry's state is just its depth), on the same /job/ address. Nothing is pushed on the Clock
+   page, so back there leaves the app. navSync() is the only place that touches history; a popstate only ever shortens NAV, never pushes.
+   Steps are added right inside the tap that caused them: phone browsers skip history steps a page adds with no tap behind them. Removing steps can wait a tick. */
+var NAV=[],NAVH=0,NAVWAIT=false,NAVPOP=false,NAVT=null,MODAL_DAY=null;
+function navDepth(){try{var st=history.state;return st&&typeof st.otj==='number'&&st.otj>0?st.otj:0;}catch(_){return 0;}}
+function navSync(){NAVT=null;if(NAVWAIT)return;try{
+    if(NAV.length>NAVH){while(NAVH<NAV.length){NAVH++;history.pushState({otj:NAVH},'');}}
+    else if(NAV.length<NAVH){NAVWAIT=true;history.go(NAV.length-NAVH);}
+  }catch(_){NAVWAIT=false;}}
+function navLater(){if(NAVT==null)NAVT=setTimeout(navSync,0);}
+function navTop(){return NAV[NAV.length-1];}
+function navDropTop(kind){var n=0;while(NAV.length&&navTop().t===kind){NAV.pop();n++;}if(n)navLater();return n;}
+function navOnPop(){var d=navDepth();NAVH=d;
+  if(NAVWAIT){NAVWAIT=false;navSync();return;}          /* our own tidy-up arriving: nothing to show */
+  if(d>NAV.length){navSync();return;}                    /* forward button: there is nothing to go forward to */
+  if(d===NAV.length)return;
+  NAVPOP=true;try{
+    while(NAV.length>d){var e=NAV.pop();
+      if(e.t==='modal')closeModalDom();
+      else if(e.t==='setup'){if(S&&S.settings)render();}
+      else if(e.t==='tab'){VIEW=e.from||'today';try{S.ui.view=VIEW;save(true);}catch(_){}render();window.scrollTo(0,0);}}
+    var top=navTop();
+    if(top&&top.t==='modal'&&!document.getElementById('otjModal')){if(top.day)dayModal(top.day);else{NAV.pop();navLater();}}
+    if(STORE.stale&&!document.getElementById('otjModal')&&!document.getElementById('sRate'))refresh();
+  }finally{NAVPOP=false;}}
+window.addEventListener('popstate',navOnPop);
+/* a step owed from start-up (the app reopened on a tab other than Clock) is added on the first tap or key, for the same reason */
+['click','touchend','keydown'].forEach(function(ev){window.addEventListener(ev,function(){if(NAV.length>NAVH&&!NAVWAIT)navSync();},true);});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('otjModal'))closeModal();});
+function closeModalDom(){var m=document.getElementById('otjModal');if(m)m.remove();document.body.style.overflow='';}
+function modal(html,onOpen){var had=!!document.getElementById('otjModal'),day=MODAL_DAY;MODAL_DAY=null;closeModalDom();
+  if(!NAVPOP){var tp=navTop();
+    /* a sheet opened from the day sheet (Add hours, Edit, PTO) sits on top of it, so back brings the day sheet back; any other swap reuses the open sheet's slot */
+    if(had&&tp&&tp.t==='modal'&&!tp.day)tp.day=day||null;
+    else NAV.push({t:'modal',day:day||null});
+    navSync();}
+  var m=document.createElement('div');m.className='modal';m.id='otjModal';m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';
   m.addEventListener('click',function(e){if(e.target===m||e.target.closest('[data-close]'))closeModal();});document.body.appendChild(m);document.body.style.overflow='hidden';if(onOpen)onOpen(m);var f=m.querySelector('input,select,button');if(f&&f.focus&&!('ontouchstart' in window))f.focus();return m;}
-function closeModal(){var m=document.getElementById('otjModal');if(m)m.remove();document.body.style.overflow='';if(STORE.stale)setTimeout(function(){if(STORE.stale&&!document.getElementById('otjModal'))refresh();},0);}
+function closeModal(){closeModalDom();if(!NAVPOP)navDropTop('modal');if(STORE.stale)setTimeout(function(){if(STORE.stale&&!document.getElementById('otjModal'))refresh();},0);}
 function upsell(what){modal('<button class="x" data-close aria-label="Close">×</button><h3>That\'s a Pro feature</h3><p>'+esc(what)+'</p><p class="fine">Pro is $9/mo (cancel anytime) and also unlocks every resume tool. Your records are never locked: Backup and CSV export are always free.</p><a class="btn go block" href="/app.html#plans">See Pro plans</a>');}
-function go(v){VIEW=v;try{S.ui.view=v;save(true);}catch(_){}render();window.scrollTo(0,0);}
+function go(v){if(!NAVPOP&&S&&S.settings){closeModalDom();while(NAV.length&&navTop().t!=='tab')NAV.pop();
+    if(v==='today')NAV.length=0;                                   /* Clock is home: nothing left to go back to, so back leaves the app */
+    else if(v!==VIEW){var tp=navTop();if(tp&&tp.from===v)NAV.pop();else NAV.push({t:'tab',from:VIEW});}
+    if(NAV.length>NAVH)navSync();else navLater();}
+  VIEW=v;try{S.ui.view=v;save(true);}catch(_){}render();window.scrollTo(0,0);}
 $$('.tabs button').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.v);});});
 
 /* ── views ── */
@@ -708,8 +750,8 @@ function wireSetup(first){var st=$('#sState'),per=$('#sPer');function upd(){var 
     if(first){var jn=($('#sJob').value||'').trim()||'My job';var r0=readOt('sO_');S.jobs=[{id:uid(),name:jn,rate:'',otRate:'',active:true,created:Date.now(),ot:r0,otHist:[{rule:r0,effectiveFrom:BEGIN}]}];log('settings','(setup)','','rate '+rate+', '+per.value+', '+st.value);}
     else{log('settings','pay setup',old,JSON.stringify(S.settings));
       if(S.jobs.length===1&&document.getElementById('sO_mode')){var j0=S.jobs[0],r1=readOt('sO_');if(!sameRule(otOf(j0),r1)){var n0=applyRule(j0,r1,($('#sO_when')||{}).value||weekStartKey(todayKey()));log('job',j0.name,JSON.stringify(j0),JSON.stringify(n0));S.jobs[0]=n0;}}}
-    save();VIEW=first?'today':'more';render();window.scrollTo(0,0);toast(first?'You\'re set. Tap START when your shift begins.':'Saved.');});
-  var c=$('[data-a=cancelSetup]');if(c)c.addEventListener('click',function(){render();if(STORE.stale)refresh();});}
+    save();navDropTop('setup');VIEW=first?'today':'more';render();window.scrollTo(0,0);toast(first?'You\'re set. Tap START when your shift begins.':'Saved.');});
+  var c=$('[data-a=cancelSetup]');if(c)c.addEventListener('click',function(){navDropTop('setup');render();if(STORE.stale)refresh();});}
 
 /* ── wiring ── */
 function wire(){var v=$('#view');
@@ -743,7 +785,7 @@ function act(a,el){
   if(a==='addjob'){if(!isPro()&&S.jobs.length>=FREE_JOBS)return upsell('Free covers 1 job. Pro tracks every job you work, with overtime figured separately for each employer.');return jobModal(null);}
   if(a==='clkcodes')return clockCodesModal();
   if(a==='forgotin'||a==='fixstart')return startTimeModal();
-  if(a==='setup'){$('#view').innerHTML=setupHTML(false);wireSetup(false);return;}
+  if(a==='setup'){$('#view').innerHTML=setupHTML(false);wireSetup(false);if(!NAVPOP&&(!navTop()||navTop().t!=='setup')){NAV.push({t:'setup'});navSync();}return;}
   if(a==='backup')return backup();
   if(a==='restore'){$('#restoreFile').click();return;}
   if(a==='undorestore'){undoRestore();return;}
@@ -889,7 +931,7 @@ function hmAP(ms){var d=new Date(ms);var h=d.getHours();return (h%12||12)+':'+pa
 function rangeText(e){if(!e)return '';if(e.kind==='pto')return 'PTO '+hrs(+e.hours||0)+' hrs';if(e.manualHours!=null&&e.manualHours!=='')return hrs(+e.manualHours)+' hrs';if(typeof e.start!=='number')return '';return hmAP(e.start)+'–'+(e.end?hmAP(e.end):'no end time');}
 
 function dayModal(k){var wk=computeWeek(weekStartKey(k)),d=wk.days[k];var items=d.items.filter(function(it){return !it.e.live;});
-  modal('<button class="x" data-close aria-label="Close">×</button><h3>'+esc(dayName(k,true))+'</h3><div class="muted">'+hrs(d.hours)+' hrs · '+money(d.gross)+(d.perDiem>0?' + '+money(d.perDiem)+' per diem':'')+' <span class="est">estimate</span></div>'+(items.length?entryList(items):'<div class="empty">Nothing logged this day.</div>')+'<button type="button" class="btn go block" style="margin-top:12px" id="dAdd">+ Add hours</button><button type="button" class="btn ghost block" style="margin-top:8px" id="dPto">PTO</button>',function(m){
+  MODAL_DAY=k;modal('<button class="x" data-close aria-label="Close">×</button><h3>'+esc(dayName(k,true))+'</h3><div class="muted">'+hrs(d.hours)+' hrs · '+money(d.gross)+(d.perDiem>0?' + '+money(d.perDiem)+' per diem':'')+' <span class="est">estimate</span></div>'+(items.length?entryList(items):'<div class="empty">Nothing logged this day.</div>')+'<button type="button" class="btn go block" style="margin-top:12px" id="dAdd">+ Add hours</button><button type="button" class="btn ghost block" style="margin-top:8px" id="dPto">PTO</button>',function(m){
     m.querySelectorAll('[data-edit]').forEach(function(b){b.addEventListener('click',function(){editEntry(b.dataset.edit);});});
     $('#dAdd').addEventListener('click',function(){editEntry(null,{date:k});});$('#dPto').addEventListener('click',function(){if(!S.pto.buckets.length)ptoDefaults();editEntry(null,{date:k,kind:'pto'});});});}
 
@@ -1055,6 +1097,7 @@ document.getElementById('storeBar').addEventListener('click',function(e){var id=
 window.OTJ={logLines:logLines,bonusCalc:bonusCalc,otOf:otOf,weekShare:weekShare,ruleText:ruleText,cleanOt:cleanOt,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();paintStore();render();},pdCharge:pdCharge,store:function(){return {stale:STORE.stale,ok:STORE.ok,ro:STORE.ro,dirty:STORE.dirty,note:STORE.note,bad:storeBad()};},DATA_V:DATA_V,storeTest:storeTest,tax:function(){return TAX;},autoClock:autoClockHook,
   hash:function(o){var t=new TextEncoder().encode(JSON.stringify(o||S));return crypto.subtle.digest('SHA-256',t).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}};
 STORE.ok=storeTest();S=load();paintStore();VIEW=(S.ui&&S.ui.view)||'today';if(VIEW==='codes')VIEW='week';
+NAVH=navDepth();if(S.settings&&VIEW!=='today')NAV.push({t:'tab',from:'today'});if(NAV.length<NAVH)navLater();
 fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();}).catch(function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});
 /* a new version of the app took over: reload once, and only when nothing unsaved or half-typed is on screen */
 var swHad=false,swWant=false,swDone=false;
