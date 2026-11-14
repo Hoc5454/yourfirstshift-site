@@ -42,7 +42,7 @@ const PD={};
 
   const one=x=>seed(Object.assign({settings:SET({perDiemTax:'yes'}),jobs:[job(null,{perDiem:75})],entries:[H(D(0),10),H(T,8,{start:at(T,'00:00')})].filter((e,i,a)=>a.findIndex(z=>z.date===e.date)===i)},x));
   const geo=(p,sel)=>p.evaluate(sel=>{const l=document.querySelector(sel),r=l.getBoundingClientRect(),cb=l.querySelector('input').getBoundingClientRect(),sp=l.querySelector('span').getBoundingClientRect(),row=l.parentNode.getBoundingClientRect(),cs=getComputedStyle(l),ps=getComputedStyle(l.parentNode);
-    return {l:r.left,r:r.right,w:r.width,h:r.height,top:r.top,cy:r.top+r.height/2,cbL:cb.left,cbR:cb.right,cbCx:cb.left+cb.width/2,cbCy:cb.top+cb.height/2,spL:sp.left,spR:sp.right,spCx:sp.left+sp.width/2,spCy:sp.top+sp.height/2,rowL:row.left,rowR:row.right,inR:row.right-parseFloat(ps.paddingRight),inL:row.left+parseFloat(ps.paddingLeft),disp:cs.display,vw:innerWidth};},sel);
+    return {l:r.left,r:r.right,w:r.width,h:r.height,top:r.top,cy:r.top+r.height/2,cbL:cb.left,cbR:cb.right,cbCx:cb.left+cb.width/2,cbCy:cb.top+cb.height/2,spL:sp.left,spR:sp.right,spCx:sp.left+sp.width/2,spCy:sp.top+sp.height/2,rowL:row.left,rowR:row.right,rowB:row.bottom,bot:r.bottom,inR:row.right-parseFloat(ps.paddingRight),inL:row.left+parseFloat(ps.paddingLeft),disp:cs.display,vw:innerWidth};},sel);
   const checked=(p,k)=>p.evaluate(k=>document.querySelector('#sheet [data-pdday="'+k+'"]').checked,k);
   const tapAt=async(p,x,y)=>{if(DEVS[dev].hasTouch)await p.touchscreen.tap(x,y);else await p.mouse.click(x,y);await p.waitForTimeout(250);};
   const scroll=(p,sel)=>p.evaluate(sel=>document.querySelector(sel).scrollIntoView({block:'center'}),sel);
@@ -59,6 +59,15 @@ const PD={};
      // (1) empty space to the left does nothing
      const xs=[g.inL+12,(g.inL+g.l)/2,g.l-14];let moved=[];for(const x of xs){await tapAt(p,x,g.cy);if(await checked(p,k)!==was)moved.push(Math.round(x));if(await p.$('#otjModal')){await p.click('#otjModal [data-close]');await p.waitForTimeout(150);}}
      ok(!moved.length&&await checked(p,k)===was,'1 '+T0+nm+': tapping the empty space left of the control (far left, middle, 14px from it) does NOT change per diem '+moved.join(','));
+     // (1b) Liz should-fix: the day's bottom edge and the space just below the control do nothing either.
+     // Hit test (what the browser says is under the finger) 3px below the control and 2px above the day's bottom edge:
+     await scroll(p,ls);await p.waitForTimeout(80);g=await geo(p,ls);
+     const hit=await p.evaluate(([sel,pts])=>{const l=document.querySelector(sel);return pts.map(([x,y,w])=>{const e=document.elementFromPoint(x,y);return e&&l.contains(e)?w:'';}).filter(Boolean);},[ls,[[g.inL+12,g.rowB-2,'bottom edge far left'],[(g.inL+g.l)/2,g.rowB-2,'bottom edge middle'],[g.cbCx,g.rowB-2,'bottom edge under the checkbox'],[g.cbCx,g.bot+3,'3px below the checkbox'],[g.spCx,g.bot+3,'3px below the words']]]);
+     ok(!hit.length,'1b '+T0+nm+': no point on the bottom edge of the day or just below the control is inside the label '+hit.join(','));
+     // Real taps on the bottom edge, and 12px below the control when the day is tall enough (phones snap taps within a few px onto a nearby control, so closer is not tested):
+     const pts=[[g.inL+12,g.rowB-3,'bottom edge far left'],[(g.inL+g.l)/2,g.rowB-3,'bottom edge middle']];if(g.bot+12<g.rowB-2)pts.push([g.cbCx,g.bot+12,'12px below the checkbox'],[g.spCx,g.bot+12,'12px below the words']);
+     const below=[];for(const [x,y,w] of pts){await tapAt(p,x,y);if(await checked(p,k)!==was)below.push(w);if(await p.$('#otjModal')){await p.click('#otjModal [data-close]');await p.waitForTimeout(150);}await scroll(p,ls);await p.waitForTimeout(60);g=await geo(p,ls);}
+     ok(!below.length&&await checked(p,k)===was,'1c '+T0+nm+': tapping '+pts.map(x=>x[2]).join(', ')+' does NOT change per diem '+below.join(','));
      // (2) checkbox and words do
      await scroll(p,ls);g=await geo(p,ls);await tapAt(p,g.cbCx,g.cbCy);const a1=await checked(p,k);await scroll(p,ls);g=await geo(p,ls);await tapAt(p,g.spCx,g.spCy);const a2=await checked(p,k);
      ok(a1===!was&&a2===was,'2 '+T0+nm+': tapping the checkbox toggles it, and tapping the words "Per diem" toggles it back');}
