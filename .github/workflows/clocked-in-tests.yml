@@ -26,6 +26,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the Pages worker test reads an older commit, so the full history is needed
       - uses: actions/setup-node@v4
         with:
           node-version: 22
