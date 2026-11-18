@@ -76,7 +76,7 @@ const PD={};
    const {h,rows}=await csvOf(p);const gi=h.indexOf('Gross (estimate)');
    ok(h[gi+1]==='Per diem'&&h[gi+2]==='Per diem charged to'&&h[gi+3]==='OT rule','3a '+T0+'CSV has "Per diem" and "Per diem charged to" columns right after Gross (estimate)');
    const wkRows=rows.filter(r=>r.Date>=D(0)&&r.Date<=D(6)),sum=k=>wkRows.reduce((a,r)=>a+(+r[k]||0),0);const scr=x=>+x.replace(/[^\d.]/g,'');
-   ok(near(sum('Per diem'),scr(await p.textContent('#wkPdAmt')))&&near(sum('Gross (estimate)')+sum('Per diem'),scr(await p.textContent('#wkGross')))&&sum('Per diem')===150,'3b '+T0+'the CSV adds up to the screen: Per diem column = $150.00, Gross + Per diem = the week\'s "Gross so far"');
+   ok(near(sum('Per diem'),scr(await p.textContent('#wkPdAmt')))&&near(sum('Gross (estimate)'),scr(await p.textContent('#wkGross')))&&sum('Per diem')===150,'3b '+T0+'the CSV adds up to the screen: Per diem column = the week\'s Per diem ($150.00), Gross column = the week\'s "Gross so far"');
    const tue=wkRows.filter(r=>r.Date===D(1)),pto=wkRows.filter(r=>r.Type==='PTO')[0];
    ok(tue.length===2&&tue[0]['Per diem']==='75'&&tue[1]['Per diem']===''&&tue[1]['Per diem charged to']===''&&pto['Per diem']===''&&wkRows.filter(r=>r['Per diem']).every(r=>r['Per diem charged to']==='AFE-100'),'3c '+T0+'the day\'s per diem is on the day\'s first shift only (two shifts on Tuesday: 75 then blank), PTO rows are blank, and the charged-to column carries the choice (AFE-100)');
    ok(rows.filter(r=>r.Date===lastMon)[0]['Per diem charged to']==='AFE-700','3d '+T0+'last week\'s rows show last week\'s job (AFE-700)');
