@@ -159,7 +159,7 @@ const PD={};
    await p.click('nav.tabs [data-v=week]');const net2=await p.textContent('#wkNet');const m=x=>+x.replace(/[^\d.]/g,'');
    ok(/Not taxed on your stub/.test(cTxt)&&m(net2)>m(net1)&&near(m(net2)-m(net1),75*0.0765),'8l '+T0+'"isn\'t taxed on my stub" takes per diem out of the tax estimate (take-home '+net1+' → '+net2+')');
    const hist=await p.evaluate(()=>OTJ.logLines().map(x=>x.text));ok(hist.some(x=>/Edited job Harbor Line Builders: per diem a day .*→ \$75\.00/.test(x))&&!/[{}]|object Object|undefined/.test(hist.join('')),'8m '+T0+'Change history: "Edited job Harbor Line Builders: per diem a day … → $75.00"');
-   await p.reload();await p.waitForFunction(()=>window.OTJ&&OTJ.tax());s=await st(p);ok(s.jobs[0].perDiem===75&&s.settings.perDiemNT===true,'8n '+T0+'per diem is still there after a reload');
+   await p.waitForTimeout(200);await p.reload();await p.waitForFunction(()=>window.OTJ&&OTJ.tax());s=await st(p);ok(s.jobs[0].perDiem===75&&s.settings.perDiemNT===true,'8n '+T0+'per diem is still there after a reload');
    PD[dev]={tTxt,wTxt,cTxt,tVis,wVis,cVis,ua:await p.evaluate(()=>navigator.userAgent)};
    ok(tVis&&wVis&&cVis,'8o '+T0+'per diem rows are visible and inside the screen on Today, Timesheet and More');
    ok(!errs.length,'8 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
