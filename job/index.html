@@ -203,7 +203,7 @@ function $(s,r){return (r||document).querySelector(s);}
 function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
 
 /* ── storage (never auto-deletes) ── */
-function blank(){return {app:'yfs-on-the-job',v:1,created:Date.now(),settings:null,labels:Object.assign({},DEFAULT_LABELS),jobs:[],codes:[],entries:[],pto:{buckets:[]},clock:null,log:[],lastBackup:null,ui:{}};}
+function blank(){return {app:'yfs-on-the-job',v:1,created:Date.now(),settings:null,labels:Object.assign({},DEFAULT_LABELS),jobs:[],codes:[],entries:[],pto:{buckets:[]},clock:null,log:[],lastBackup:null,pdCharge:{},ui:{}};}
 /* Repair damaged saved data (a bad or hand-edited backup file, a half-written save) so one bad record can never lock the worker out of their records. */
 function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isArray(x);},arr=function(x){return Array.isArray(x)?x.filter(o):[];},num=function(x){return typeof x==='number'&&isFinite(x);};
   j=Object.assign(blank(),o(j)?j:{});
@@ -222,13 +222,14 @@ function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isAr
     if(!num(e.start)||Math.abs(e.start)>8e15||(e.end!=null&&!num(e.end)))return false;
     if(!dOk)e.date=ymd(e.start);if(!Array.isArray(e.splits))e.splits=[];else e.splits=e.splits.filter(o).map(function(sp){sp.hours=isFinite(+sp.hours)?+sp.hours:0;return sp;});if(e.breaks!=null)e.breaks=arr(e.breaks);return true;});
   if(o(j.clock)&&num(j.clock.start)){j.clock.breaks=arr(j.clock.breaks);j.clock.codes=cleanCodes(j.clock.codes);}else j.clock=null;
+  var pc={};if(o(j.pdCharge))Object.keys(j.pdCharge).slice(0,600).forEach(function(k){var v=j.pdCharge[k];if(/^\d{4}-\d\d-\d\d$/.test(k)&&o(v)&&typeof v.key==='string'&&typeof v.label==='string'&&v.key&&v.label)pc[k]={key:v.key.slice(0,80),label:v.label.slice(0,80)};});j.pdCharge=pc;
   j.ui.lastCodes=cleanCodes(j.ui.lastCodes);j.ui.recentCodes=(Array.isArray(j.ui.recentCodes)?j.ui.recentCodes:[]).map(cleanCodes).filter(hasCodes).slice(0,RECENT_MAX);if(j.ui.view==='codes')j.ui.view='week';
   return j;}
 /* Saving is honest: every save is written, then read back. "Saved" is only shown when the read-back matches. What is on screen is never
    thrown away for what is (or is not) in storage, damaged data is copied aside before anything else happens, and data written by a newer
    version of the app is opened read-only. */
 var DATA_V=1,LAST=KEY+'_last',LAST_T=KEY+'_last_t',RAWP=KEY+'_raw_';
-var STORE={ok:true,ro:false,dirty:false,hold:false,note:'',persisted:false,just:false},CORE='',LASTRAW=null;
+var STORE={ok:true,ro:false,dirty:false,hold:false,note:'',persisted:false,just:false,stale:false},CORE='',LASTRAW=null;
 var MSG_BLOCK='This browser isn\'t saving your hours (Private Browsing or blocked storage). Use regular Safari/Chrome.';
 var MSG_FAIL='Not saved. This phone didn\'t keep that change. Your hours are still on screen: back them up now.';
 var MSG_RO='This app is out of date on this phone. Update the app to change your hours. Nothing was changed.';
@@ -239,6 +240,9 @@ function storeTest(){try{var k=KEY+'_selftest',v='t'+Date.now();localStorage.set
 /* damaged data is copied to its own key before anything else is done with it. Those copies are never written over. */
 function keepRaw(raw){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf(RAWP)===0&&localStorage.getItem(k)===raw)return true;}
     var k2=RAWP+Date.now();while(localStorage.getItem(k2)!=null)k2+='x';localStorage.setItem(k2,raw);return localStorage.getItem(k2)===raw;}catch(_){return false;}}
+function rawKeys(){var out=[];try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf(RAWP)===0)out.push(k);}}catch(_){}return out.sort(function(a,b){return (parseInt(b.slice(RAWP.length),10)||0)-(parseInt(a.slice(RAWP.length),10)||0);});}
+function rawDownload(){var ks=rawKeys();if(!ks.length){toast('No damaged data is stored on this phone.');return;}var raw=readRaw(ks[0]);if(raw==null){toast('That copy can\'t be read.');return;}
+  deliver(new Blob([raw],{type:'text/plain'}),'yfs-clocked-in-damaged-data-'+todayKey()+'.txt');toast('Downloaded. Keep the file: it may help recover your hours.');}
 function storeMsg(){return STORE.ro?MSG_RO:(STORE.hold?'This phone is out of storage space, so your hours can\'t be saved safely. Free up space, then reopen Clocked In.':(STORE.ok?MSG_FAIL:MSG_BLOCK));}
 function storeBad(){return STORE.ro||STORE.hold||STORE.dirty||!STORE.ok;}
 function load(){STORE.ro=false;STORE.hold=false;STORE.note='';var raw=readRaw(KEY);LASTRAW=raw;var b;
@@ -258,7 +262,7 @@ function save(quiet){if(STORE.ro||STORE.hold)return saveFail(quiet);
     if(core!==CORE&&old&&old!==raw&&parseState(old)){try{localStorage.setItem(LAST,old);localStorage.setItem(LAST_T,String(Date.now()));}catch(_){}}
     localStorage.setItem(KEY,raw);
     if(localStorage.getItem(KEY)!==raw)throw new Error('read-back');
-    CORE=core;LASTRAW=raw;var was=storeBad()||STORE.note;STORE.ok=true;STORE.dirty=false;if(STORE.note==='back')STORE.note='';
+    CORE=core;LASTRAW=raw;STORE.stale=false;var was=storeBad()||STORE.note;STORE.ok=true;STORE.dirty=false;if(STORE.note==='back')STORE.note='';
     if(!STORE.persisted){STORE.persisted=true;try{if(navigator.storage&&navigator.storage.persist){var pp=navigator.storage.persist();if(pp&&pp.catch)pp.catch(function(){});}}catch(_){}}
     if(was)paintStore();return true;
   }catch(e){return saveFail(quiet);}}
@@ -267,7 +271,7 @@ function paintStore(){var el=document.getElementById('storeBar');if(!el)return;v
     h='<div id="storeBad" role="alert" style="background:#B91C1C;color:#fff;border-radius:12px;padding:12px 14px;margin:0 0 14px;font-size:15px;font-weight:700">'+esc(storeMsg())+
       (STORE.ro?'<div style="margin-top:8px"><button type="button" id="storeUpd" style="background:#fff;color:#B91C1C;border:0;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Update the app</button></div>':
        (has?'<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="storeBk" style="background:#fff;color:#B91C1C;border:0;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Back up now</button>'+(STORE.hold?'':'<button type="button" id="storeRetry" style="background:transparent;color:#fff;border:2px solid #fff;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Try saving again</button>')+'</div>':''))+'</div>';}
-  else if(STORE.note){h='<div id="storeNote" class="alert ot" role="status">'+(STORE.note==='back'?'Your latest save was damaged, so this is the copy from just before it. Check your last change. The damaged data was kept, not erased.':'Your saved hours couldn\'t be read. They were kept on this phone, not erased. If you have a Backup file, use More → Restore.')+'</div>';}
+  else if(STORE.note){h='<div id="storeNote" class="alert ot" role="status">'+(STORE.note==='back'?'Your latest save was damaged, so this is the copy from just before it. Check your last change. The damaged data was kept, not erased.':'Your saved hours couldn\'t be read. They were kept on this phone, not erased. If you have a Backup file, use More → Restore.')+(rawKeys().length?'<div style="margin-top:8px"><button type="button" id="storeRawDl" class="btn ghost small" style="min-height:44px">Download the damaged data</button></div>':'')+'</div>';}
   if(el.innerHTML!==h)el.innerHTML=h;}
 /* coming back to the page: never swap what is on screen for what storage holds unless storage really has newer, readable records */
 function refresh(){if(!S)return;var busy=!!document.getElementById('otjModal')||!!document.getElementById('sRate');
@@ -275,7 +279,7 @@ function refresh(){if(!S)return;var busy=!!document.getElementById('otjModal')||
   var raw=readRaw(KEY);
   if(raw===LASTRAW){if(!busy)render();if(typeof swMaybeReload==='function')swMaybeReload();return;}
   var j=raw?parseState(raw):null;
-  if(j){S=load();paintStore();render();return;}
+  if(j){if(busy){STORE.stale=true;return;}STORE.stale=false;S=load();paintStore();render();return;}
   if(raw!=null&&raw!=='')keepRaw(raw);
   if(S.settings)save(true);else LASTRAW=raw;
   paintStore();if(!busy)render();}
@@ -369,9 +373,10 @@ function computeWeek(wsKey,now){
         it.reg=reg;it.ot=ot;it.dt=dt;it.gross=reg*rate+ot*otr+dt*dtr;d.reg+=reg;d.ot+=ot;d.dt+=dt;if(h>0)d.pdJ[jid]=1;jt.worked+=h;jt.ot+=ot;jt.dt+=dt;}
       d.hours+=h;d.gross+=it.gross;jt.gross+=it.gross;d.items.push(it);});
     jobsTot[jid]=jt;});
-  /* per diem: each job's own daily amount for a day worked at that job. Jobs with no amount of their own use the older single amount, counted once a day. */
+  /* per diem: ONE per day worked, at the highest amount among the jobs worked that day. With "my employers each pay per diem" on, every job's own amount counts (the older single amount still counts once). */
   var pd=pdLegacy();
-  keys.forEach(function(k){var d=days[k],sum=0,leg=false;Object.keys(d.pdJ).forEach(function(jid){var own=pdOf(jobOf(jid));if(own==null)leg=true;else sum+=own;});if(leg&&d.reg+d.ot+d.dt>0)sum+=pd;d.perDiem=sum;});
+  var pdEach=!!(S.settings&&S.settings.perDiemEach);
+  keys.forEach(function(k){var d=days[k],sum=0,top=0,leg=false;Object.keys(d.pdJ).forEach(function(jid){var own=pdOf(jobOf(jid));if(own==null){leg=true;own=pd;}else sum+=own;if(own>top)top=own;});if(leg)sum+=pd;d.perDiem=pdEach?sum:top;});
   var tot={hours:0,reg:0,ot:0,dt:0,pto:0,gross:0,perDiem:0,worked:0};
   keys.forEach(function(k){var d=days[k];['hours','reg','ot','dt','pto','gross','perDiem'].forEach(function(f){d[f]=r2(d[f]);tot[f]+=d[f];});});
   tot.worked=r2(tot.reg+tot.ot+tot.dt);Object.keys(tot).forEach(function(f){tot[f]=r2(tot[f]);});
@@ -442,7 +447,7 @@ function toast(m,btn,fn){var bad=false;if(STORE.just&&storeBad()){m=storeMsg();b
   document.body.appendChild(t);setTimeout(function(){t.remove();},bad?6000:(btn?7000:2600));}
 function modal(html,onOpen){closeModal();var m=document.createElement('div');m.className='modal';m.id='otjModal';m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';
   m.addEventListener('click',function(e){if(e.target===m||e.target.closest('[data-close]'))closeModal();});document.body.appendChild(m);document.body.style.overflow='hidden';if(onOpen)onOpen(m);var f=m.querySelector('input,select,button');if(f&&f.focus&&!('ontouchstart' in window))f.focus();return m;}
-function closeModal(){var m=document.getElementById('otjModal');if(m)m.remove();document.body.style.overflow='';}
+function closeModal(){var m=document.getElementById('otjModal');if(m)m.remove();document.body.style.overflow='';if(STORE.stale)setTimeout(function(){if(STORE.stale&&!document.getElementById('otjModal'))refresh();},0);}
 function upsell(what){modal('<button class="x" data-close aria-label="Close">×</button><h3>That\'s a Pro feature</h3><p>'+esc(what)+'</p><p class="fine">Pro is $9/mo (cancel anytime) and also unlocks every resume tool. Your records are never locked: Backup and CSV export are always free.</p><a class="btn go block" href="/app.html#plans">See Pro plans</a>');}
 function go(v){VIEW=v;try{S.ui.view=v;save(true);}catch(_){}render();window.scrollTo(0,0);}
 $$('.tabs button').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.v);});});
@@ -535,7 +540,8 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
   var s=S.settings,ws=weekShare(w),wk=s.period==='weekly';
   h+='<div class="card" id="weekCard"><h2>This week</h2><div class="tot"><span class="k">Hours</span><span class="v" style="text-align:right">'+hrs(w.tot.worked)+' worked'+(w.tot.pto?' · '+hrs(w.tot.pto)+' PTO':'')+'<br><span class="fine" id="wkSplit" style="font-weight:700">'+splitText(w.tot)+'</span></span></div>'+
     '<div class="tot main"><span class="k">Gross so far</span><span class="v" id="wkGross">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
-    (pdAny()?(function(){var n=w.keys.filter(function(k){return w.days[k].perDiem>0;}).length;return '<div class="tot" id="wkPd"><span class="k">Per diem<br><span class="fine">'+n+(n===1?' day':' days')+' · included above</span></span><span class="v mid" id="wkPdAmt">'+money(w.tot.perDiem)+'</span></div>';})():'')+
+    (pdAny()?(function(){var n=w.keys.filter(function(k){return w.days[k].perDiem>0;}).length;var ch=w.tot.perDiem>0?pdCharge(wsk,w):null;return '<div class="tot" id="wkPd"><span class="k">Per diem<br><span class="fine">'+n+(n===1?' day':' days')+' · included above</span></span><span class="v mid" id="wkPdAmt">'+money(w.tot.perDiem)+'</span></div>'+
+      (ch?'<div class="fine" id="wkPdTo" style="margin:-2px 0 6px">Per diem charged to: <b id="wkPdToJob">'+esc(ch.label)+'</b>'+(ch.over?' (your choice)':'')+' · <button type="button" class="link" data-a="pdcharge" data-wk="'+wsk+'" style="font-size:inherit;min-height:44px">Change</button></div>':'');})():'')+
     '<div class="tot main"><span class="k">Est. take-home</span><span class="v" id="wkNet" style="color:var(--go)">~'+money(ws.net)+'</span></div>'+
     (wk?'':'<div class="fine" id="wkHow">You\'re paid '+esc(freqText())+', so this is the week\'s share of that paycheck. Taxes are figured on the whole pay period.</div>'+
       ws.parts.map(function(p,i){return '<div class="tot" data-period="'+p.pr.from+'" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><span class="k">Paycheck for '+esc(shortDate(p.pr.from))+' – '+esc(shortDate(p.pr.to))+'<br><span class="fine">'+money(p.pt.gross+p.pt.perDiem)+' gross so far</span></span><span class="v mid" style="color:var(--go)">~'+money(p.th.net)+'</span></div>';}).join(''))+
@@ -565,22 +571,49 @@ function pdLegacy(){var v=S.settings&&+S.settings.perDiem;return v>0&&isFinite(v
 function pdOf(job){if(!job||job.perDiem==null||job.perDiem==='')return null;var v=+job.perDiem;return isFinite(v)&&v>=0?v:null;}
 function pdFor(job){var o=pdOf(job);return o==null?pdLegacy():o;}
 function pdAny(){return pdLegacy()>0||S.jobs.some(function(j){return pdOf(j)>0;});}
-function pdCard(){var jobs=S.jobs.filter(function(j){return j.active!==false||pdFor(j)>0;});
-  return '<div class="card" id="pdCard"><h2>Per diem</h2>'+(pdAny()?'<ul class="list">'+jobs.map(function(j){var v=pdFor(j);return '<li class="tot" data-pdjob><span class="k">'+esc(j.name)+'</span><span class="v mid">'+(v>0?money(v)+' a day':'None')+'</span></li>';}).join('')+'</ul><div class="fine" id="pdTax">Added for each day you work. '+(S.settings.perDiemNT?'Not taxed on your stub, so it\'s left out of the tax estimate.':'Counted as taxed pay in the estimate.')+'</div>':'<div class="fine">Get paid a daily amount for meals or travel? Add it here and it shows on Today, your Timesheet and the pay math.</div>')+
+function pdTaxAns(){var t=S.settings&&S.settings.perDiemTax;return t==='yes'||t==='no'?t:(S.settings&&S.settings.perDiemNT?'no':'');}
+/* Which job the week's per diem is charged to: the Job # with the most hours worked that week (shifts with no Job # count under the job's name). Ties go to the one worked first. A choice made for a week is kept for that week. */
+function pdTargets(w){var list=[],by={};w.keys.forEach(function(k){w.days[k].items.slice().sort(function(a,b){return (a.e.start||0)-(b.e.start||0);}).forEach(function(it){if(it.e.kind==='pto'||!(it.hours>0))return;
+    var code=it.e.codes&&it.e.codes.job?String(it.e.codes.job):'',jid=it.e.jobId||(S.jobs[0]&&S.jobs[0].id)||'',key=code?'c:'+code:'j:'+jid;
+    if(!by[key]){by[key]={key:key,label:code||jobOf(jid).name,hours:0};list.push(by[key]);}by[key].hours+=it.hours;});});return list;}
+function pdCharge(wsk,w){w=w||computeWeek(wsk);var list=pdTargets(w),best=null;list.forEach(function(t){if(!best||t.hours>best.hours+1e-9)best=t;});
+  var ov=S.pdCharge&&S.pdCharge[wsk];if(ov&&ov.key&&ov.label)return {key:ov.key,label:ov.label,over:true,auto:best,list:list};
+  return best?{key:best.key,label:best.label,over:false,auto:best,list:list}:null;}
+function pdChargeModal(wsk){var w=computeWeek(wsk),cur=pdCharge(wsk,w);if(!cur)return;var opts=cur.list.slice();
+  S.jobs.forEach(function(j){var k='j:'+j.id;if(j.active!==false&&!opts.some(function(o){return o.key===k;}))opts.push({key:k,label:j.name,hours:0});});
+  if(!opts.some(function(o){return o.key===cur.key;}))opts.unshift({key:cur.key,label:cur.label,hours:0});
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>Charge per diem to</h3><div class="fine">For the week of '+esc(shortDate(wsk))+'. We pick the job with the most hours that week. Choose a different one if your timesheet needs it.</div>'+
+    '<div role="radiogroup" style="margin-top:10px">'+opts.map(function(o,i){return '<label class="chk" style="min-height:44px"><input type="radio" name="pdc" value="'+i+'"'+(o.key===cur.key?' checked':'')+'><span><b>'+esc(o.label)+'</b>'+(o.hours?' <span class="muted">· '+hrs(r2(o.hours))+' hrs this week</span>':'')+(cur.auto&&o.key===cur.auto.key?' <span class="muted">· most hours</span>':'')+'</span></label>';}).join('')+'</div>'+
+    '<button type="button" class="btn go block" style="margin-top:14px" id="pdcSave">Save</button>',function(){
+    $('#pdcSave').addEventListener('click',function(){var r=$('input[name=pdc]:checked');if(!r)return;var o=opts[+r.value],old=cur.label;
+      if(!S.pdCharge||typeof S.pdCharge!=='object')S.pdCharge={};
+      if(cur.auto&&o.key===cur.auto.key)delete S.pdCharge[wsk];else S.pdCharge[wsk]={key:o.key,label:o.label};
+      if(o.label!==old)log('settings','per diem charge','',old+' → '+o.label+' (week of '+shortDate(wsk)+')');
+      save();closeModal();render();toast('Saved.');});});}
+function pdCard(){var jobs=S.jobs.filter(function(j){return j.active!==false||pdFor(j)>0;}),ans=pdTaxAns();
+  return '<div class="card" id="pdCard"><h2>Per diem</h2>'+(pdAny()?'<ul class="list">'+jobs.map(function(j){var v=pdFor(j);return '<li class="tot" data-pdjob><span class="k">'+esc(j.name)+'</span><span class="v mid">'+(v>0?money(v)+' a day':'None')+'</span></li>';}).join('')+'</ul><div class="fine" id="pdTax">One per diem for each day you work'+(S.jobs.length>1?(S.settings.perDiemEach?', from each job you work that day':', at the higher amount if you work two jobs that day'):'')+'. '+(ans==='no'?'Not taxed on your stub, so it\'s left out of the tax estimate.':ans==='yes'?'Taxed on your stub, so it\'s counted as taxed pay in the estimate.':'<b>Is it taxed on your pay stub?</b> Tap Change per diem to answer. Until then the estimate treats it as taxed.')+'</div>':'<div class="fine">Get paid a daily amount for meals or travel? Add it here and it shows on Today, your Timesheet and the pay math.</div>')+
     '<button type="button" class="btn ghost block" style="margin-top:10px" data-a="perdiem">'+(pdAny()?'Change per diem':'Add per diem')+'</button></div>';}
-function perDiemModal(){var jobs=S.jobs.filter(function(j){return j.active!==false||pdFor(j)>0;});
+function perDiemModal(){var jobs=S.jobs.filter(function(j){return j.active!==false||pdFor(j)>0;}),ans=pdTaxAns();
   modal('<button class="x" data-close aria-label="Close">×</button><h3>Per diem</h3><div class="fine">The daily amount each job pays you for a day worked. Leave blank for none.</div>'+
     jobs.map(function(j,i){var v=pdFor(j);return '<label class="f" for="pd_'+i+'">'+esc(j.name)+', $ per day worked</label><input class="i" id="pd_'+i+'" inputmode="decimal" value="'+(v>0?esc(String(v)):'')+'">';}).join('')+
-    '<label class="chk" style="margin-top:12px"><input type="checkbox" id="pdNT"'+(S.settings.perDiemNT?' checked':'')+'><span>My per diem isn\'t taxed on my stub</span></label><div class="fine">If you tick this, we leave per diem out of the tax estimate. Your employer\'s payroll is the final word.</div>'+
+    '<div class="f" id="pdTaxQ" style="margin-top:14px">Is your per diem taxed on your pay stub?</div><div role="radiogroup" aria-labelledby="pdTaxQ">'+
+    '<label class="chk" style="min-height:44px"><input type="radio" name="pdTax" id="pdTaxY" value="yes"'+(ans==='yes'?' checked':'')+'><span>Yes, it\'s taxed like my wages</span></label>'+
+    '<label class="chk" style="min-height:44px"><input type="radio" name="pdTax" id="pdTaxN" value="no"'+(ans==='no'?' checked':'')+'><span>No, it\'s paid without tax taken out</span></label></div>'+
+    '<div class="fine">Check a pay stub if you\'re not sure. If you can\'t tell, pick Yes: the estimate comes out a little low instead of too high. Your employer\'s payroll is the final word.</div>'+
+    (S.jobs.length>1?'<label class="chk" style="margin-top:12px;min-height:44px"><input type="checkbox" id="pdEach"'+(S.settings.perDiemEach?' checked':'')+'><span>My employers each pay per diem (count both)</span></label><div class="fine">Off: one per diem a day, at the higher amount, even if you work two jobs that day.</div>':'')+
     '<div class="fine" id="pdErr" role="alert" style="color:var(--red);font-weight:700"></div><button type="button" class="btn go block" style="margin-top:14px" id="pdSave">Save</button>',function(){
     $('#pdSave').addEventListener('click',function(){var vals=[],bad=-1;jobs.forEach(function(j,i){var t=String($('#pd_'+i).value||'').replace(/[$,\s]/g,'');var v=t===''?0:+t;if(!isFinite(v)||v<0||v>5000)bad=bad<0?i:bad;vals.push(Math.round(v*100)/100);});
       if(bad>=0){$('#pdErr').textContent='Enter a dollar amount per day (0 to 5,000), or leave it blank.';$('#pd_'+bad).focus();return;}
-      var oldSet=JSON.stringify(S.settings);
+      var tx=$('input[name=pdTax]:checked'),anyAmt=vals.some(function(v){return v>0;})||S.jobs.some(function(j){return jobs.indexOf(j)<0&&pdFor(j)>0;});
+      if(anyAmt&&!tx){$('#pdErr').textContent='Answer the question: is your per diem taxed on your pay stub?';try{$('#pdTaxY').focus();$('#pdTaxQ').scrollIntoView({block:'nearest'});}catch(_){}return;}
+      var a=S.settings,each=$('#pdEach')?$('#pdEach').checked:!!a.perDiemEach,taxV=tx?tx.value:(a.perDiemTax||'');
       /* every job gets its own amount from here on, so the older single amount is retired */
       S.jobs.forEach(function(j,ix){var k=jobs.indexOf(j),nv=k>=0?vals[k]:pdFor(j),ov=pdFor(j);var n=Object.assign({},j,{perDiem:nv});if(nv!==ov)log('job',j.name,JSON.stringify(Object.assign({},j,{perDiem:ov})),JSON.stringify(n));S.jobs[ix]=n;});
-      S.settings=Object.assign({},S.settings,{perDiem:'',perDiemNT:$('#pdNT').checked});
-      var a=JSON.parse(oldSet);if(!!a.perDiemNT!==S.settings.perDiemNT)log('settings','pay setup',JSON.stringify({perDiemNT:!!a.perDiemNT}),JSON.stringify({perDiemNT:S.settings.perDiemNT}));
+      S.settings=Object.assign({},a,{perDiem:'',perDiemNT:taxV==='no',perDiemTax:taxV,perDiemEach:each});
+      var was=pdTaxAnsOf(a);if(taxV&&was!==taxV)log('settings','per diem taxed','',(was===''?'not answered':was==='yes'?'taxed':'not taxed')+' → '+(taxV==='yes'?'taxed':'not taxed'));
+      if(!!a.perDiemEach!==each)log('settings','per diem count','',each?'one a day → each employer\'s':'each employer\'s → one a day');
       save();closeModal();render();toast('Saved.');});});}
+function pdTaxAnsOf(a){var t=a&&a.perDiemTax;return t==='yes'||t==='no'?t:(a&&a.perDiemNT?'no':'');}
 function bonusLine(upTo,wsk){try{var c=bonusCalc(upTo);if(!c)return '';var b=c.b,gain=0;
   if(wsk&&b.basis!=='flat'){var pv=addDays(wsk,-1);if(pv.slice(0,4)===c.year){var c0=bonusCalc(pv);gain=r2(c.bonus-(c0?c0.bonus:0));}else gain=r2(c.bonus-(b.prior&&b.priorYear===c.year?r2(b.prior*b.pct/100):0));}
   return '<div id="bonusLine" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><div class="tot main"><span class="k">Bonus so far<br><span class="fine">'+esc(c.year)+' · estimate</span></span><span class="v" style="text-align:right;color:var(--go)"><span id="bonusAmt">~'+money(c.bonus)+'</span>'+(gain>0?'<br><span class="fine" id="bonusWk" style="font-weight:700;color:var(--go)">+'+money(gain)+' this week</span>':'')+'</span></div>'+
@@ -617,7 +650,7 @@ function moreHTML(){var pro=isPro();var h='<div class="card"><h2>Pay setup</h2><
   h+=pdCard();
   h+=jobsCard();
   h+='<div class="card"><h2>Backup + restore</h2><div class="fine">Last backup: <b id="lastBk">'+(S.lastBackup?new Date(S.lastBackup).toLocaleString():'never')+'</b>. A backup is one file with all your hours, codes, PTO and change history. Keep it in Files, iCloud Drive, Google Drive or email it to yourself.</div>'+
-    '<div class="row wrap" style="margin-top:10px"><button type="button" class="btn go grow" data-a="backup">Back up now</button><button type="button" class="btn ghost grow" data-a="restore">Restore</button></div>'+(prevCopy()?'<button type="button" class="link" data-a="undorestore" style="margin-top:8px">Undo last restore</button>':'')+(lastCopy()&&!STORE.ro?'<button type="button" class="link" data-a="undolast" style="display:block;margin-top:8px;min-height:44px">Undo last change</button>':'')+'<input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="Choose backup file"></div>';
+    '<div class="row wrap" style="margin-top:10px"><button type="button" class="btn go grow" data-a="backup">Back up now</button><button type="button" class="btn ghost grow" data-a="restore">Restore</button></div>'+(prevCopy()?'<button type="button" class="link" data-a="undorestore" style="margin-top:8px">Undo last restore</button>':'')+(lastCopy()&&!STORE.ro?'<button type="button" class="link" data-a="undolast" style="display:block;margin-top:8px;min-height:44px">Undo last change</button>':'')+(rawKeys().length?'<button type="button" class="link" data-a="rawdl" style="display:block;margin-top:8px;min-height:44px">Download the damaged data</button>':'')+'<input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="Choose backup file"></div>';
   h+='<div class="card"><h2>Export</h2><div class="fine">CSV opens in Excel, Google Sheets or Numbers. Exporting your own records is always free.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="csv">Export CSV</button></div>';
   h+='<div class="card"><h2>Change history</h2><div class="fine">Every change to an entry is saved with the time, the old value and the new value. Nothing is silently overwritten. '+S.log.length+' changes saved.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="logview">View change history'+(pro?'':' <span class="lock">PRO</span>')+'</button></div>';
   h+='<div class="card"><h2>Keep it on your phone</h2><div class="fine">On iPhone: Safari → Share → <b>Add to Home Screen</b>. Home Screen apps keep their data; Safari can erase website data after 7 days without a visit. Works with no signal once it\'s opened.</div><ul class="fine" id="iosNotes" style="margin:8px 0 0;padding-left:18px"><li><b>Private Browsing does not keep your hours.</b> Use a regular Safari tab.</li><li>The Home Screen app keeps its own records, separate from Safari. Hours you entered in Safari won\'t show up there.</li><li>To move your hours from one to the other: <b>Back up</b> in one, then <b>Restore</b> in the other.</li></ul>'+(BIP?'<button type="button" class="btn ghost block" style="margin-top:10px" data-a="install">Install app</button>':'')+'</div>';
@@ -662,7 +695,7 @@ function wireSetup(first){var st=$('#sState'),per=$('#sPer');function upd(){var 
     else{log('settings','pay setup',old,JSON.stringify(S.settings));
       if(S.jobs.length===1&&document.getElementById('sO_mode')){var j0=S.jobs[0],r1=readOt('sO_');if(!sameRule(otOf(j0),r1)){var n0=applyRule(j0,r1,($('#sO_when')||{}).value||weekStartKey(todayKey()));log('job',j0.name,JSON.stringify(j0),JSON.stringify(n0));S.jobs[0]=n0;}}}
     save();VIEW=first?'today':'more';render();window.scrollTo(0,0);toast(first?'You\'re set. Tap START when your shift begins.':'Saved.');});
-  var c=$('[data-a=cancelSetup]');if(c)c.addEventListener('click',function(){render();});}
+  var c=$('[data-a=cancelSetup]');if(c)c.addEventListener('click',function(){render();if(STORE.stale)refresh();});}
 
 /* ── wiring ── */
 function wire(){var v=$('#view');
@@ -701,6 +734,8 @@ function act(a,el){
   if(a==='undorestore'){undoRestore();return;}
   if(a==='undolast'){undoLast();return;}
   if(a==='perdiem')return perDiemModal();
+  if(a==='pdcharge')return pdChargeModal(el.dataset.wk);
+  if(a==='rawdl')return rawDownload();
   if(a==='csv')return csvModal();
   if(a==='logview'){if(!isPro())return upsell('See every change with the time, the old value and the new value. Your history is always saved (free) and included in your Backup; viewing it here is Pro.');return logModal();}}
 
@@ -915,6 +950,9 @@ function logLines(){var CAT={backup:1,clock:1,job:1,pto:1,settings:1,labels:1,co
     if(id==='clock')return o&&n?'Changed codes on the running shift: '+arrow(o,n):n?'Added job codes to the running shift: '+plain(n):'Cleared the codes on the running shift';
     if(id==='job'){if(f==='(added)')return 'Added job: '+plain(n);var jp=jdiff(o,n,{name:'name',rate:'hourly rate',otRate:'overtime rate',active:'open',perDiem:'per diem a day'},setFmt);try{var ja=JSON.parse(o),jb=JSON.parse(n);if(jp&&ruleText(ja)!==ruleText(jb)){var hb=otHistOf(jb),fr=hb[hb.length-1].effectiveFrom;jp.push('OT rule '+ruleText(ja)+' → '+ruleText(jb)+(fr===BEGIN?', for all weeks':', starting the week of '+shortDate(fr)));}if(jp&&otOf(ja).mult!==otOf(jb).mult)jp.push('OT pays ×'+otOf(ja).mult+' → ×'+otOf(jb).mult);}catch(_){}return 'Edited job '+plain(f)+(jp&&jp.length?': '+jp.join('; '):'');}
     if(id==='pto'){if(f==='(bucket added)')return 'Added PTO bucket: '+plain(n);if(f==='(buckets)')return 'Added PTO buckets: '+plain(n);var pp=jdiff(o,n,{name:'name',start:'starting balance',startDate:'start date',type:'how it is earned',earn:'hours earned',per:'per hours worked',cap:'max balance',carry:'carryover limit'},setFmt);return 'Edited PTO '+plain(f)+(pp&&pp.length?': '+pp.join('; '):'');}
+    if(id==='settings'&&f==='per diem charge')return 'Per diem charged to: '+plain(n);
+    if(id==='settings'&&f==='per diem taxed')return 'Per diem on your stub: '+plain(n);
+    if(id==='settings'&&f==='per diem count')return 'Per diem with two jobs in a day: '+plain(n);
     if(id==='settings'){if(f==='(setup)'){var m=n.match(/^rate ([\d.]+), (\w+), (\w+)/);return 'Set up pay'+(m?': '+money(+m[1])+'/hr, '+m[2]+', '+m[3]:'');}var sp=jdiff(o,n,{rate:'hourly rate',otRate:'overtime rate',period:'pay period',anchor:'pay period start',weekStart:'workweek starts',state:'state',stateRate:'state tax rate',filing:'filing status',k401:'401(k)',health:'health insurance',credits:'W-4 credits',extraWH:'extra withholding',perDiem:'per diem',perDiemNT:'per diem untaxed'},setFmt);try{var ba=bonusText(JSON.parse(o).bonus),bb=bonusText(JSON.parse(n).bonus);if(sp&&ba!==bb)sp.push('bonus '+ba+' → '+bb);}catch(_){}return 'Changed pay setup'+(sp&&sp.length?': '+sp.join('; '):'');}
     if(id==='labels')return 'Renamed the code labels';
     if(id==='code')return f==='(added)'?'Saved a code set: '+plain(n):'Edited code set '+plain(f);
@@ -947,14 +985,17 @@ function logModal(){var lines=logLines().slice(0,400);
 /* ── export / backup / restore ── */
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 /* One row per entry. The codes are their own columns so the file can be sorted or pasted into an employer's sheet. */
-function buildCSV(f){f=f||{};var rows=[['Date','Day','Job','Type','Start','End','Break min','Hours','Regular','Overtime','Double time','PTO','PTO bucket','Job #','Task code','Cost code','Pay code','PO #','Gross (estimate)','OT rule','Note','Entry ID']];
+function buildCSV(f){f=f||{};var rows=[['Date','Day','Job','Type','Start','End','Break min','Hours','Regular','Overtime','Double time','PTO','PTO bucket','Job #','Task code','Cost code','Pay code','PO #','Gross (estimate)','Per diem','Per diem charged to','OT rule','Note','Entry ID']];
   var ents=S.entries.filter(function(e){return !e.deleted;}).slice().sort(function(a,b){return entryDate(a)<entryDate(b)?-1:entryDate(a)>entryDate(b)?1:(a.start||0)-(b.start||0);});
-  var weeks={};function w(k){var ws=weekStartKey(k);return weeks[ws]||(weeks[ws]=computeWeek(ws));}
+  var weeks={},pdDone={},pdTo={};function w(k){var ws=weekStartKey(k);return weeks[ws]||(weeks[ws]=computeWeek(ws));}
+  /* per diem is a per-day amount: it goes on the day's first worked row, so the column adds up to what the screen shows */
+  function pdCell(e,dk){if(e.kind==='pto'||pdDone[dk])return ['',''];var d=w(dk).days[dk];if(!(d.perDiem>0))return ['',''];pdDone[dk]=1;var ws=weekStartKey(dk);if(!(ws in pdTo)){var c=pdCharge(ws,w(dk));pdTo[ws]=c?c.label:'';}return [r2(d.perDiem),pdTo[ws]];}
   ents.forEach(function(e){var dk=entryDate(e);if(f.from&&dk<f.from)return;if(f.to&&dk>f.to)return;if(f.job&&e.jobId!==f.job)return;
     var it=w(dk).days[dk].items.filter(function(x){return x.e.id===e.id;})[0]||{hours:entryHours(e),reg:0,ot:0,dt:0,pto:0,gross:0};var c=e.codes||{};
     var note=(e.note||'')+(e.splits&&e.splits.length?(e.note?' ':'')+'[split: '+e.splits.map(function(sp){return codeName(sp.codeId)+' '+(+sp.hours||0)+'h';}).join(' + ')+']':'');
+    var pdc=pdCell(e,dk);
     rows.push([dk,dayName(dk),jobOf(e.jobId).name,e.kind==='pto'?'PTO':'Worked',e.kind==='pto'||e.manualHours!=null&&e.manualHours!==''?'':timeVal(e.start),e.kind==='pto'||!e.end?'':timeVal(e.end),e.kind==='pto'?'':(+e.breakMin||0),
-      r2(it.hours),r2(it.reg),r2(it.ot),r2(it.dt||0),r2(it.pto),e.kind==='pto'?bucketName(e.bucket):'',c.job||'',c.task||'',c.cost||'',c.pay||'',c.po||'',r2(it.gross),e.kind==='pto'?'':ruleText(jobOf(e.jobId),weekStartKey(dk)),note,e.id]);});
+      r2(it.hours),r2(it.reg),r2(it.ot),r2(it.dt||0),r2(it.pto),e.kind==='pto'?bucketName(e.bucket):'',c.job||'',c.task||'',c.cost||'',c.pay||'',c.po||'',r2(it.gross),pdc[0],pdc[1],e.kind==='pto'?'':ruleText(jobOf(e.jobId),weekStartKey(dk)),note,e.id]);});
   return rows.map(function(r){return r.map(csvCell).join(',');}).join('\r\n')+'\r\n';}
 function csvModal(){var pro=isPro();
   modal('<button class="x" data-close aria-label="Close">×</button><h3>Export CSV</h3>'+(pro?'<div class="row"><div class="grow"><label class="f" for="xF">From</label><input class="i" type="date" id="xF"></div><div class="grow"><label class="f" for="xT">To</label><input class="i" type="date" id="xT"></div></div>'+
@@ -990,8 +1031,8 @@ window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();BIP
 window.addEventListener('pageshow',function(e){if(e.persisted)refresh();});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refresh();});
 window.addEventListener('storage',function(e){if(e.key===KEY||e.key==='yfs_pro')refresh();});
-document.getElementById('storeBar').addEventListener('click',function(e){var id=e.target&&e.target.id;if(id==='storeUpd'){location.reload();}else if(id==='storeBk'){backup();}else if(id==='storeRetry'){if(save())toast('Saved.');}});
-window.OTJ={logLines:logLines,bonusCalc:bonusCalc,otOf:otOf,weekShare:weekShare,ruleText:ruleText,cleanOt:cleanOt,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();paintStore();render();},store:function(){return {ok:STORE.ok,ro:STORE.ro,dirty:STORE.dirty,note:STORE.note,bad:storeBad()};},DATA_V:DATA_V,storeTest:storeTest,tax:function(){return TAX;},autoClock:autoClockHook,
+document.getElementById('storeBar').addEventListener('click',function(e){var id=e.target&&e.target.id;if(id==='storeUpd'){location.reload();}else if(id==='storeBk'){backup();}else if(id==='storeRawDl'){rawDownload();}else if(id==='storeRetry'){if(save())toast('Saved.');}});
+window.OTJ={logLines:logLines,bonusCalc:bonusCalc,otOf:otOf,weekShare:weekShare,ruleText:ruleText,cleanOt:cleanOt,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();paintStore();render();},pdCharge:pdCharge,store:function(){return {stale:STORE.stale,ok:STORE.ok,ro:STORE.ro,dirty:STORE.dirty,note:STORE.note,bad:storeBad()};},DATA_V:DATA_V,storeTest:storeTest,tax:function(){return TAX;},autoClock:autoClockHook,
   hash:function(o){var t=new TextEncoder().encode(JSON.stringify(o||S));return crypto.subtle.digest('SHA-256',t).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}};
 STORE.ok=storeTest();S=load();paintStore();VIEW=(S.ui&&S.ui.view)||'today';if(VIEW==='codes')VIEW='week';
 fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();}).catch(function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});

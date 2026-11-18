@@ -26,7 +26,7 @@ const UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605
   // undo last change
   await js("document.querySelector('nav.tabs [data-v=more]').click()");await wait(300);ok(await js("return /Private Browsing does not keep your hours/.test(document.getElementById('iosNotes').innerText)"),'More: iPhone notes');
   // per diem
-  await js("document.querySelector('[data-a=perdiem]').click()");await wait(300);await js("document.getElementById('pd_0').value='75';document.getElementById('pdSave').click();");await wait(400);
+  await js("document.querySelector('[data-a=perdiem]').click()");await wait(300);await js("document.getElementById('pd_0').value='75';document.getElementById('pdTaxY').checked=true;document.getElementById('pdSave').click();");await wait(400);
   ok(await js("return !!document.querySelector('[data-a=undolast]')&&OTJ.state().jobs[0].perDiem===75"),'per diem saved; More now offers Undo last change');
   await js("var s=OTJ.state();var d0=new Date();d0.setHours(6,0,0,0);s.entries=[{id:'w1',kind:'work',date:OTJ.periodRange(new Date().toISOString().slice(0,10))&&(d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0')+'-'+String(d0.getDate()).padStart(2,'0')),start:d0.getTime(),manualHours:4,breakMin:0,jobId:s.jobs[0].id,codeId:'',splits:[],note:''}];localStorage.setItem('yfs_otj_v1',JSON.stringify(s));OTJ.reload();document.querySelector('nav.tabs [data-v=today]').click();");await wait(400);
   const vis="function v(id){var e=document.getElementById(id);if(!e)return false;var r=e.getBoundingClientRect();return r.width>100&&r.height>20&&r.left>=0&&r.right<=innerWidth+0.5;}";
