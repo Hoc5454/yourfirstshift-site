@@ -122,6 +122,12 @@ textarea.i{min-height:80px;}
 .star{background:none;border:0;font-size:24px;min-width:44px;min-height:44px;color:#CBD5E1;}
 .star.on{color:#F59E0B;}
 .lock{font-size:13px;font-weight:800;color:var(--amber);}
+.toast{pointer-events:none;}
+.toast button{pointer-events:auto;margin-left:12px;background:#fff;color:#0F172A;border:0;border-radius:8px;min-height:40px;padding:6px 14px;font-weight:800;font-size:15px;}
+.hist{list-style:none;margin:10px 0 0;padding:0;}
+.hist li{border-top:1px solid var(--line);padding:10px 0;font-size:15px;line-height:1.45;overflow-wrap:anywhere;word-break:break-word;}
+.hist li:first-child{border-top:0;}
+.err{color:var(--red);font-weight:700;margin-top:10px;}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));z-index:60;background:#0F172A;color:#fff;border-radius:12px;padding:12px 16px;font-weight:700;font-size:15px;max-width:92vw;}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
 @media(min-width:760px){.modal{align-items:center;}.sheet{border-radius:18px;}}
@@ -234,6 +240,7 @@ function log(entryId,field,oldV,newV,reason){S.log.push({t:Date.now(),id:entryId
 function entryHours(e,now){
   if(e.kind==='pto')return Math.max(0,+e.hours||0);
   if(e.manualHours!=null&&e.manualHours!=='')return Math.max(0,+e.manualHours);
+  if(!e.end&&!e.live)return 0; /* a saved shift with no end time is incomplete: count nothing until it is fixed (only the running clock counts up to now) */
   var end=e.end||now||Date.now();var ms=end-e.start;
   var brk=(+e.breakMin||0)*60000;
   (e.breaks||[]).forEach(function(b){brk+=((b.e||now||Date.now())-b.s);});
@@ -316,7 +323,9 @@ function ptoBalance(b,asOf,now){asOf=asOf||todayKey();var bal=+b.start||0,used=0
   return {balance:r2(bal),used:r2(used),earned:r2(earned)};}
 
 /* ── UI chrome ── */
-function toast(m){var t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove();},2600);}
+function toast(m,btn,fn){$$('.toast').forEach(function(x){x.remove();});var t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=m;
+  if(btn){var b=document.createElement('button');b.type='button';b.textContent=btn;b.addEventListener('click',function(){t.remove();fn();});t.appendChild(b);}
+  document.body.appendChild(t);setTimeout(function(){t.remove();},btn?7000:2600);}
 function modal(html,onOpen){closeModal();var m=document.createElement('div');m.className='modal';m.id='otjModal';m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';
   m.addEventListener('click',function(e){if(e.target===m||e.target.closest('[data-close]'))closeModal();});document.body.appendChild(m);document.body.style.overflow='hidden';if(onOpen)onOpen(m);var f=m.querySelector('input,select,button');if(f&&f.focus&&!('ontouchstart' in window))f.focus();return m;}
 function closeModal(){var m=document.getElementById('otjModal');if(m)m.remove();document.body.style.overflow='';}
@@ -370,7 +379,7 @@ function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=
   return h;}
 /* the codes filled in for the next clock-in (or the running shift), with one button to change them */
 function clockCodes(c){var has=hasCodes(c);return '<div id="clkCodes" style="margin-top:10px;text-align:center">'+(has?codesLine(c):'')+'<button type="button" class="link" data-a="clkcodes">'+(has?'Change codes':'+ Add job codes (Job #, PO #, cost code)')+'</button></div>';}
-function entryWhen(e){return e.kind==='pto'?'':(e.manualHours!=null&&e.manualHours!==''?'Hours only':hm(e.start)+'–'+(e.end?hm(e.end):'now'));}
+function entryWhen(e){return e.kind==='pto'?'':(e.manualHours!=null&&e.manualHours!==''?'Hours only':(!e.end&&!e.live?'Missing end time · tap to fix':hm(e.start)+'–'+(e.end?hm(e.end):'now')));}
 function oldSplit(e){return e.splits&&e.splits.length?'<span class="fine" style="display:block">Split: '+e.splits.map(function(sp){return esc(codeName(sp.codeId))+' '+hrs(+sp.hours||0)+'h';}).join(' + ')+'</span>':'';}
 function entryList(items){return '<ul class="list">'+items.map(function(it){var e=it.e;var tags='';
   if(e.kind==='pto')tags+='<span class="tag pto">PTO · '+esc(bucketName(e.bucket))+'</span>';
@@ -545,7 +554,7 @@ function editEntry(id,preset){var e=id?S.entries.filter(function(x){return x.id=
   e=e?JSON.parse(JSON.stringify(e)):Object.assign({id:uid(),kind:'work',date:todayKey(),jobId:S.ui.lastJob||(S.jobs[0]&&S.jobs[0].id),codeId:'',splits:[],note:'',breakMin:0},preset||{});
   if(isNew&&e.kind==='pto'){e.hours=8;e.bucket=(S.pto.buckets[0]||{}).id;}
   if(isNew&&!hasCodes(e.codes))e.codes=cleanCodes(S.ui.lastCodes); /* saved defaults: the last codes used fill in; change them per entry */
-  var dk=entryDate(e);var startV=e.start?timeVal(e.start):'07:00',endV=e.end?timeVal(e.end):'15:30';var hoursOnly=e.manualHours!=null&&e.manualHours!=='';
+  var dk=entryDate(e);var hoursOnly=e.manualHours!=null&&e.manualHours!=='';var startV=e.start?timeVal(e.start):'07:00',endV=e.end?timeVal(e.end):(isNew||hoursOnly||e.kind==='pto'?'15:30':'');
   var h='<button class="x" data-close aria-label="Close">×</button><h3>'+(isNew?(e.kind==='pto'?'Take PTO':'Add hours'):'Edit entry')+'</h3>'+
     '<label class="f" for="eDate">Date</label><input class="i" type="date" id="eDate" value="'+esc(dk)+'">'+
     '<label class="f" for="eKind">Type</label><select class="i" id="eKind"><option value="work"'+(e.kind!=='pto'?' selected':'')+'>Hours worked</option><option value="pto"'+(e.kind==='pto'?' selected':'')+'>PTO / holiday (paid, not worked)</option></select>'+
@@ -560,36 +569,59 @@ function editEntry(id,preset){var e=id?S.entries.filter(function(x){return x.id=
     '<div class="f" style="margin-top:16px;font-size:16px">Codes for your employer\'s timesheet <span class="muted">(optional)</span></div>'+codeInputs('eC_',e.codes)+recentRow('eC_')+'<button type="button" class="link" id="eClr">Clear codes</button>'+
     '<label class="f" for="eNote">Note <span class="muted">(optional)</span></label><input class="i" id="eNote" value="'+esc(e.note||'')+'" maxlength="300">'+
     (isNew?'':'<label class="f" for="eWhy">Why the change? <span class="muted">(optional, saved in history)</span></label><input class="i" id="eWhy" maxlength="200" placeholder="e.g. forgot to clock out">')+
-    '<div class="fine" id="eCalc" style="margin-top:8px"></div>'+
-    '<button type="button" class="btn go block" style="margin-top:14px" id="eSave">Save</button>'+(isNew?'':'<button type="button" class="btn ghost block" style="margin-top:8px;color:var(--red)" id="eDel">Delete entry</button>')+
+    '<div class="fine" id="eCalc" style="margin-top:8px"></div><div class="err" id="eErr" role="alert" hidden></div>'+
+    '<button type="button" class="btn go block" style="margin-top:14px" id="eSave">Save</button>'+(isNew?'':'<div id="eDelBox"><button type="button" class="btn ghost block" style="margin-top:8px;color:var(--red)" id="eDel">Delete entry</button></div>')+
     (e.orig?'<div class="fine" style="margin-top:8px">Original clock times: '+hm(e.orig.start)+'–'+hm(e.orig.end)+' (kept in history)</div>':'');
   modal(h,function(m){
     function cur(){var ho=$('#eHO').checked;var d=$('#eDate').value||dk;var o={kind:$('#eKind').value};
       if(o.kind==='pto')return {kind:'pto',hours:+$('#ePH').value||0};
       if(ho)return {kind:'work',manualHours:+($('#eHrs').value||0)};
       var st=toMs(d,$('#eStart').value),en=toMs(d,$('#eEnd').value);if(en<=st)en+=DAY;return {kind:'work',start:st,end:en,breakMin:+$('#eBrk').value||0};}
-    function calc(){var c=cur();var h=entryHours(c);$('#eCalc').innerHTML=c.kind!=='pto'?'This entry: <b>'+hrs(h)+' hrs</b> worked (breaks not counted).':'PTO is paid at your rate. It doesn\'t count toward the 40 for overtime.';}
+    function blankTimes(){return $('#eKind').value!=='pto'&&!$('#eHO').checked&&(!$('#eStart').value||!$('#eEnd').value);}
+    function fail(msg,id){var x=$('#eErr');x.textContent=msg;x.hidden=false;toast(msg);var f=id&&$('#'+id);if(f&&f.focus)f.focus();try{x.scrollIntoView({block:'nearest'});}catch(_){}return false;}
+    var warned='';
+    function calc(){$('#eErr').hidden=true;if(blankTimes()){$('#eCalc').innerHTML='Enter a start time and an end time.';return;}var c=cur();var h=entryHours(Object.assign({live:1},c));$('#eCalc').innerHTML=c.kind!=='pto'?'This entry: <b>'+hrs(h)+' hrs</b> worked (breaks not counted).':'PTO is paid at your rate. It doesn\'t count toward the 40 for overtime.';}
     function vis(){var p=$('#eKind').value==='pto';$('#wRows').hidden=p;$('#pRows').hidden=!p;var ho=$('#eHO').checked;$('#seRow').hidden=ho;$('#hoRow').hidden=!ho;calc();}
     ['eKind','eHO'].forEach(function(id){$('#'+id).addEventListener('change',vis);});
     ['eStart','eEnd','eBrk','eHrs','ePH','eDate'].forEach(function(id){var x=$('#'+id);if(x)x.addEventListener('input',calc);});
     $('#eClr').addEventListener('click',function(){CODE_F.forEach(function(f){$('#eC_'+f[0]).value='';});});wireRecent(m,'eC_');
     if(e.kind==='pto'&&!S.pto.buckets.length){ptoDefaults();}
     vis();
-    $('#eSave').addEventListener('click',function(){var c=cur();var d=$('#eDate').value;if(!d){toast('Pick a date.');return;}
+    $('#eSave').addEventListener('click',function(){var d=$('#eDate').value;if(!d||!/^\d{4}-\d\d-\d\d$/.test(d))return fail('Pick a date.','eDate');
+      /* never save a shift with missing or impossible times */
+      if(blankTimes())return fail(!$('#eStart').value?'Enter a start time. Or tick "Just enter total hours".':'Enter an end time. Or tick "Just enter total hours".',!$('#eStart').value?'eStart':'eEnd');
+      var c=cur(),hh=entryHours(Object.assign({live:1},c));
+      if(c.kind==='pto'){if(!(c.hours>0))return fail('Enter PTO hours.','ePH');}
+      else if(c.manualHours!=null){if(!(c.manualHours>0))return fail('Enter the hours worked.','eHrs');}
+      else{if($('#eStart').value===$('#eEnd').value)return fail('Start and end are the same time. Check the times.','eEnd');
+        if(!(c.breakMin>=0)||!isFinite(c.breakMin))return fail('Break minutes must be 0 or more.','eBrk');
+        if(!(hh>0))return fail('The break is as long as the shift. Check the times.','eBrk');}
+      if(!isFinite(hh)||hh>24)return fail('One entry can\'t be more than 24 hours. Add a separate entry for each day.',c.kind==='pto'?'ePH':'eHrs');
+      var key=JSON.stringify(c);if(hh>16&&warned!==key){warned=key;var w=$('#eErr');w.textContent='That\'s '+hrs(hh)+' hours in one entry. If that\'s right, tap Save again.';w.hidden=false;try{w.scrollIntoView({block:'nearest'});}catch(_){}return;}
       var n=Object.assign({},e,{date:d,note:($('#eNote').value||'').trim().slice(0,300)});var cds=readCodes('eC_');if(hasCodes(cds))n.codes=cds;else delete n.codes;n.codeId=''; /* the codes now live on the entry itself */
-      if(c.kind==='pto'){if(!(c.hours>0)){toast('Enter PTO hours.');return;}n.kind='pto';n.hours=c.hours;n.bucket=$('#eBucket').value;delete n.start;delete n.end;delete n.manualHours;n.splits=[];n.codeId='';}
+      if(c.kind==='pto'){n.kind='pto';n.hours=c.hours;n.bucket=$('#eBucket').value;delete n.start;delete n.end;delete n.manualHours;n.splits=[];n.codeId='';}
       else{n.kind='work';delete n.hours;delete n.bucket;n.jobId=($('#eJob')||{}).value||n.jobId;
-        if(c.manualHours!=null){if(!(c.manualHours>0)){toast('Enter the hours worked.');return;}n.manualHours=c.manualHours;n.start=toMs(d,'12:00');delete n.end;n.breakMin=0;}
+        if(c.manualHours!=null){n.manualHours=c.manualHours;n.start=toMs(d,'12:00');delete n.end;n.breakMin=0;}
         else{if(e.src==='clock'&&!e.orig&&(e.start!==c.start||e.end!==c.end))n.orig={start:e.start,end:e.end};n.start=c.start;n.end=c.end;n.breakMin=c.breakMin;delete n.manualHours;}
         if(!Array.isArray(n.splits))n.splits=[];}
       var why=($('#eWhy')||{}).value||'';
       if(isNew){S.entries.push(n);log(n.id,'(created)','',entrySummary(n),'manual');S.ui.lastCodes=cleanCodes(n.codes);}
       else{var old=S.entries.filter(function(x){return x.id===e.id;})[0];diffLog(old,n,why);var i=S.entries.indexOf(old);S.entries[i]=n;}
       pushRecent(n.codes);if(n.jobId)S.ui.lastJob=n.jobId;save();closeModal();render();toast('Saved.');});
-    var del=$('#eDel');if(del)del.addEventListener('click',function(){if(!confirm('Delete this entry? It stays in your change history and backup.'))return;var old=S.entries.filter(function(x){return x.id===e.id;})[0];old.deleted=Date.now();log(old.id,'(deleted)',entrySummary(old),'',($('#eWhy')||{}).value||'');save();closeModal();render();toast('Deleted. Still kept in your history.');});});}
+    var del=$('#eDel');if(del)del.addEventListener('click',function(){
+      /* confirm inside the sheet (a browser pop-up can be switched off by the phone, which made Delete look dead) */
+      $('#eDelBox').innerHTML='<div class="alert ot" id="eDelAsk" style="text-align:left;margin-top:10px"><b>Delete this entry?</b> It comes off your hours and pay. It will show in Change history.<div class="row wrap" style="margin-top:10px"><button type="button" class="btn ghost small grow" id="eDelNo">Keep it</button><button type="button" class="btn stop small grow" id="eDelYes">Yes, delete</button></div></div>';
+      try{$('#eDelAsk').scrollIntoView({block:'nearest'});}catch(_){}
+      $('#eDelNo').addEventListener('click',function(){closeModal();});
+      $('#eDelYes').addEventListener('click',function(){var why=($('#eWhy')||{}).value||'';closeModal();deleteEntry(e.id,why);});});});}
+function deleteEntry(id,why){var old=S.entries.filter(function(x){return x.id===id;})[0];if(!old||old.deleted)return;
+  old.deleted=Date.now();log(old.id,'(deleted)',entrySummary(old),'',why||'');save();render();
+  toast('Deleted.','Undo',function(){var x=S.entries.filter(function(y){return y.id===id;})[0];if(!x||!x.deleted)return;delete x.deleted;log(x.id,'(undeleted)','',entrySummary(x),'');save();render();toast('Brought back.');});}
 function toMs(dk,t){var p=(t||'00:00').split(':');var d=parseYmd(dk);d.setHours(+p[0]||0,+p[1]||0,0,0);return d.getTime();}
 function fmtField(f,v){if(v==null||v==='')return '';if(f==='start'||f==='end')return new Date(+v).toLocaleString();if(f==='codeId')return codeName(v);if(f==='codes')return codesText(v);if(f==='jobId')return jobOf(v).name;if(f==='bucket')return bucketName(v);if(f==='splits')return (v||[]).map(function(s){return codeName(s.codeId)+' '+s.hours+'h';}).join(' + ');return String(v);}
-function diffLog(a,b,why){['date','kind','jobId','start','end','breakMin','manualHours','hours','bucket','codes','codeId','splits','note'].forEach(function(f){var x=a[f],y=b[f];var xs=JSON.stringify(x==null?'':x),ys=JSON.stringify(y==null?'':y);if(xs!==ys)log(a.id,f,fmtField(f,x),fmtField(f,y),why);});}
+function diffLog(a,b,why){var span=[rangeText(a),rangeText(b)],g=uid(); /* g ties the rows of one Save together */['date','kind','jobId','start','end','breakMin','manualHours','hours','bucket','codes','codeId','splits','note'].forEach(function(f){var x=a[f],y=b[f];var xs=JSON.stringify(x==null?'':x),ys=JSON.stringify(y==null?'':y);if(xs!==ys){log(a.id,f,fmtField(f,x),fmtField(f,y),why);var row=S.log[S.log.length-1];row.g=g;if(f==='start'||f==='end')row.span=span;}});}
+function hmAP(ms){var d=new Date(ms);var h=d.getHours();return (h%12||12)+':'+pad(d.getMinutes())+' '+(h>=12?'PM':'AM');}
+function rangeText(e){if(!e)return '';if(e.kind==='pto')return 'PTO '+hrs(+e.hours||0)+' hrs';if(e.manualHours!=null&&e.manualHours!=='')return hrs(+e.manualHours)+' hrs';if(typeof e.start!=='number')return '';return hmAP(e.start)+'–'+(e.end?hmAP(e.end):'no end time');}
 
 function dayModal(k){var wk=computeWeek(weekStartKey(k)),d=wk.days[k];var items=d.items.filter(function(it){return !it.e.live;});
   modal('<button class="x" data-close aria-label="Close">×</button><h3>'+esc(dayName(k,true))+'</h3><div class="muted">'+hrs(d.hours)+' hrs · '+money(d.gross+d.perDiem)+' <span class="est">estimate</span></div>'+(items.length?entryList(items):'<div class="empty">Nothing logged this day.</div>')+'<button type="button" class="btn go block" style="margin-top:12px" id="dAdd">+ Add hours</button><button type="button" class="btn ghost block" style="margin-top:8px" id="dPto">PTO</button>',function(m){
@@ -636,8 +668,54 @@ function jobModal(id){var j=id?S.jobs.filter(function(x){return x.id===id;})[0]:
   '<button type="button" class="btn go block" style="margin-top:14px" id="jS">Save</button>',function(){$('#jS').addEventListener('click',function(){var n=Object.assign({},j,{name:($('#jN').value||'').trim()||'Job',rate:$('#jR').value,otRate:$('#jO').value,active:!($('#jC')&&$('#jC').checked)});
     if(isNew){S.jobs.push(n);log('job','(added)','',n.name);}else{log('job',j.name,JSON.stringify(j),JSON.stringify(n));S.jobs[S.jobs.indexOf(j)]=n;}save();closeModal();render();});});}
 /* ── change history (always written; view is Pro) ── */
-function logModal(){var rows=S.log.slice().reverse().slice(0,400).map(function(l){return '<tr><td><b>'+esc(new Date(l.t).toLocaleString())+'</b><br>'+esc(l.field)+(l.reason?' · <i>'+esc(l.reason)+'</i>':'')+'<br><span class="fine">'+(l.old?'was: '+esc(l.old.slice(0,160))+'<br>':'')+(l.new?'now: '+esc(l.new.slice(0,160)):'')+'</span></td></tr>';}).join('');
-  modal('<button class="x" data-close aria-label="Close">×</button><h3>Change history</h3><div class="fine">'+S.log.length+' changes. Newest first.</div><table class="math">'+(rows||'<tr><td>No changes yet.</td></tr>')+'</table>');}
+/* Change history in plain English: one line per change, newest first. Works on old saved history too (which holds raw values). Never shows ids or raw data. */
+function logLines(){var CAT={backup:1,clock:1,job:1,pto:1,settings:1,labels:1,code:1},out=[],L=S.log||[],i;
+  var str=function(v){return v==null?'':String(v);};
+  var plain=function(v){return str(v).replace(/[{}\[\]]/g,'').replace(/\s+/g,' ').trim().slice(0,140);};
+  var tOnly=function(v){var m=str(v).match(/(\d{1,2}:\d\d)(?::\d\d)?\s*([AaPp][Mm])/);return m?m[1]+' '+m[2].toUpperCase():plain(v);};
+  var dShort=function(k){return /^\d{4}-\d\d-\d\d$/.test(str(k))?shortDate(k):plain(k);};
+  var summ=function(v){return plain(str(v).replace(/^\d{4}-\d\d-\d\d\s*/,'').replace(/(\d{1,2}:\d\d)\s?(am|pm)-(\d{1,2}:\d\d)\s?(am|pm)/i,function(_,a,b,c,d){return a+' '+b.toUpperCase()+'–'+c+' '+d.toUpperCase();}).replace(/(\d{1,2}:\d\d)\s?(am|pm)-(?=\s|$)/i,function(_,a,b){return a+' '+b.toUpperCase()+'–no end time';}).replace(/\s*break 0m/,'').replace(/\s*break (\d+)m/,', $1 min break').replace(/^PTO (\S+)h (.*)$/,'PTO $1 hrs ($2)').replace(/^(\d+(?:\.\d+)?)h\b/,'$1 hrs').replace(/ code /,' · code '));};
+  var day=function(l,txt){var e=S.entries.filter(function(x){return x.id===l.id;})[0];if(e)return shortDate(entryDate(e));var m=str(txt).match(/^(\d{4}-\d\d-\d\d)/);return m?shortDate(m[1]):'';};
+  var kindOf=function(l,txt){var e=S.entries.filter(function(x){return x.id===l.id;})[0];return (e?e.kind==='pto':/^(\d{4}-\d\d-\d\d )?PTO /.test(str(txt)))?'PTO':'shift';};
+  var arrow=function(a,b){a=plain(a);b=plain(b);return (a||'none')+' → '+(b||'none');};
+  var jdiff=function(o,n,labels,fmt){var a,b,parts=[];try{a=JSON.parse(o);b=JSON.parse(n);}catch(_){return null;}if(!a||!b||typeof a!=='object'||typeof b!=='object')return null;
+    Object.keys(labels).forEach(function(k){var x=a[k]==null?'':a[k],y=b[k]==null?'':b[k];if(String(x)!==String(y))parts.push(labels[k]+' '+arrow(fmt(k,x),fmt(k,y)));});return parts;};
+  var DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var setFmt=function(k,v){if(v==='')return '';if(k==='rate'||k==='otRate'||k==='k401'||k==='health'||k==='credits'||k==='extraWH'||k==='perDiem')return money(+v);if(k==='stateRate')return v+'%';if(k==='weekStart')return DAYS[+v]||v;if(k==='filing')return filingText(v);if(k==='perDiemNT'||k==='active')return v===true||v==='true'?'yes':'no';if(k==='anchor'||k==='startDate')return dShort(v);return v;};
+  var user=function(r){r=str(r);return r&&['clock','manual','repeat yesterday'].indexOf(r)<0?' · “'+plain(r)+'”':'';};
+  function one(l,grp){var f=str(l.field),o=str(l.old),n=str(l.new),id=str(l.id);
+    if(id==='backup')return f==='(restore undone)'?'Undid the last restore ('+plain(n)+')':'Restored a backup ('+plain(n.replace(/^(\d{4}-\d\d-\d\d)T[\d:.]+Z?/,function(_,d){return 'made '+shortDate(d);}).replace(/^unknown date/,'date unknown'))+')';
+    if(id==='clock')return o&&n?'Changed codes on the running shift: '+arrow(o,n):n?'Added job codes to the running shift: '+plain(n):'Cleared the codes on the running shift';
+    if(id==='job'){if(f==='(added)')return 'Added job: '+plain(n);var jp=jdiff(o,n,{name:'name',rate:'hourly rate',otRate:'overtime rate',active:'open'},setFmt);return 'Edited job '+plain(f)+(jp&&jp.length?': '+jp.join('; '):'');}
+    if(id==='pto'){if(f==='(bucket added)')return 'Added PTO bucket: '+plain(n);if(f==='(buckets)')return 'Added PTO buckets: '+plain(n);var pp=jdiff(o,n,{name:'name',start:'starting balance',startDate:'start date',type:'how it is earned',earn:'hours earned',per:'per hours worked',cap:'max balance',carry:'carryover limit'},setFmt);return 'Edited PTO '+plain(f)+(pp&&pp.length?': '+pp.join('; '):'');}
+    if(id==='settings'){if(f==='(setup)'){var m=n.match(/^rate ([\d.]+), (\w+), (\w+)/);return 'Set up pay'+(m?': '+money(+m[1])+'/hr, '+m[2]+', '+m[3]:'');}var sp=jdiff(o,n,{rate:'hourly rate',otRate:'overtime rate',period:'pay period',anchor:'pay period start',weekStart:'workweek starts',state:'state',stateRate:'state tax rate',filing:'filing status',k401:'401(k)',health:'health insurance',credits:'W-4 credits',extraWH:'extra withholding',perDiem:'per diem',perDiemNT:'per diem untaxed'},setFmt);return 'Changed pay setup'+(sp&&sp.length?': '+sp.join('; '):'');}
+    if(id==='labels')return 'Renamed the code labels';
+    if(id==='code')return f==='(added)'?'Saved a code set: '+plain(n):'Edited code set '+plain(f);
+    var d=day(l,o||n),what=kindOf(l,o||n),on=d?' ('+d+')':'';
+    if(f==='(created)'){var r=str(l.reason);return (what==='PTO'?'Added PTO':r==='clock'?'Clocked a shift':r==='repeat yesterday'?'Copied a shift from yesterday':'Added a shift')+on+': '+summ(n);}
+    if(f==='(deleted)')return 'Deleted '+(what==='PTO'?'PTO':'a shift')+on+': '+summ(o);
+    if(f==='(undeleted)')return 'Brought back a deleted '+what+on+': '+summ(n);
+    var parts=[],timeDone=false;
+    grp.forEach(function(g){var gf=str(g.field),go=str(g.old),gn=str(g.new);
+      if(gf==='start'||gf==='end'){if(Array.isArray(g.span)&&g.span.length===2){if(!timeDone){parts.push(plain(g.span[0])+' → '+plain(g.span[1]));timeDone=true;}}else parts.push((gf==='start'?'start ':'end ')+tOnly(go)+' → '+tOnly(gn));}
+      else if(gf==='codes'||gf==='codeId')parts.push(!go&&gn?'added job codes '+plain(gn):go&&!gn?'removed job codes '+plain(go):'job codes '+arrow(go,gn));
+      else if(gf==='breakMin')parts.push('break '+(+go||0)+' min → '+(+gn||0)+' min');
+      else if(gf==='date')parts.push('moved from '+dShort(go)+' to '+dShort(gn));
+      else if(gf==='note')parts.push(!go?'added note “'+plain(gn)+'”':!gn?'removed note “'+plain(go)+'”':'note “'+plain(go)+'” → “'+plain(gn)+'”');
+      else if(gf==='manualHours'||gf==='hours')parts.push('hours '+arrow(go,gn));
+      else if(gf==='kind')parts.push('type '+arrow(go==='pto'?'PTO':'hours worked',gn==='pto'?'PTO':'hours worked'));
+      else if(gf==='jobId')parts.push('job '+arrow(go,gn));
+      else if(gf==='bucket')parts.push('PTO bucket '+arrow(go,gn));
+      else if(gf==='splits')parts.push('split '+arrow(go,gn));
+      else if(parts.indexOf('other details')<0)parts.push('other details');});
+    return 'Edited '+what+on+': '+parts.join('; ');}
+  for(i=0;i<L.length;i++){var l=L[i];if(!l||typeof l!=='object'||typeof l.field!=='string'||l.id==null)continue; /* damaged row */var grp=[l];
+    if(!CAT[str(l.id)]&&str(l.field).charAt(0)!=='(')while(i+1<L.length&&L[i+1]&&L[i+1].id===l.id&&typeof L[i+1].field==='string'&&L[i+1].field.charAt(0)!=='('&&(l.g||L[i+1].g?l.g===L[i+1].g:(str(L[i+1].reason)===str(l.reason)&&Math.abs((+L[i+1].t||0)-(+l.t||0))<1500)))grp.push(L[++i]);
+    var text;try{text=one(l,grp);}catch(_){text='Change saved';}
+    var when=new Date(+l.t||0);out.push({when:isNaN(when.getTime())||!(+l.t>0)?'':when.toLocaleDateString('en-US',{month:'short',day:'numeric'}),text:(text+user(l.reason)).replace(/[{}]/g,'')});}
+  return out.reverse();}
+function logModal(){var lines=logLines().slice(0,400);
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>Change history</h3><div class="fine">'+lines.length+(lines.length===1?' change':' changes')+'. Newest first.</div><ul class="hist" id="hist">'+(lines.map(function(x){return '<li>'+(x.when?'<b>'+esc(x.when)+'</b> · ':'')+esc(x.text)+'</li>';}).join('')||'<li>No changes yet.</li>')+'</ul>');}
 
 /* ── export / backup / restore ── */
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
@@ -684,7 +762,7 @@ window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();BIP
 window.addEventListener('pageshow',function(e){if(e.persisted&&S){S=load();render();}});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&S){S=load();render();}});
 window.addEventListener('storage',function(e){if(e.key===KEY||e.key==='yfs_pro'){S=load();render();}});
-window.OTJ={entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();render();},tax:function(){return TAX;},autoClock:autoClockHook,
+window.OTJ={logLines:logLines,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();render();},tax:function(){return TAX;},autoClock:autoClockHook,
   hash:function(o){var t=new TextEncoder().encode(JSON.stringify(o||S));return crypto.subtle.digest('SHA-256',t).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}};
 S=load();VIEW=(S.ui&&S.ui.view)||'today';if(VIEW==='codes')VIEW='week';
 fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();
