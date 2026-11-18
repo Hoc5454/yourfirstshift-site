@@ -38,16 +38,16 @@ const CHECK=()=>{const bad=[],near=(a,b,tol)=>Math.abs(a-b)<=(tol||0.011),r2=n=>
   const tk=K(new Date()),ws=S.settings.weekStart,wkOf=k=>add(k,-((D(k).getDay()-ws+7)%7)),first=wkOf(add(tk,-77)),weeks=[];for(let i=0;i<13;i++)weeks.push(add(first,i*7));
   const live=S.entries.filter(e=>!e.deleted);
   // 1. days add up to the week; the kinds of hours add up to the hours; every shift is in exactly one week
-  let seen=0;const dayGross={},dayPd={},shares={},ded=(+S.settings.k401||0)+(+S.settings.health||0)+(+S.settings.extraWH||0);
+  let seen=0;const dayGross={},dayPd={},shares={};
   for(const w0 of weeks){const w=OTJ.computeWeek(w0),t=w.tot;let g=0,h=0,pd=0,n=0;w.keys.forEach(k=>{const d=w.days[k];g+=d.gross;h+=d.hours;pd+=d.perDiem;n+=d.items.length;dayGross[k]=d.gross;dayPd[k]=d.perDiem;
       if(!near(d.hours,d.reg+d.ot+d.dt+d.pto,0.011))bad.push(k+': day hours '+d.hours+' ≠ regular+OT+DT+PTO '+r2(d.reg+d.ot+d.dt+d.pto));if(!near(d.gross,d.items.reduce((a,it)=>a+it.gross,0),0.011*Math.max(1,d.items.length)))bad.push(k+': day gross ≠ its shifts');});
     seen+=n;if(!near(g,t.gross,0.04)||!near(h,t.hours,0.04)||!near(pd,t.perDiem,0.04))bad.push('week of '+w0+': days add to '+r2(g)+' / '+r2(h)+' hrs / '+r2(pd)+' per diem, week total says '+t.gross+' / '+t.hours+' / '+t.perDiem);
     if(!near(t.hours,t.reg+t.ot+t.dt+t.pto,0.04))bad.push('week of '+w0+': hours '+t.hours+' ≠ parts '+r2(t.reg+t.ot+t.dt+t.pto));
     if([t.gross,t.hours,t.reg,t.ot,t.dt,t.pto,t.perDiem].some(x=>!(x>=0)))bad.push('week of '+w0+': a negative or missing total');
-    // 2. the week's take-home: its pieces cover the whole week once, each share is between 0 and 1, and it is never more than the pay
+    // 2. the week's take-home: its pieces cover the whole week once, each share is between 0 and 1, and it is never below $0 or more than the pay
     const sh=shares[w0]=OTJ.weekShare(w),mine=sh.parts.reduce((a,p)=>a+p.mine,0);if(!near(mine,t.gross+t.perDiem,0.03))bad.push('week of '+w0+': pay-period pieces cover '+r2(mine)+' of '+r2(t.gross+t.perDiem));
     sh.parts.forEach(p=>{if(!(p.share>=0&&p.share<=1.0000001))bad.push('week of '+w0+': share '+p.share);if(!(p.pr.from<=w.keys[6]&&p.pr.to>=w.keys[0]))bad.push('week of '+w0+': uses a pay period that does not touch it, '+p.pr.from+'..'+p.pr.to);});
-    if(!(sh.net>=-2*ded-0.01&&sh.net<=t.gross+t.perDiem+0.01)||!Number.isFinite(sh.net))bad.push('week of '+w0+': take-home '+sh.net+' vs pay '+r2(t.gross+t.perDiem));}
+    if(!(sh.net>=0&&sh.net<=t.gross+t.perDiem+0.01)||!Number.isFinite(sh.net))bad.push('week of '+w0+': take-home '+sh.net+' vs pay '+r2(t.gross+t.perDiem));}
   const inWin=live.filter(e=>{const k=e.date;return k>=weeks[0]&&k<=add(weeks[12],6);}).length;if(seen!==inWin)bad.push('shifts counted in weeks: '+seen+', shifts saved: '+inWin);
   // 3. every day sits inside its own pay period; pay periods are back to back; a pay period's total is the sum of its days
   const periods={};for(let k=weeks[0];k<=add(weeks[12],6);k=add(k,1)){const p=OTJ.periodRange(k);if(!(p.from<=k&&k<=p.to))bad.push(k+' is outside its pay period '+p.from+'..'+p.to);(periods[p.from]=periods[p.from]||{p,days:[]}).days.push(k);}

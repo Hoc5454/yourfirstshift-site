@@ -1,8 +1,10 @@
 // Clocked In: prove a change does nothing for people whose saved data is normal. Opens the SAME saved data in two builds of the app (an old
 // folder and a new folder), on every weekday, walks every screen and sheet, and compares what the worker would see, word for word: every
 // screen's text, the export file, the change history, the pay numbers, the pay setup, and what is written to storage.
-// Usage: node otj_compare_builds.js <old-root> <new-root> [days: all|YYYY-MM-DD,...] [skip: words in the names of setups to leave out]
+// Usage: node otj_compare_builds.js <old-root> <new-root> [days: all|YYYY-MM-DD,...] [skip: words in the names of setups to leave out, several separated by |]
 //   The skip is for a change that is MEANT to alter some setups: leave those out here (they need their own test) and prove the rest are untouched.
+//   Two more optional arguments for a change that is meant to be seen: [ignore: exact text removed from every screen before comparing]
+//   [allow: a pattern; a difference is expected, and only counted, when the OLD build's text at that spot matches it]
 //   e.g. git worktree add /tmp/live <commit that is live>  &&  node otj_compare_builds.js /tmp/live ..
 // Made-up data only.
 process.env.TZ='America/New_York';
@@ -17,7 +19,7 @@ const addDays=(k,n)=>{const d=P(k);d.setDate(d.getDate()+n);return ymd(d);};cons
 const dow=k=>P(k).getDay();const weekStartOf=(k,ws)=>addDays(k,-((dow(k)-ws+7)%7));const WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 // one full week, the last and first days of a year, and the Sundays US clocks change (with the Mondays after)
 const ALL=['2026-11-22','2026-11-23','2026-11-24','2026-11-25','2026-11-26','2026-11-27','2026-11-28','2026-12-31','2027-01-01','2026-03-08','2026-03-09','2026-11-01','2026-11-02'];
-const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');const SKIP=process.argv[5]||'';
+const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');const SKIP=process.argv[5]||'',IGNORE=process.argv[6]||'',ALLOW=process.argv[7]?new RegExp(process.argv[7]):null;const strip=v=>IGNORE&&typeof v==='string'?v.split(IGNORE).join('').replace(/\n{2,}/g,'\n').replace(/[ \t]+\n/g,'\n').trim():v;
 function records(T){const e=[];let n=0;for(let i=-20;i<=0;i++){const d=addDays(T,i);
     if(i===-3){e.push({id:'p'+(++n),kind:'pto',date:d,hours:8,bucket:'v',jobId:'j1'});continue;}
     if(i===-5){e.push({id:'m'+(++n),kind:'work',date:d,start:at(d,'12:00'),manualHours:9.5,breakMin:0,jobId:'j1',codeId:'',splits:[],note:''});continue;}
@@ -75,13 +77,13 @@ const SNAP=()=>{const out={};const cap=k=>{out[k]=document.body.innerText.replac
    await p.evaluate(()=>localStorage.setItem('yfs_pro','1'));return h;};
  const snap=async(h,raw)=>{h.errs.length=0;await h.p.evaluate(([k,v])=>{if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);},[KEY,raw]);await h.p.reload();await h.p.waitForFunction(()=>window.OTJ&&OTJ.tax());await h.p.waitForTimeout(40);
    const r=await h.p.evaluate(SNAP);r.errors=h.errs.join(' | ');return r;};
- let total=0,screens=0,skipped=0;
+ let total=0,screens=0,skipped=0,allowed=0;
  for(const T of DAYS){const a=await open(PORT,T),z=await open(PORT2,T),diff=[];let n=0;
-   for(const c of cases(T)){if(SKIP&&c.name.indexOf(SKIP)>=0){skipped++;continue;}const raw=c.st?JSON.stringify(c.st):null;const A=await snap(a,raw),Z=await snap(z,raw);n++;total++;
+   for(const c of cases(T)){if(SKIP&&SKIP.split('|').some(x=>x&&c.name.indexOf(x)>=0)){skipped++;continue;}const raw=c.st?JSON.stringify(c.st):null;const A=await snap(a,raw),Z=await snap(z,raw);n++;total++;
      const keys=[...new Set(Object.keys(A).concat(Object.keys(Z)))];screens+=keys.length;
-     for(const k of keys){if(A[k]!==Z[k]){const x=String(A[k]),y=String(Z[k]);let i=0;while(i<x.length&&x[i]===y[i])i++;diff.push(c.name+' · '+k+': old "'+x.slice(Math.max(0,i-40),i+60).replace(/\n/g,' / ')+'" new "'+y.slice(Math.max(0,i-40),i+60).replace(/\n/g,' / ')+'"');break;}}
+     for(const k of keys){const av=strip(A[k]),zv=strip(Z[k]);if(av!==zv){const x=String(av),y=String(zv);let i=0;while(i<x.length&&x[i]===y[i])i++;if(ALLOW&&ALLOW.test(x.slice(Math.max(0,i-12),i+70))){allowed++;continue;}diff.push(c.name+' · '+k+': old "'+x.slice(Math.max(0,i-40),i+60).replace(/\n/g,' / ')+'" new "'+y.slice(Math.max(0,i-40),i+60).replace(/\n/g,' / ')+'"');break;}}
      if(A.errors)diff.push(c.name+' · old build error: '+A.errors.slice(0,120));}
    ok(!diff.length,'['+WD[dow(T)]+' '+T+'] '+n+' normal saved setups look and figure exactly the same in both builds (every screen, export, history, numbers, storage) '+diff.slice(0,3).join(' || ').slice(0,900)+(diff.length>3?' … +'+(diff.length-3)+' more':''));
    await a.c.close();await z.c.close();}
- console.log(total+' saved setups compared, '+screens+' screens / files / number sets checked word for word'+(SKIP?' ('+skipped+' left out: "'+SKIP+'")':''));
+ console.log(total+' saved setups compared, '+screens+' screens / files / number sets checked word for word'+(SKIP?' ('+skipped+' left out: "'+SKIP+'")':'')+(ALLOW?' ('+allowed+' expected differences matching '+ALLOW+')':''));
  await b.close();s1.close();s2.close();console.log(fails?fails+' FAIL ('+passes+' pass)':'ALL PASS ('+passes+')');process.exit(fails?1:0);})();

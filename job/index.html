@@ -126,6 +126,7 @@ textarea.i{min-height:80px;}
 .a2hs button{background:#fff;color:#0F172A;border:0;border-radius:10px;min-height:44px;padding:8px 14px;font-weight:800;}
 .a2hs .x2{background:none;color:#CBD5E1;text-decoration:underline;}
 .foot{margin:18px 0 0;text-align:center;}
+.flink{display:inline-block;min-height:44px;line-height:44px;padding:0 6px;color:var(--blue);font-weight:700;text-decoration:underline;}
 .empty{text-align:center;color:var(--muted);font-size:15px;padding:8px 6px;}
 .star{background:none;border:0;font-size:24px;min-width:44px;min-height:44px;color:#CBD5E1;}
 .star.on{color:#F59E0B;}
@@ -475,8 +476,8 @@ function takeHome(gross,perDiem,set,tax){set=set||{};tax=tax||TAX;var lines=[];v
   if(noTax)lines.push({k:'No state income tax on wages ('+st+')',v:0});
   else if(stRate)lines.push({k:'Your rate ('+stRate+'%)',v:-stateAmt});
   else lines.push({k:'State tax not included. Add your rate in Pay setup.',v:0,warn:true});
-  var net=r2(total-k401-health-fed-ss-med-addl-stateAmt);
-  return {gross:gross,perDiem:perDiem,total:total,fitWages:fitW,ficaWages:ficaW,fed:fed,ss:ss,med:med,addl:addl,state:stateAmt,stateNoTax:noTax,net:net,lines:lines,periods:periods,pdNT:pdNT};}
+  var raw=r2(total-k401-health-fed-ss-med-addl-stateAmt),net=Math.max(0,raw),short=raw<0&&total>0?r2(-raw):0;
+  return {short:short,gross:gross,perDiem:perDiem,total:total,fitWages:fitW,ficaWages:ficaW,fed:fed,ss:ss,med:med,addl:addl,state:stateAmt,stateNoTax:noTax,net:net,lines:lines,periods:periods,pdNT:pdNT};}
 /* PTO balance: start balance + accruals (capped) − PTO used; optional Jan 1 carryover limit. */
 function ptoBalance(b,asOf,now){asOf=asOf||todayKey();var bal=+b.start||0,used=0,earned=0;var start=b.startDate||'1970-01-01';var ev=[];
   S.entries.filter(function(e){return !e.deleted;}).forEach(function(e){var dk=entryDate(e);if(dk<start)return;
@@ -547,7 +548,10 @@ $$('.tabs button').forEach(function(b){b.addEventListener('click',function(){go(
 
 /* ── views ── */
 function render(){if(!TAX)return;try{renderView();}catch(e){renderFail(e);}}
-function renderFail(e){try{var v=$('#view');v.innerHTML='<div class="card" id="viewErr" role="alert"><h2>This screen hit a problem</h2><div>Your hours are still saved on this phone. Back them up now, then try again.</div><div class="row wrap" style="margin-top:12px"><button type="button" class="btn go grow" id="viewBk">Back up now</button><button type="button" class="btn ghost grow" id="viewRetry">Try again</button></div></div>';
+/* an email to us, already addressed. It carries the screen and the error text (never the worker's hours, codes or pay) so we can find the fault. */
+function helpMail(err){var b='Tell us what happened and what you tapped:\n\n\n\n---\nClocked In'+(err?'\nError: '+String(err).slice(0,300):'')+'\nScreen: '+VIEW+'\nPhone: '+String(navigator.userAgent||'').slice(0,160);
+  return 'mailto:hello@yourfirstshiftapp.com?subject='+encodeURIComponent('Clocked In problem')+'&body='+encodeURIComponent(b);}
+function renderFail(e){try{var v=$('#view');v.innerHTML='<div class="card" id="viewErr" role="alert"><h2>This screen hit a problem</h2><div>Your hours are still saved on this phone. Back them up now, then try again.</div><div class="row wrap" style="margin-top:12px"><button type="button" class="btn go grow" id="viewBk">Back up now</button><button type="button" class="btn ghost grow" id="viewRetry">Try again</button></div><div style="margin-top:10px"><a class="flink" id="viewMail" href="'+esc(helpMail(e&&e.message))+'">Report this problem</a></div></div>';
     $('#viewBk').addEventListener('click',function(){backup();});$('#viewRetry').addEventListener('click',function(){location.reload();});}catch(_){}
   setTimeout(function(){throw e;},0);}
 function renderView(){$$('.tabs button').forEach(function(b){if(b.dataset.v===VIEW)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
@@ -557,7 +561,8 @@ function renderView(){$$('.tabs button').forEach(function(b){if(b.dataset.v===VI
   var h=a2hsHTML()+backupNag();
   if(VIEW==='codes')VIEW='week';
   if(VIEW==='today')h+=todayHTML();else if(VIEW==='week')h+=weekHTML();else if(VIEW==='pto')h+=ptoHTML();else h+=moreHTML();
-  h+='<div class="foot fine">Your personal records. Not legal or tax advice.<br>Pay amounts are estimates. Your employer\'s payroll is the final word.</div>';
+  h+='<div class="foot fine">Your personal records. Not legal or tax advice.<br>Pay amounts are estimates. Your employer\'s payroll is the final word.'+
+    '<div id="footLinks" style="margin-top:6px"><a class="flink" href="'+helpMail('')+'">Report a problem</a> · <a class="flink" href="/privacy">Privacy</a> · <a class="flink" href="/terms">Terms</a></div></div>';
   v.innerHTML=h;wire();}
 
 function a2hsHTML(){var standalone=(window.navigator.standalone===true)||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches);
@@ -641,6 +646,7 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
     (pdAny()?(function(){var n=w.keys.filter(function(k){return w.days[k].perDiem>0;}).length;var ch=w.tot.perDiem>0?pdCharge(wsk,w):null;return '<div class="tot" id="wkPd"><span class="k">Per diem<br><span class="fine">'+n+(n===1?' day':' days')+' · not part of gross</span></span><span class="v mid" id="wkPdAmt">'+money(w.tot.perDiem)+'</span></div>'+
       (ch?'<div class="fine" id="wkPdTo" style="margin:-2px 0 6px">Per diem charged to: <b id="wkPdToJob">'+esc(ch.label)+'</b>'+(ch.over?' (your choice)':'')+' · <button type="button" class="link" data-a="pdcharge" data-wk="'+wsk+'" style="font-size:inherit;min-height:44px">Change</button></div>':'');})():'')+
     '<div class="tot main"><span class="k">Est. take-home</span><span class="v" id="wkNet" style="color:var(--go)">~'+money(ws.net)+'</span></div>'+
+    (ws.parts.some(function(p){return p.th.short>0;})?'<div class="fine" id="wkFloor">What comes out of every paycheck (401(k), health, extra withholding) is more than your pay so far this pay period, so take-home shows $0 until your hours pass it.</div>':'')+
     (wk?'':'<div class="fine" id="wkHow">You\'re paid '+esc(freqText())+', so this is the week\'s share of that paycheck. Taxes are figured on the whole pay period.</div>'+
       ws.parts.map(function(p,i){return '<div class="tot" data-period="'+p.pr.from+'" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><span class="k">Paycheck for '+esc(shortDate(p.pr.from))+' – '+esc(shortDate(p.pr.to))+'<br><span class="fine" data-ppsplit>'+money(p.pt.gross)+' gross so far'+(p.pt.perDiem>0?' + '+money(p.pt.perDiem)+' per diem':'')+'</span></span><span class="v mid" style="color:var(--go)">~'+money(p.th.net)+'</span></div>';}).join(''))+
     bonusLine(addDays(wsk,6),wsk)+
@@ -774,7 +780,7 @@ function setupHTML(first){var j=S.jobs[0]||{},fresh=first&&!S.jobs.length;   /* 
   '<label class="f" for="sWs">Your workweek starts on</label><select class="i" id="sWs">'+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(function(n,i){return '<option value="'+i+'"'+((s.weekStart==null?1:+s.weekStart)===i?' selected':'')+'>'+n+'</option>';}).join('')+'</select>'+
   '<label class="f" for="sState">State you work in</label><select class="i" id="sState">'+(s.state?'':'<option value="" selected>Choose your state</option>')+STATES.map(function(x){return '<option value="'+x[0]+'"'+(s.state===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('')+'</select>'+
   '<div id="stateRateRow"><label class="f" for="sStRate">Your state tax rate, % <span class="muted">(look at a pay stub: state tax ÷ gross)</span></label><input class="i" id="sStRate" inputmode="decimal" value="'+esc(s.stateRate||'')+'" placeholder="e.g. 4.5"></div>'+
-  '<div class="fine" id="stateNote"></div>'+
+  '<div class="fine" id="stateNote"></div>'+(fresh?'<div class="fine" id="statePick" style="font-weight:700;color:#0F172A">Not in Florida? Pick your state so your take-home estimate is right.</div>':'')+
   '<label class="f" for="sFil">Filing status on your W-4</label><select class="i" id="sFil">'+[['single','Single or married filing separately'],['mfj','Married filing jointly'],['hoh','Head of household']].map(function(o){return '<option value="'+o[0]+'"'+(s.filing===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
   bonusFields()+
   '<details class="exp" id="preTaxBox" style="margin-top:12px"'+(first?'':' open')+'><summary><span class="grow">Take anything out before taxes?<span class="fine" style="display:block;font-weight:600">401(k), health insurance, W-4 extras. Optional.</span></span><span class="sh" aria-hidden="true"></span></summary>'+
@@ -999,6 +1005,7 @@ function mathModal(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=comp
   var whole=ws.parts.length===1&&(s.period==='weekly'||ws.parts[0].share>=0.99999);
   ws.parts.forEach(function(p){rows+='<tr data-freq><td colspan="2"><b>'+(s.period==='weekly'?'This week\'s paycheck':'Paycheck for '+esc(shortDate(p.pr.from))+' – '+esc(shortDate(p.pr.to)))+'</b> · paid '+esc(freqText())+'</td></tr>';
     p.th.lines.forEach(function(l){rows+=line(l);});
+    if(p.th.short>0)rows+='<tr data-floor><td colspan="2" style="color:#92400E">What comes out of every paycheck is '+money(p.th.short)+' more than this pay period\'s pay so far. Take-home can\'t go below $0, so it shows $0 until your hours pass it.</td></tr>';
     if(!whole){rows+='<tr><td>Est. paycheck for this pay period</td><td>'+money(p.th.net)+'</td></tr><tr data-share><td>This week is '+(Math.round(p.share*1000)/10)+'% of that period\'s pay so far</td><td>'+money(p.net)+'</td></tr>';}});
   rows+='<tr class="sum"><td>Est. take-home'+(whole?'':' for this week')+'</td><td>'+money(ws.net)+'</td></tr>';
   var th=ws.parts[0].th;
