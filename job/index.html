@@ -423,7 +423,9 @@ function computeWeek(wsKey,now){
   return {start:wsKey,keys:keys,days:days,tot:tot,jobs:jobsTot};}
 function periodRange(k){var s=S.settings||{},p=PERIODS.indexOf(s.period)<0?'weekly':s.period;var d=parseYmd(k);
   if(p==='weekly'){var a=weekStartKey(k);return {from:a,to:addDays(a,6)};}
-  if(p==='biweekly'){var anchor=dayOk(s.anchor)?s.anchor:weekStartKey(todayKey());var diff=Math.round((parseYmd(weekStartKey(k))-parseYmd(anchor))/DAY);var n=Math.floor(diff/14);var a2=addDays(anchor,n*14);return {from:a2,to:addDays(a2,13)};}
+  /* every 2 weeks: the 14-day period this DAY falls in, counted from the pay-period start date. (It used to be counted from the first day of the day's workweek,
+     which put the days after a pay-period boundary into the earlier paycheck whenever the pay period starts on a different weekday than the workweek.) */
+  if(p==='biweekly'){var anchor=dayOk(s.anchor)?s.anchor:weekStartKey(todayKey());var diff=Math.round((d-parseYmd(anchor))/DAY);var n=Math.floor(diff/14);var a2=addDays(anchor,n*14);return {from:a2,to:addDays(a2,13)};}
   if(p==='semimonthly'){var y=d.getFullYear(),m=d.getMonth();if(d.getDate()<=15)return {from:ymd(new Date(y,m,1)),to:ymd(new Date(y,m,15))};return {from:ymd(new Date(y,m,16)),to:ymd(new Date(y,m+1,0))};}
   var y2=d.getFullYear(),m2=d.getMonth();return {from:ymd(new Date(y2,m2,1)),to:ymd(new Date(y2,m2+1,0))};}
 /* Take-home for one week = that week's share of the paycheck it belongs to. Taxes are figured once, on the whole pay period at the worker's real pay
@@ -472,7 +474,7 @@ function ptoBalance(b,asOf,now){asOf=asOf||todayKey();var bal=+b.start||0,used=0
     if(e.kind==='pto'&&e.bucket===b.id){ev.push({d:dk,t:1,amt:-(+e.hours||0)});return;} /* planned PTO counts as used right away */
     if(dk>asOf)return;
     else if(e.kind!=='pto'&&b.type==='perHours'&&(+b.per||0)>0&&(!b.jobId||e.jobId===b.jobId)&&(e.end||(e.manualHours!=null&&e.manualHours!=='')))ev.push({d:dk,t:0,amt:(+b.earn||0)*entryHours(e,now)/(+b.per)});});
-  if(b.type==='perPeriod'&&(+b.earn||0)>0){var k=start;var guard=0;while(k<=asOf&&guard++<2000){var pr=periodRange(k);if(pr.to<=asOf&&pr.to>=start)ev.push({d:pr.to,t:0,amt:+b.earn});k=addDays(pr.to,1);}}
+  if(b.type==='perPeriod'&&(+b.earn||0)>0){var k=start;var guard=0;while(k<=asOf&&guard++<2000){var pr=periodRange(k);if(pr.to<=asOf&&pr.to>=start)ev.push({d:pr.to,t:0,amt:+b.earn});k=addDays(pr.to>=k?pr.to:k,1);}}
   var y0=+start.slice(0,4),y1=+asOf.slice(0,4);for(var y=y0+1;y<=y1;y++){var jan=y+'-01-01';if(jan<=asOf){ev.push({d:jan,t:-1});if(b.type==='yearly'&&(+b.earn||0)>0)ev.push({d:jan,t:0,amt:+b.earn,yr:1});}}
   ev=ev.filter(function(x){return x.t===1||x.d<=asOf;});ev.sort(function(a,c){return a.d<c.d?-1:a.d>c.d?1:a.t-c.t;});
   var cap=b.cap===''||b.cap==null?null:+b.cap,carry=b.carry===''||b.carry==null?null:+b.carry;

@@ -1,7 +1,8 @@
 // Clocked In: prove a change does nothing for people whose saved data is normal. Opens the SAME saved data in two builds of the app (an old
 // folder and a new folder), on every weekday, walks every screen and sheet, and compares what the worker would see, word for word: every
 // screen's text, the export file, the change history, the pay numbers, the pay setup, and what is written to storage.
-// Usage: node otj_compare_builds.js <old-root> <new-root> [days: all|YYYY-MM-DD,...]
+// Usage: node otj_compare_builds.js <old-root> <new-root> [days: all|YYYY-MM-DD,...] [skip: words in the names of setups to leave out]
+//   The skip is for a change that is MEANT to alter some setups: leave those out here (they need their own test) and prove the rest are untouched.
 //   e.g. git worktree add /tmp/live <commit that is live>  &&  node otj_compare_builds.js /tmp/live ..
 // Made-up data only.
 process.env.TZ='America/New_York';
@@ -16,7 +17,7 @@ const addDays=(k,n)=>{const d=P(k);d.setDate(d.getDate()+n);return ymd(d);};cons
 const dow=k=>P(k).getDay();const weekStartOf=(k,ws)=>addDays(k,-((dow(k)-ws+7)%7));const WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 // one full week, the last and first days of a year, and the Sundays US clocks change (with the Mondays after)
 const ALL=['2026-11-22','2026-11-23','2026-11-24','2026-11-25','2026-11-26','2026-11-27','2026-11-28','2026-12-31','2027-01-01','2026-03-08','2026-03-09','2026-11-01','2026-11-02'];
-const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');
+const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');const SKIP=process.argv[5]||'';
 function records(T){const e=[];let n=0;for(let i=-20;i<=0;i++){const d=addDays(T,i);
     if(i===-3){e.push({id:'p'+(++n),kind:'pto',date:d,hours:8,bucket:'v',jobId:'j1'});continue;}
     if(i===-5){e.push({id:'m'+(++n),kind:'work',date:d,start:at(d,'12:00'),manualHours:9.5,breakMin:0,jobId:'j1',codeId:'',splits:[],note:''});continue;}
@@ -28,11 +29,11 @@ function records(T){const e=[];let n=0;for(let i=-20;i<=0;i++){const d=addDays(T
 const SET=(T,x)=>Object.assign({rate:28,otRate:'',period:'weekly',anchor:weekStartOf(T,1),weekStart:1,state:'FL',stateRate:'',filing:'single',k401:'',health:'',credits:'',extraWH:'',perDiem:'',perDiemNT:false},x||{});
 const state=(T,settings,x)=>Object.assign({app:'yfs-on-the-job',v:1,created:at(addDays(T,-60),'08:00'),settings,labels:{proj:'Job / Project #',po:'PO # + Line',cost:'Cost Code',wo:'Work Order #'},
   jobs:[{id:'j1',name:'Harbor Line Builders',rate:'',otRate:'',active:true,perDiem:75},{id:'j2',name:'Dockside Pizza',rate:'19.50',otRate:'',active:true,ot:{mode:'daily',weekN:40,dayN:8,dtN:'',mult:1.5}}],codes:[],entries:records(T),
-  pto:{buckets:[{id:'v',name:'Vacation',type:'perHours',earn:1,per:30,start:40,startDate:addDays(T,-60)},{id:'s',name:'Sick',type:'yearly',earn:40,start:8,startDate:addDays(T,-400)}]},clock:null,
+  pto:{buckets:[{id:'v',name:'Vacation',type:'perHours',earn:1,per:30,start:40,startDate:addDays(T,-60)},{id:'s',name:'Sick',type:'yearly',earn:40,start:8,startDate:addDays(T,-400)},{id:'h',name:'Holiday',type:'perPeriod',earn:2,start:0,startDate:addDays(T,-75)}]},clock:null,
   log:[{t:at(addDays(T,-2),'09:00'),id:'settings',field:'(setup)',old:'',new:'rate 28, weekly, FL',reason:''}],lastBackup:at(addDays(T,-1),'08:00'),pdCharge:{},pdDay:{[addDays(T,-2)]:false},ui:{a2hsX:1}},x||{});
 // normal pay setups: every pay period x every workweek start (paid every 2 weeks: the pay period starting on each weekday), plus older saves
 function cases(T){const out=[];for(const period of ['weekly','biweekly','semimonthly','monthly'])for(let ws=0;ws<7;ws++)for(const a of (period==='biweekly'?[0,1,2,3,4,5,6]:[0])){
-    out.push({name:period+', workweek starts '+WD[ws]+(period==='biweekly'?', pay period starts '+WD[(ws+a)%7]:''),st:state(T,SET(T,{period,weekStart:ws,anchor:addDays(weekStartOf(T,ws),a-21),filing:['single','mfj','hoh'][(ws+a)%3],state:['FL','GA','TX','CA','NY','WA','PA'][ws],
+    out.push({name:period+', workweek starts '+WD[ws]+(period==='biweekly'?', pay period starts '+WD[(ws+a)%7]+(a?' (a different weekday)':''):''),st:state(T,SET(T,{period,weekStart:ws,anchor:addDays(weekStartOf(T,ws),a-21),filing:['single','mfj','hoh'][(ws+a)%3],state:['FL','GA','TX','CA','NY','WA','PA'][ws],
       stateRate:ws===1?5:ws===3?6.5:'',otRate:ws===5?45:'',k401:ws%2?50:'',health:a%2?32.5:'',credits:ws===6?2000:'',extraWH:ws===2?25:'',perDiemNT:!!(ws%2),perDiemTax:ws%2?'no':'yes',perDiemEach:ws===4,bonus:ws===3?{basis:'all',pct:9,amount:'',jobId:'',prior:'',priorYear:''}:ws===5?{basis:'flat',pct:'',amount:1500,jobId:'',prior:'',priorYear:''}:undefined}))});}
   out.push({name:'as the first version saved it (one job, old per diem)',st:state(T,{rate:31.5,otRate:47.25,period:'weekly',anchor:weekStartOf(T,1),weekStart:1,state:'FL',stateRate:'',filing:'single',k401:'',health:'',credits:'',extraWH:'',perDiem:60,perDiemNT:true},{jobs:[{id:'j1',name:'Gulf Coast Grocers',rate:'',otRate:'',active:true}]})});
   out.push({name:'with a setting this version does not know',st:state(T,SET(T,{someFutureKey:{a:[1,2]},lang:'es'}))});
@@ -74,13 +75,13 @@ const SNAP=()=>{const out={};const cap=k=>{out[k]=document.body.innerText.replac
    await p.evaluate(()=>localStorage.setItem('yfs_pro','1'));return h;};
  const snap=async(h,raw)=>{h.errs.length=0;await h.p.evaluate(([k,v])=>{if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);},[KEY,raw]);await h.p.reload();await h.p.waitForFunction(()=>window.OTJ&&OTJ.tax());await h.p.waitForTimeout(40);
    const r=await h.p.evaluate(SNAP);r.errors=h.errs.join(' | ');return r;};
- let total=0,screens=0;
+ let total=0,screens=0,skipped=0;
  for(const T of DAYS){const a=await open(PORT,T),z=await open(PORT2,T),diff=[];let n=0;
-   for(const c of cases(T)){const raw=c.st?JSON.stringify(c.st):null;const A=await snap(a,raw),Z=await snap(z,raw);n++;total++;
+   for(const c of cases(T)){if(SKIP&&c.name.indexOf(SKIP)>=0){skipped++;continue;}const raw=c.st?JSON.stringify(c.st):null;const A=await snap(a,raw),Z=await snap(z,raw);n++;total++;
      const keys=[...new Set(Object.keys(A).concat(Object.keys(Z)))];screens+=keys.length;
      for(const k of keys){if(A[k]!==Z[k]){const x=String(A[k]),y=String(Z[k]);let i=0;while(i<x.length&&x[i]===y[i])i++;diff.push(c.name+' · '+k+': old "'+x.slice(Math.max(0,i-40),i+60).replace(/\n/g,' / ')+'" new "'+y.slice(Math.max(0,i-40),i+60).replace(/\n/g,' / ')+'"');break;}}
      if(A.errors)diff.push(c.name+' · old build error: '+A.errors.slice(0,120));}
    ok(!diff.length,'['+WD[dow(T)]+' '+T+'] '+n+' normal saved setups look and figure exactly the same in both builds (every screen, export, history, numbers, storage) '+diff.slice(0,3).join(' || ').slice(0,900)+(diff.length>3?' … +'+(diff.length-3)+' more':''));
    await a.c.close();await z.c.close();}
- console.log(total+' saved setups compared, '+screens+' screens / files / number sets checked word for word');
+ console.log(total+' saved setups compared, '+screens+' screens / files / number sets checked word for word'+(SKIP?' ('+skipped+' left out: "'+SKIP+'")':''));
  await b.close();s1.close();s2.close();console.log(fails?fails+' FAIL ('+passes+' pass)':'ALL PASS ('+passes+')');process.exit(fails?1:0);})();
