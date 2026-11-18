@@ -1,0 +1,44 @@
+name: Clocked In tests
+
+# Runs the Clocked In test suites on every pull request that touches the app or its tests,
+# so a review starts from results instead of from a run by hand. Uses no secrets.
+on:
+  pull_request:
+    paths:
+      - 'job/**'
+      - 'tests/otj_*'
+      - 'tests/job_route_t.js'
+      - 'tests/pages_worker_t.js'
+      - 'tests/pii_guard_t.js'
+      - '.github/workflows/clocked-in-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clocked-in-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright (Chromium only)
+        working-directory: tests
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Run the suites
+        working-directory: tests
+        run: |
+          fail=0
+          run() { name="$1"; shift; echo "::group::$name"; if "$@"; then echo "$name: ok"; else echo "::error::$name failed"; fail=1; fi; echo "::endgroup::"; }
+          for d in iphone android desktop; do run "otj_t $d" node otj_t.js .. "" "$d"; done
+          for t in otj_settings_repair_t otj_biweekly_t otj_invariants_t otj_shift_repair_t otj_finish_t otj_setupkeep_t otj_back_t otj_gross_t otj_pdday_t otj_perdiem_t otj_pdchk_t otj_storage_t otj_bonus_t otj_codes_t otj_restore_t otj_overnight_t otj_postlaunch_t otj_ot_t job_route_t pages_worker_t pii_guard_t; do run "$t" node "$t.js" ..; done
+          exit $fail
