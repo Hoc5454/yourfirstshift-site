@@ -10,7 +10,7 @@
 process.env.TZ='America/New_York';
 const {chromium}=require('playwright');const http=require('http');const fs=require('fs');const path=require('path');
 if(!process.argv[2]||!process.argv[3]){console.log('Usage: node otj_compare_builds.js <old-root> <new-root> [days]');process.exit(2);}
-const OLD=path.resolve(process.argv[2]),NEW=path.resolve(process.argv[3]);const PORT=18883,KEY='yfs_otj_v1';
+const OLD=path.resolve(process.argv[2]),NEW=path.resolve(process.argv[3]);const PORT=+(process.env.CMP_PORT||18883),KEY='yfs_otj_v1';
 const TYPES={'.html':'text/html; charset=utf-8','.json':'application/json','.js':'text/javascript','.png':'image/png','.webmanifest':'application/manifest+json'};
 const serve=(ROOT,port)=>new Promise(r=>{const srv=http.createServer((q,s)=>{let u=decodeURIComponent(q.url.split('?')[0]);if(u.endsWith('/'))u+='index.html';const f=path.join(ROOT,u);if(!f.startsWith(ROOT)||!fs.existsSync(f)){s.writeHead(404);return s.end('nf');}s.writeHead(200,{'Content-Type':TYPES[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache'});fs.createReadStream(f).pipe(s);});srv.listen(port,()=>r(srv));});
 let fails=0,passes=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(c)passes++;else fails++;};
@@ -71,7 +71,7 @@ const SNAP=()=>{const out={};const cap=k=>{out[k]=document.body.innerText.replac
   step('home',()=>{click('nav.tabs [data-v=today]');});
   const s=OTJ.state();out.settings=JSON.stringify(s.settings);out.state=JSON.stringify(s,(k,v)=>k==='ui'?undefined:v);out.stored1=localStorage.getItem('yfs_otj_v1');out.bar=(document.getElementById('storeBar')||{innerText:''}).innerText;
   return out;};
-(async()=>{const PORT2=18875;const s1=await serve(OLD,PORT),s2=await serve(NEW,PORT2);const b=await chromium.launch();
+(async()=>{const PORT2=+(process.env.CMP_PORT2||18875);const s1=await serve(OLD,PORT),s2=await serve(NEW,PORT2);const b=await chromium.launch();
  const open=async(port,T)=>{const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block',timezoneId:'America/New_York',userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36'});
    await c.addInitScript(now=>{const _D=Date;class D2 extends _D{constructor(...a){if(a.length)super(...a);else super(now);}static now(){return now;}}window.Date=D2;},at(T,'12:00'));   // the clock is stopped at noon, so both builds see the same instant
    const p=await c.newPage();p.setDefaultTimeout(8000);const h={c,p,errs:[]};p.on('pageerror',e=>h.errs.push(e.message));p.on('dialog',d=>d.dismiss().catch(()=>{}));await p.goto('http://127.0.0.1:'+port+'/job/');await p.waitForFunction(()=>window.OTJ&&OTJ.tax());
