@@ -211,14 +211,43 @@ function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAl
 
 /* ── storage (never auto-deletes) ── */
 function blank(){return {app:'yfs-on-the-job',v:1,created:Date.now(),settings:null,labels:Object.assign({},DEFAULT_LABELS),jobs:[],codes:[],entries:[],pto:{buckets:[]},clock:null,log:[],lastBackup:null,pdCharge:{},pdDay:{},ui:{}};}
+/* Saved pay setup can be damaged too (a hand-edited or half-written backup, a file from another tool). Every value the pay math reads is checked on
+   load and on restore. A good value is never changed. A bad one goes back to the safe choice, and the worker is told which ones: a note at the
+   top until they answer it, and one line in Change history that keeps the old values. Hours are never touched here. */
+var PERIODS=['weekly','biweekly','semimonthly','monthly'],WDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function fin(v){v=+v;return isFinite(v)?v:0;}
+function dayOk(k){return typeof k==='string'&&/^\d{4,6}-\d\d-\d\d$/.test(k)&&!isNaN(parseYmd(k).getTime());}
+/* a whole number wraps onto the 7 real days (9 is Tuesday: what the week math already did on the days it worked); anything else is Sunday, the fallback it always had */
+function wsOf(v){v=+v;return isFinite(v)&&v===Math.floor(v)?((v%7)+7)%7:0;}
+function cleanSettings(s){var fix=[];
+  var amt=function(k,label,need){var v=s[k];if(v===''||(!need&&v==null))return;          /* blank stays blank; only the hourly rate is required */
+    var t=typeof v==='string'?v.replace(/[$,\s]/g,''):v,n=typeof t==='number'||(typeof t==='string'&&t!=='')?+t:NaN,ok=isFinite(n)&&n>=0&&(!need||n>0);
+    if(ok&&v===n)return;
+    s[k]=ok?n:'';
+    if(!ok)fix.push(label+(need?' (enter it again)':' (blank now)'));else if(fin(v)!==n)fix.push(label+' (now '+(k==='stateRate'?n+'%':money(n))+')');};
+  if(PERIODS.indexOf(s.period)<0){s.period='weekly';fix.push('pay period (now weekly)');}
+  var w0=s.weekStart,w=wsOf(w0);if(w0!==w){s.weekStart=w;if(!(typeof w0==='string'&&w0.trim()!==''&&+w0===w))fix.push('workweek start (now '+WDAYS[w]+')');}
+  if(s.period==='biweekly'&&!dayOk(s.anchor)){var t0=parseYmd(todayKey());t0.setDate(t0.getDate()-((t0.getDay()-w+7)%7));s.anchor=ymd(t0);fix.push('pay period start date (now '+shortDate(s.anchor)+')');}
+  if(s.state!==''&&(typeof s.state!=='string'||!STATES.some(function(x){return x[0]===s.state;}))){s.state='';fix.push('state (choose it again)');}
+  if(['single','mfj','hoh'].indexOf(s.filing)<0){s.filing='single';fix.push('filing status (now Single)');}
+  amt('rate','hourly rate',true);amt('otRate','overtime rate');amt('stateRate','state tax rate');amt('k401','401(k)');amt('health','health insurance');amt('credits','W-4 credits');amt('extraWH','extra withholding');amt('perDiem','per diem');
+  /* per diem answers: the tax answer is yes / no / not answered (which the estimate treats as taxed, the careful side); the older on/off switch always agrees with it */
+  var tx=s.perDiemTax,nt=s.perDiemNT,pdFix=false;if(tx!=null&&tx!==''&&tx!=='yes'&&tx!=='no'){s.perDiemTax=tx='';pdFix=true;}
+  var want=tx==='yes'||tx==='no'?tx==='no':nt===true;if(!(nt==null&&!want)&&nt!==want){s.perDiemNT=want;if(!!nt!==want)pdFix=true;}
+  if(pdFix)fix.push('per diem tax answer ('+(tx==='yes'||tx==='no'?(want?'now: not taxed':'now: taxed'):want?'now: not taxed':'asked again')+')');
+  if(s.perDiemEach!=null&&typeof s.perDiemEach!=='boolean'){if(s.perDiemEach)fix.push('per diem with two jobs (now one a day)');s.perDiemEach=false;}
+  return fix;}
 /* Repair damaged saved data (a bad or hand-edited backup file, a half-written save) so one bad record can never lock the worker out of their records. */
 function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isArray(x);},arr=function(x){return Array.isArray(x)?x.filter(o):[];},num=function(x){return typeof x==='number'&&isFinite(x);};
   j=Object.assign(blank(),o(j)?j:{});
   j.app='yfs-on-the-job';
-  j.settings=o(j.settings)?j.settings:null;if(j.settings)j.settings.bonus=cleanBonus(j.settings.bonus);j.labels=Object.assign({},DEFAULT_LABELS,o(j.labels)?j.labels:{});j.ui=o(j.ui)?j.ui:{};
+  j.settings=o(j.settings)?j.settings:null;j.labels=Object.assign({},DEFAULT_LABELS,o(j.labels)?j.labels:{});j.ui=o(j.ui)?j.ui:{};
   j.jobs=arr(j.jobs).filter(function(x){return x.id!=null;}).map(function(x){x.otHist=cleanHist(x);x.ot=cleanOt(x.otHist[x.otHist.length-1].rule);if(x.perDiem!=null&&x.perDiem!==''){var pv=+x.perDiem;if(isFinite(pv)&&pv>=0&&pv<=5000)x.perDiem=pv;else delete x.perDiem;}return x;});
   j.codes=arr(j.codes).filter(function(x){return x.id!=null;}).map(function(c){if(!o(c.fields))c.fields={};return c;});
-  j.log=arr(j.log);j.pto=o(j.pto)?j.pto:{};j.pto.buckets=arr(j.pto.buckets).filter(function(x){return x.id!=null;});
+  j.log=arr(j.log);var fx=[];if(j.settings){var was='';try{was=JSON.stringify(j.settings);}catch(_){}fx=cleanSettings(j.settings);j.settings.bonus=cleanBonus(j.settings.bonus);
+    if(fx.length)j.log.push({t:Date.now(),id:'settings',field:'(repaired)',old:was.slice(0,2000),new:fx.join('; '),reason:''});}
+  var uf=(Array.isArray(j.ui.fix)?j.ui.fix:[]).filter(function(x){return typeof x==='string'&&x;}).map(function(x){return x.slice(0,90);});fx.forEach(function(x){if(uf.indexOf(x)<0)uf.push(x);});if(uf.length)j.ui.fix=uf.slice(0,24);else delete j.ui.fix;
+  j.pto=o(j.pto)?j.pto:{};j.pto.buckets=arr(j.pto.buckets).filter(function(x){return x.id!=null;});
   j.entries=arr(j.entries).filter(function(e){var dOk=typeof e.date==='string'&&/^\d{4}-\d\d-\d\d$/.test(e.date);
     if(e.id==null)return false;
     /* codes: keep only the known fields as short plain text. Older records pointed at a saved code set (codeId): copy that set's values onto the entry so they show on the timesheet. Nothing is removed. */
@@ -279,6 +308,8 @@ function paintStore(){var el=document.getElementById('storeBar');if(!el)return;v
       (STORE.ro?'<div style="margin-top:8px"><button type="button" id="storeUpd" style="background:#fff;color:#B91C1C;border:0;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Update the app</button></div>':
        (has?'<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="storeBk" style="background:#fff;color:#B91C1C;border:0;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Back up now</button>'+(STORE.hold?'':'<button type="button" id="storeRetry" style="background:transparent;color:#fff;border:2px solid #fff;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Try saving again</button>')+'</div>':''))+'</div>';}
   else if(STORE.note){h='<div id="storeNote" class="alert ot" role="status">'+(STORE.note==='back'?'Your latest save was damaged, so this is the copy from just before it. Check your last change. The damaged data was kept, not erased.':'Your saved hours couldn\'t be read. They were kept on this phone, not erased. If you have a Backup file, use More → Restore.')+(rawKeys().length?'<div style="margin-top:8px"><button type="button" id="storeRawDl" class="btn ghost small" style="min-height:44px">Download the damaged data</button></div>':'')+'</div>';}
+  var fx=S&&S.ui&&S.ui.fix;
+  if(!storeBad()&&S&&S.settings&&fx&&fx.length)h+='<div id="fixNote" class="alert ot" role="status"><b>Part of your pay setup couldn\'t be read</b>, so it was put back to a safe choice: '+esc(fx.join('; '))+'. Your hours were not changed.<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="fixSetup" class="btn ghost small" style="min-height:44px">Check pay setup</button><button type="button" id="fixOk" class="btn ghost small" style="min-height:44px">Got it</button></div></div>';
   if(el.innerHTML!==h)el.innerHTML=h;}
 /* coming back to the page: never swap what is on screen for what storage holds unless storage really has newer, readable records */
 function refresh(){if(!S)return;var busy=!!document.getElementById('otjModal')||!!document.getElementById('sRate');
@@ -320,7 +351,7 @@ function entryHours(e,now){
   return Math.max(0,r2((ms-brk)/3600000));}
 function entryDate(e){return e.date||ymd(e.start);}
 function jobOf(id){return S.jobs.filter(function(j){return j.id===id;})[0]||S.jobs[0]||{id:'',name:'My job'};}
-function rateOf(job){var r=+(job&&job.rate)||+(S.settings&&S.settings.rate)||0;return r;}
+function rateOf(job){var r=fin(job&&job.rate)||fin(S.settings&&S.settings.rate)||0;return r;}
 /* Each job has its own overtime rule. A job with no rule saved (every job made before this existed) is Weekly 40 at 1.5x, so old numbers do not change. */
 function cleanOt(o){o=o&&typeof o==='object'&&!Array.isArray(o)?o:{};var pos=function(v,d){v=+v;return isFinite(v)&&v>0&&v<=168?v:d;};var dt=+o.dtN,m=+o.mult;
   return {mode:['weekly','daily','both'].indexOf(o.mode)>=0?o.mode:'weekly',weekN:pos(o.weekN,40),dayN:Math.min(24,pos(o.dayN,8)),dtN:isFinite(dt)&&dt>0&&dt<=24?dt:'',mult:isFinite(m)&&m>=1&&m<=5?m:1.5};}
@@ -344,7 +375,7 @@ function whenFields(pfx){var wk=weekStartKey(todayKey()),o=['<option value="'+wk
   o.push('<option value="'+BEGIN+'">My first week (I set it up wrong)</option>');
   return '<div id="'+pfx+'whenW" hidden><label class="f" for="'+pfx+'when">Starting which week?</label><select class="i" id="'+pfx+'when">'+o.join('')+'</select><div class="fine">Weeks before that keep the rule they had, so pay you already figured doesn\'t change.</div></div>';}
 function ruleText(job,wsKey){var o=otOf(job,wsKey);var t=o.mode==='daily'?'OT after '+hrs(o.dayN)+' hrs/day':o.mode==='both'?'OT after '+hrs(o.dayN)+' hrs/day or '+hrs(o.weekN)+' hrs/week':'OT after '+hrs(o.weekN)+' hrs/week';return t+(o.dtN?', double time after '+hrs(o.dtN)+' hrs/day':'');}
-function otRateOf(job,wsKey){var o=+(job&&job.otRate)||+(S.settings&&S.settings.otRate)||0;return o||rateOf(job)*otOf(job,wsKey).mult;}
+function otRateOf(job,wsKey){var o=fin(job&&job.otRate)||fin(S.settings&&S.settings.otRate)||0;return o||rateOf(job)*otOf(job,wsKey).mult;}
 function dtRateOf(job){return rateOf(job)*2;}
 function otFields(pfx,ot){var o=cleanOt(ot);var opt=function(v,t){return '<option value="'+v+'"'+(o.mode===v?' selected':'')+'>'+t+'</option>';};
   return '<div class="fine" data-autoot style="margin-top:14px;font-weight:700;color:#0F172A">We track your overtime automatically. Just tell us when it kicks in.</div><label class="f" for="'+pfx+'mode" style="margin-top:6px">When does your overtime kick in?</label><select class="i" id="'+pfx+'mode">'+opt('weekly','After so many hours in a week (most common)')+opt('daily','After so many hours in a day')+opt('both','Both: daily and weekly')+'</select>'+
@@ -354,7 +385,7 @@ function otFields(pfx,ot){var o=cleanOt(ot);var opt=function(v,t){return '<optio
 function readOt(pfx){var v=function(k){var el=document.getElementById(pfx+k);return el?String(el.value).replace(/[^\d.]/g,''):'';};return cleanOt({mode:(document.getElementById(pfx+'mode')||{}).value,weekN:v('week'),dayN:v('day'),dtN:v('dt'),mult:v('mult')});}
 function wireOt(pfx,cur){var m=document.getElementById(pfx+'mode');if(!m)return;var upd=function(){var ww=document.getElementById(pfx+'whenW');if(ww)ww.hidden=!cur||sameRule(cur,readOt(pfx));document.getElementById(pfx+'wW').hidden=m.value==='daily';document.getElementById(pfx+'dW').hidden=m.value==='weekly';var say=document.getElementById(pfx+'say');if(say)say.textContent='We\'ll figure it as: '+ruleText({ot:readOt(pfx)})+'. Check your handbook or a pay stub if you\'re not sure.';};
   m.addEventListener('change',upd);['week','day','dt','mult'].forEach(function(k){var el=document.getElementById(pfx+k);if(el)el.addEventListener('input',upd);});upd();}
-function weekStartKey(k){var ws=S.settings?+S.settings.weekStart||0:1;var d=parseYmd(k);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff);return ymd(d);}
+function weekStartKey(k){var ws=S.settings?wsOf(S.settings.weekStart):1;var d=parseYmd(k);var diff=(d.getDay()-ws+7)%7;d.setDate(d.getDate()-diff);return ymd(d);}
 function liveEntries(){var a=S.entries.filter(function(e){return !e.deleted;});
   if(S.clock&&S.clock.start){a=a.concat([{id:'__live',kind:'work',start:S.clock.start,end:null,jobId:S.clock.jobId,codes:S.clock.codes,breaks:(S.clock.breaks||[]).concat(S.clock.onBreak?[{s:S.clock.onBreak}]:[]),live:true}]);}
   return a;}
@@ -390,38 +421,38 @@ function computeWeek(wsKey,now){
   keys.forEach(function(k){var d=days[k];['hours','reg','ot','dt','pto','gross','perDiem'].forEach(function(f){d[f]=r2(d[f]);tot[f]+=d[f];});});
   tot.worked=r2(tot.reg+tot.ot+tot.dt);Object.keys(tot).forEach(function(f){tot[f]=r2(tot[f]);});
   return {start:wsKey,keys:keys,days:days,tot:tot,jobs:jobsTot};}
-function periodRange(k){var s=S.settings||{},p=s.period||'weekly';var d=parseYmd(k);
+function periodRange(k){var s=S.settings||{},p=PERIODS.indexOf(s.period)<0?'weekly':s.period;var d=parseYmd(k);
   if(p==='weekly'){var a=weekStartKey(k);return {from:a,to:addDays(a,6)};}
-  if(p==='biweekly'){var anchor=s.anchor||weekStartKey(todayKey());var diff=Math.round((parseYmd(weekStartKey(k))-parseYmd(anchor))/DAY);var n=Math.floor(diff/14);var a2=addDays(anchor,n*14);return {from:a2,to:addDays(a2,13)};}
+  if(p==='biweekly'){var anchor=dayOk(s.anchor)?s.anchor:weekStartKey(todayKey());var diff=Math.round((parseYmd(weekStartKey(k))-parseYmd(anchor))/DAY);var n=Math.floor(diff/14);var a2=addDays(anchor,n*14);return {from:a2,to:addDays(a2,13)};}
   if(p==='semimonthly'){var y=d.getFullYear(),m=d.getMonth();if(d.getDate()<=15)return {from:ymd(new Date(y,m,1)),to:ymd(new Date(y,m,15))};return {from:ymd(new Date(y,m,16)),to:ymd(new Date(y,m+1,0))};}
   var y2=d.getFullYear(),m2=d.getMonth();return {from:ymd(new Date(y2,m2,1)),to:ymd(new Date(y2,m2+1,0))};}
 /* Take-home for one week = that week's share of the paycheck it belongs to. Taxes are figured once, on the whole pay period at the worker's real pay
    frequency (the way payroll does it), so the same gross can never show two different take-homes. A week that straddles two pay periods gets a share of each. */
 var FREQ={weekly:'weekly',biweekly:'every 2 weeks',semimonthly:'twice a month',monthly:'monthly'};
-function freqText(){return FREQ[(S.settings||{}).period]||'weekly';}
+function freqText(){var p=(S.settings||{}).period;return (typeof p==='string'&&FREQ.hasOwnProperty(p)&&FREQ[p])||'weekly';}
 function weekShare(w){var groups={},net=0,parts=[];
   w.keys.forEach(function(k){var pr=periodRange(k),g=groups[pr.from]||(groups[pr.from]={pr:pr,mine:0});g.mine+=w.days[k].gross+w.days[k].perDiem;});
   Object.keys(groups).sort().forEach(function(key){var g=groups[key],pt=rangeTotals(g.pr.from,g.pr.to),th=takeHome(pt.gross,pt.perDiem,S.settings),all=pt.gross+pt.perDiem;
     var share=all>0?Math.min(1,g.mine/all):0;if(!(g.mine>0)&&parts.length+Object.keys(groups).length>1&&!(all>0))return;net+=th.net*share;parts.push({pr:g.pr,pt:pt,th:th,share:share,mine:r2(g.mine),net:r2(th.net*share)});});
   if(!parts.length){var pr0=periodRange(w.keys[0]);parts.push({pr:pr0,pt:rangeTotals(pr0.from,pr0.to),th:takeHome(0,0,S.settings),share:0,mine:0,net:0});}
   return {net:r2(net),parts:parts};}
-function rangeTotals(from,to,now){var t={hours:0,reg:0,ot:0,dt:0,pto:0,gross:0,perDiem:0},seen={};var k=weekStartKey(from);
-  while(k<=to){var w=computeWeek(k,now);w.keys.forEach(function(dk){if(dk>=from&&dk<=to&&!seen[dk]){seen[dk]=1;var d=w.days[dk];['hours','reg','ot','dt','pto','gross','perDiem'].forEach(function(f){t[f]+=d[f];});}});k=addDays(k,7);}
+function rangeTotals(from,to,now){var t={hours:0,reg:0,ot:0,dt:0,pto:0,gross:0,perDiem:0},seen={},guard=0;var k=weekStartKey(from);
+  while(k<=to&&guard++<800){var w=computeWeek(k,now);w.keys.forEach(function(dk){if(dk>=from&&dk<=to&&!seen[dk]){seen[dk]=1;var d=w.days[dk];['hours','reg','ot','dt','pto','gross','perDiem'].forEach(function(f){t[f]+=d[f];});}});k=addDays(k,7);}
   Object.keys(t).forEach(function(f){t[f]=r2(t[f]);});return t;}
 /* Take-home ESTIMATE for one pay period. IRS Pub 15-T Worksheet 1A (annual percentage method, 2020+ W-4, Step 2 not checked). */
-function takeHome(gross,perDiem,set,tax){set=set||{};tax=tax||TAX;var lines=[];var periods=tax.pay_periods[set.period||'weekly'];
+function takeHome(gross,perDiem,set,tax){set=set||{};tax=tax||TAX;var lines=[];var periods=tax.pay_periods[PERIODS.indexOf(set.period)<0?'weekly':set.period];
   var pdNT=set.perDiemNT?perDiem:0, pdT=set.perDiemNT?0:perDiem;
   var total=r2(gross+perDiem);
-  var k401=+set.k401||0, health=+set.health||0;
+  var k401=fin(set.k401), health=fin(set.health);
   var fitW=Math.max(0,r2(total-pdNT-k401-health));
   var ficaW=Math.max(0,r2(total-pdNT-health));
   var annual=fitW*periods;var adj=(set.filing==='mfj'?tax.worksheet_1a_line_1g.mfj:tax.worksheet_1a_line_1g.other);
   var aaw=Math.max(0,annual-adj);var tbl=tax.federal_standard_annual[set.filing==='mfj'?'mfj':set.filing==='hoh'?'hoh':'single'];var row=tbl[0];
   for(var i=0;i<tbl.length;i++){if(aaw>=tbl[i][0]&&(tbl[i][1]==null||aaw<tbl[i][1])){row=tbl[i];break;}}
-  var tentA=row[2]+(aaw-row[0])*row[3];var fed=tentA/periods-(+set.credits||0)/periods;fed=Math.max(0,r2(fed))+(+set.extraWH||0);fed=r2(fed);
+  var tentA=row[2]+(aaw-row[0])*row[3];var fed=tentA/periods-fin(set.credits)/periods;fed=Math.max(0,r2(fed))+fin(set.extraWH);fed=r2(fed);
   var ss=r2(ficaW*tax.ss_rate),med=r2(ficaW*tax.medicare_rate),addl=0;
   if(ficaW*periods>tax.additional_medicare_threshold){addl=r2((ficaW*periods-tax.additional_medicare_threshold)/periods*tax.additional_medicare_rate);}
-  var st=set.state||'',noTax=tax.no_wage_tax_states.indexOf(st)>=0,stRate=+set.stateRate||0,stateAmt=noTax?0:r2(fitW*stRate/100);
+  var st=set.state||'',noTax=tax.no_wage_tax_states.indexOf(st)>=0,stRate=fin(set.stateRate),stateAmt=noTax?0:r2(fitW*stRate/100);
   lines.push({k:'Gross pay (hours × rate, OT, PTO)',v:gross});
   if(perDiem)lines.push({k:'Per diem',v:perDiem});
   if(k401)lines.push({k:'Pre-tax 401(k)',v:-k401});
@@ -504,7 +535,11 @@ function go(v){if(!NAVPOP&&S&&S.settings){closeModalDom();while(NAV.length&&navT
 $$('.tabs button').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.v);});});
 
 /* ── views ── */
-function render(){$$('.tabs button').forEach(function(b){if(b.dataset.v===VIEW)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+function render(){if(!TAX)return;try{renderView();}catch(e){renderFail(e);}}
+function renderFail(e){try{var v=$('#view');v.innerHTML='<div class="card" id="viewErr" role="alert"><h2>This screen hit a problem</h2><div>Your hours are still saved on this phone. Back them up now, then try again.</div><div class="row wrap" style="margin-top:12px"><button type="button" class="btn go grow" id="viewBk">Back up now</button><button type="button" class="btn ghost grow" id="viewRetry">Try again</button></div></div>';
+    $('#viewBk').addEventListener('click',function(){backup();});$('#viewRetry').addEventListener('click',function(){location.reload();});}catch(_){}
+  setTimeout(function(){throw e;},0);}
+function renderView(){$$('.tabs button').forEach(function(b){if(b.dataset.v===VIEW)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $('#proPill').hidden=!isPro();
   var v=$('#view');clearInterval(TICK);TICK=null;
   if(!S.settings){v.innerHTML=setupHTML(true);wireSetup(true);return;}
@@ -613,11 +648,11 @@ function bonusOf(){return cleanBonus(S.settings&&S.settings.bonus);}
 function bonusText(b){b=cleanBonus(b);if(b.basis==='none')return 'none';if(b.basis==='flat')return money(b.amount)+' flat';
   return hrs(b.pct)+'% of '+(b.basis==='all'?'all pay this year (regular + overtime)':b.basis==='base'?'regular pay this year (no overtime)':'pay from '+jobOf(b.jobId).name);}
 function bonusCalc(upTo){var b=bonusOf();if(b.basis==='none')return null;var y=upTo.slice(0,4),end=upTo<todayKey()?upTo:todayKey();if(end.slice(0,4)!==y)end=y+'-12-31';
-  var from=y+'-01-01',base=0,k=weekStartKey(from),seen={};
-  if(b.basis!=='flat'){while(k<=end){var w=computeWeek(k);w.keys.forEach(function(dk){if(dk<from||dk>end||seen[dk])return;seen[dk]=1;w.days[dk].items.forEach(function(it){var jid=it.e.jobId||(S.jobs[0]&&S.jobs[0].id)||'';
+  var from=y+'-01-01',base=0,k=weekStartKey(from),seen={},guard=0;
+  if(b.basis!=='flat'){while(k<=end&&guard++<800){var w=computeWeek(k);w.keys.forEach(function(dk){if(dk<from||dk>end||seen[dk])return;seen[dk]=1;w.days[dk].items.forEach(function(it){var jid=it.e.jobId||(S.jobs[0]&&S.jobs[0].id)||'';
         if(b.basis==='job'&&jid!==b.jobId)return;base+=b.basis==='base'?(it.reg+it.pto)*rateOf(jobOf(jid)):it.gross;});});k=addDays(k,7);}
     if(b.prior&&b.priorYear===y)base+=b.prior;}
-  base=r2(base);var bonus=b.basis==='flat'?b.amount:r2(base*b.pct/100);var st=S.settings||{},noTax=TAX.no_wage_tax_states.indexOf(st.state)>=0,sr=noTax?0:(+st.stateRate||0)/100;
+  base=r2(base);var bonus=b.basis==='flat'?b.amount:r2(base*b.pct/100);var st=S.settings||{},noTax=TAX.no_wage_tax_states.indexOf(st.state)>=0,sr=noTax?0:fin(st.stateRate)/100;
   var tax=r2(bonus*(BONUS_FED+TAX.ss_rate+TAX.medicare_rate+sr));return {b:b,year:y,base:base,bonus:r2(bonus),tax:tax,net:r2(bonus-tax),state:sr};}
 function pdLegacy(){var v=S.settings&&+S.settings.perDiem;return v>0&&isFinite(v)?v:0;}
 function pdOf(job){if(!job||job.perDiem==null||job.perDiem==='')return null;var v=+job.perDiem;return isFinite(v)&&v>=0?v:null;}
@@ -702,7 +737,7 @@ function accrualText(b){if(b.type==='perHours')return 'Earn '+hrs(+b.earn)+' hr 
 function jobsCard(){var pro=isPro();return '<div class="card"><h2>Jobs</h2><ul class="list">'+S.jobs.map(function(j){return '<li><button type="button" class="ent" data-job="'+esc(j.id)+'"><span class="grow"><b>'+esc(j.name)+'</b>'+(j.active===false?' <span class="tag">Closed</span>':'')+'<br><span class="fine">'+money(rateOf(j))+'/hr · OT '+money(otRateOf(j))+'/hr · '+esc(ruleText(j))+'</span></span>›</button></li>';}).join('')+'</ul>'+
   '<button type="button" class="btn ghost block" data-a="addjob">+ Add a job'+(pro||S.jobs.length<FREE_JOBS?'':' <span class="lock">PRO</span>')+'</button></div>';}
 
-function moreHTML(){var pro=isPro();var h='<div class="card"><h2>Pay setup</h2><div class="fine">'+esc(S.settings.state)+' · '+esc(S.settings.period)+' · '+esc(filingText(S.settings.filing))+' · '+money(+S.settings.rate)+'/hr'+(bonusOf().basis!=='none'?' · bonus '+esc(bonusText(bonusOf())):'')+'</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="setup">Edit pay setup</button></div>';
+function moreHTML(){var pro=isPro();var h='<div class="card"><h2>Pay setup</h2><div class="fine">'+[S.settings.state,S.settings.period,filingText(S.settings.filing)].filter(function(x){return typeof x==='string'&&x;}).map(esc).join(' · ')+' · '+money(fin(S.settings.rate))+'/hr'+(bonusOf().basis!=='none'?' · bonus '+esc(bonusText(bonusOf())):'')+'</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="setup">Edit pay setup</button></div>';
   h+=pdCard();
   h+=jobsCard();
   h+='<div class="card"><h2>Backup + restore</h2><div class="fine">Last backup: <b id="lastBk">'+(S.lastBackup?new Date(S.lastBackup).toLocaleString():'never')+'</b>. A backup is one file with all your hours, codes, PTO and change history. Keep it in Files, iCloud Drive, Google Drive or email it to yourself.</div>'+
@@ -715,17 +750,18 @@ function moreHTML(){var pro=isPro();var h='<div class="card"><h2>Pay setup</h2><
 function filingText(f){return f==='mfj'?'Married filing jointly':f==='hoh'?'Head of household':'Single';}
 
 /* ── setup ── */
-function setupHTML(first){var s=S.settings||{state:'FL',period:'weekly',filing:'single',weekStart:1};var j=S.jobs[0]||{};
-  var h=(first?'<div class="card" style="background:#0F172A;color:#fff;border:0"><h2 style="color:#fff">Clocked In</h2><div>Clock in, watch your paycheck add up as the week goes, track PTO and keep the job codes your timesheet needs. It\'s your record, on your phone. Not your boss\'s. No GPS. Every minute counts.</div><div class="fine" style="color:#CBD5E1;margin-top:6px">30-second setup. Everything stays on this phone.</div></div>':'')+
+function setupHTML(first){var j=S.jobs[0]||{},fresh=first&&!S.jobs.length;   /* fresh = a brand-new user. first without fresh = the saved pay setup was lost, the jobs were not */
+  var s=S.settings||{state:fresh?'FL':'',period:'weekly',filing:'single',weekStart:1};
+  var h=(first&&!fresh?'<div class="alert ot" id="setupLost" role="status"><b>Your pay setup couldn\'t be read, so enter it again.</b> Your hours, jobs and PTO are still here.</div>':'')+(fresh?'<div class="card" style="background:#0F172A;color:#fff;border:0"><h2 style="color:#fff">Clocked In</h2><div>Clock in, watch your paycheck add up as the week goes, track PTO and keep the job codes your timesheet needs. It\'s your record, on your phone. Not your boss\'s. No GPS. Every minute counts.</div><div class="fine" style="color:#CBD5E1;margin-top:6px">30-second setup. Everything stays on this phone.</div></div>':'')+
   '<div class="card"><h2>'+(first?'Set up your pay':'Pay setup')+'</h2>'+
-  (first?'<label class="f" for="sJob">Job name</label><input class="i" id="sJob" value="'+esc(j.name||'')+'" placeholder="e.g. Gulf Coast Grocers">':'')+
+  (fresh?'<label class="f" for="sJob">Job name</label><input class="i" id="sJob" value="'+esc(j.name||'')+'" placeholder="e.g. Gulf Coast Grocers">':'')+
   '<label class="f" for="sRate">Hourly rate</label><input class="i" id="sRate" inputmode="decimal" value="'+esc(s.rate||'')+'" placeholder="28.00">'+
-  (first||S.jobs.length===1?otFields('sO_',otOf(j))+(first?'':whenFields('sO_')):'<div class="fine" style="margin-top:10px">Each job has its own overtime rule. Change it under More → Jobs.</div>')+
+  (fresh||S.jobs.length===1?otFields('sO_',otOf(j))+(fresh?'':whenFields('sO_')):'<div class="fine" style="margin-top:10px">Each job has its own overtime rule. Change it under More → Jobs.</div>')+
   '<label class="f" for="sOt">Overtime rate, $ <span class="muted">(blank = your rate × the number above)</span></label><input class="i" id="sOt" inputmode="decimal" value="'+esc(s.otRate||'')+'" placeholder="42.00">'+
   '<label class="f" for="sPer">Pay period</label><select class="i" id="sPer">'+[['weekly','Weekly'],['biweekly','Every 2 weeks'],['semimonthly','Twice a month (1st–15th, 16th–end)'],['monthly','Monthly']].map(function(o){return '<option value="'+o[0]+'"'+(s.period===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
   '<div id="anchorRow"'+(s.period==='biweekly'?'':' hidden')+'><label class="f" for="sAnchor">First day of a recent pay period</label><input class="i" type="date" id="sAnchor" value="'+esc(s.anchor||weekStartKey(todayKey()))+'"></div>'+
   '<label class="f" for="sWs">Your workweek starts on</label><select class="i" id="sWs">'+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(function(n,i){return '<option value="'+i+'"'+((s.weekStart==null?1:+s.weekStart)===i?' selected':'')+'>'+n+'</option>';}).join('')+'</select>'+
-  '<label class="f" for="sState">State you work in</label><select class="i" id="sState">'+STATES.map(function(x){return '<option value="'+x[0]+'"'+(s.state===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('')+'</select>'+
+  '<label class="f" for="sState">State you work in</label><select class="i" id="sState">'+(s.state?'':'<option value="" selected>Choose your state</option>')+STATES.map(function(x){return '<option value="'+x[0]+'"'+(s.state===x[0]?' selected':'')+'>'+x[1]+'</option>';}).join('')+'</select>'+
   '<div id="stateRateRow"><label class="f" for="sStRate">Your state tax rate, % <span class="muted">(look at a pay stub: state tax ÷ gross)</span></label><input class="i" id="sStRate" inputmode="decimal" value="'+esc(s.stateRate||'')+'" placeholder="e.g. 4.5"></div>'+
   '<div class="fine" id="stateNote"></div>'+
   '<label class="f" for="sFil">Filing status on your W-4</label><select class="i" id="sFil">'+[['single','Single or married filing separately'],['mfj','Married filing jointly'],['hoh','Head of household']].map(function(o){return '<option value="'+o[0]+'"'+(s.filing===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
@@ -736,22 +772,24 @@ function setupHTML(first){var s=S.settings||{state:'FL',period:'weekly',filing:'
   '<label class="f" for="sCr">W-4 Step 3 credits (yearly total), $</label><input class="i" id="sCr" inputmode="decimal" value="'+esc(s.credits||'')+'">'+
   '<label class="f" for="sX">Extra withholding per check (W-4 Step 4c), $</label><input class="i" id="sX" inputmode="decimal" value="'+esc(s.extraWH||'')+'">'+
   '</details>'+'<div class="fine" id="pdHint" style="margin-top:10px">Get per diem? '+(first?'Add it after setup under <b>More → Per diem</b>.':'It has its own spot now: <b>More → Per diem</b>.')+'</div>'+
-  '<button type="button" class="btn go block" style="margin-top:16px" data-a="saveSetup">'+(first?'Start tracking':'Save')+'</button>'+
+  '<button type="button" class="btn go block" style="margin-top:16px" data-a="saveSetup">'+(fresh?'Start tracking':'Save')+'</button>'+
   (first?'':'<button type="button" class="btn ghost block" style="margin-top:8px" data-a="cancelSetup">Cancel</button>')+'</div>';
   return h;}
-function wireSetup(first){var st=$('#sState'),per=$('#sPer');function upd(){var noTax=TAX.no_wage_tax_states.indexOf(st.value)>=0;$('#stateRateRow').hidden=noTax;
+function wireSetup(first){var st=$('#sState'),per=$('#sPer'),fresh=first&&!S.jobs.length;function upd(){var noTax=TAX.no_wage_tax_states.indexOf(st.value)>=0;$('#stateRateRow').hidden=noTax;
     $('#stateNote').textContent=noTax?((TAX.state_notes[st.value])||'No state income tax on wages.'):'We don\'t calculate your official state tax yet (full state tables come in Phase 3). Your rate is used as you enter it.';$('#anchorRow').hidden=per.value!=='biweekly';}
-  st.addEventListener('change',upd);per.addEventListener('change',upd);upd();wireOt('sO_',first?null:otOf(S.jobs[0]));wireBonus();
+  st.addEventListener('change',upd);per.addEventListener('change',upd);upd();wireOt('sO_',fresh?null:otOf(S.jobs[0]));wireBonus();
   $('[data-a=saveSetup]').addEventListener('click',function(){var num=function(id){var v=($('#'+id)||{}).value;v=String(v||'').replace(/[$,\s]/g,'');return v===''?'':(+v>=0?+v:'');};
     var rate=num('sRate');if(!(rate>0)){toast('Enter your hourly rate.');$('#sRate').focus();return;}
+    if(!st.value){toast('Choose the state you work in.');st.focus();return;}
     var bm=($('#sBb')||{}).value;if(bm&&bm!=='none'){var bv=String(($('#'+(bm==='flat'?'sBa':'sBp'))||{}).value||'').replace(/[$,%\s]/g,'');if(!(+bv>0)||(bm!=='flat'&&+bv>100)){toast(bm==='flat'?'Enter your bonus amount, or choose No bonus.':'Enter your bonus percent (1 to 100), or choose No bonus.');try{$('#bonusBox').open=true;$('#'+(bm==='flat'?'sBa':'sBp')).focus();}catch(_){}return;}}
     var old=S.settings?JSON.stringify(S.settings):null,bon=readBonus();
     /* keep every setting already saved (per diem answers and anything added later); only the fields on this form are replaced */
     S.settings=Object.assign({},S.settings||{},{rate:rate,otRate:num('sOt'),period:per.value,anchor:($('#sAnchor')||{}).value||weekStartKey(todayKey()),weekStart:+$('#sWs').value,state:st.value,stateRate:num('sStRate'),filing:$('#sFil').value,k401:num('sK'),health:num('sH'),credits:num('sCr'),extraWH:num('sX'),perDiem:S.settings?S.settings.perDiem:'',perDiemNT:!!(S.settings&&S.settings.perDiemNT),bonus:bon});
-    if(first){var jn=($('#sJob').value||'').trim()||'My job';var r0=readOt('sO_');S.jobs=[{id:uid(),name:jn,rate:'',otRate:'',active:true,created:Date.now(),ot:r0,otHist:[{rule:r0,effectiveFrom:BEGIN}]}];log('settings','(setup)','','rate '+rate+', '+per.value+', '+st.value);}
+    delete S.ui.fix;
+    if(fresh){var jn=($('#sJob').value||'').trim()||'My job';var r0=readOt('sO_');S.jobs=[{id:uid(),name:jn,rate:'',otRate:'',active:true,created:Date.now(),ot:r0,otHist:[{rule:r0,effectiveFrom:BEGIN}]}];log('settings','(setup)','','rate '+rate+', '+per.value+', '+st.value);}
     else{log('settings','pay setup',old,JSON.stringify(S.settings));
       if(S.jobs.length===1&&document.getElementById('sO_mode')){var j0=S.jobs[0],r1=readOt('sO_');if(!sameRule(otOf(j0),r1)){var n0=applyRule(j0,r1,($('#sO_when')||{}).value||weekStartKey(todayKey()));log('job',j0.name,JSON.stringify(j0),JSON.stringify(n0));S.jobs[0]=n0;}}}
-    save();navDropTop('setup');VIEW=first?'today':'more';render();window.scrollTo(0,0);toast(first?'You\'re set. Tap START when your shift begins.':'Saved.');});
+    save();paintStore();navDropTop('setup');VIEW=first?'today':'more';render();window.scrollTo(0,0);toast(fresh?'You\'re set. Tap START when your shift begins.':'Saved.');});
   var c=$('[data-a=cancelSetup]');if(c)c.addEventListener('click',function(){navDropTop('setup');render();if(STORE.stale)refresh();});}
 
 /* ── wiring ── */
@@ -979,7 +1017,7 @@ function bucketModal(id){var b=id?S.pto.buckets.filter(function(x){return x.id==
 /* ── jobs ── */
 function jobModal(id){var j=id?S.jobs.filter(function(x){return x.id===id;})[0]:{id:uid(),name:'',rate:'',otRate:'',active:true,created:Date.now()};var isNew=!id;
   modal('<button class="x" data-close aria-label="Close">×</button><h3>'+(isNew?'Add a job':'Job')+'</h3><label class="f" for="jN">Job name</label><input class="i" id="jN" value="'+esc(j.name)+'">'+
-  '<label class="f" for="jR">Hourly rate <span class="muted">(blank = '+money(+S.settings.rate)+')</span></label><input class="i" id="jR" inputmode="decimal" value="'+esc(j.rate)+'">'+
+  '<label class="f" for="jR">Hourly rate <span class="muted">(blank = '+money(fin(S.settings.rate))+')</span></label><input class="i" id="jR" inputmode="decimal" value="'+esc(j.rate)+'">'+
   otFields('jO_',otOf(j))+(isNew?'':whenFields('jO_'))+'<label class="f" for="jO">OT rate, $ <span class="muted">(blank = your rate × the number above)</span></label><input class="i" id="jO" inputmode="decimal" value="'+esc(j.otRate)+'">'+
   (isNew?'':'<label class="chk"><input type="checkbox" id="jC"'+(j.active===false?' checked':'')+'><span>Closed (keeps all history, hides from the pick list)</span></label>')+
   '<button type="button" class="btn go block" style="margin-top:14px" id="jS">Save</button>',function(){wireOt('jO_',isNew?null:otOf(j));$('#jS').addEventListener('click',function(){var r=readOt('jO_');var n=Object.assign({},j,{name:($('#jN').value||'').trim()||'Job',rate:$('#jR').value,otRate:$('#jO').value,active:!($('#jC')&&$('#jC').checked)});
@@ -1012,6 +1050,7 @@ function logLines(){var CAT={backup:1,clock:1,job:1,pto:1,settings:1,labels:1,co
     if(id==='settings'&&f==='per diem charge')return 'Per diem charged to: '+plain(n);
     if(id==='settings'&&f==='per diem taxed')return 'Per diem on your stub: '+plain(n);
     if(id==='settings'&&f==='per diem count')return 'Per diem with two jobs in a day: '+plain(n);
+    if(id==='settings'&&f==='(repaired)')return 'Pay setup couldn\'t be read and was put back to a safe choice: '+plain(n);
     if(id==='settings'){if(f==='(setup)'){var m=n.match(/^rate ([\d.]+), (\w+), (\w+)/);return 'Set up pay'+(m?': '+money(+m[1])+'/hr, '+m[2]+', '+m[3]:'');}var sp=jdiff(o,n,{rate:'hourly rate',otRate:'overtime rate',period:'pay period',anchor:'pay period start',weekStart:'workweek starts',state:'state',stateRate:'state tax rate',filing:'filing status',k401:'401(k)',health:'health insurance',credits:'W-4 credits',extraWH:'extra withholding',perDiem:'per diem',perDiemNT:'per diem untaxed'},setFmt);try{var ba=bonusText(JSON.parse(o).bonus),bb=bonusText(JSON.parse(n).bonus);if(sp&&ba!==bb)sp.push('bonus '+ba+' → '+bb);}catch(_){}return 'Changed pay setup'+(sp&&sp.length?': '+sp.join('; '):'');}
     if(id==='labels')return 'Renamed the code labels';
     if(id==='code')return f==='(added)'?'Saved a code set: '+plain(n):'Edited code set '+plain(f);
@@ -1094,13 +1133,14 @@ window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();BIP
 window.addEventListener('pageshow',function(e){if(e.persisted)refresh();});
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refresh();});
 window.addEventListener('storage',function(e){if(e.key===KEY||e.key==='yfs_pro')refresh();});
-document.getElementById('storeBar').addEventListener('click',function(e){var id=e.target&&e.target.id;if(id==='storeUpd'){location.reload();}else if(id==='storeBk'){backup();}else if(id==='storeRawDl'){rawDownload();}else if(id==='storeRetry'){if(save())toast('Saved.');}});
+document.getElementById('storeBar').addEventListener('click',function(e){var id=e.target&&e.target.id;if(id==='storeUpd'){location.reload();}else if(id==='storeBk'){backup();}else if(id==='storeRawDl'){rawDownload();}else if(id==='storeRetry'){if(save())toast('Saved.');}
+  else if(id==='fixSetup'){if(S.settings&&!document.getElementById('sRate')&&!document.getElementById('otjModal'))act('setup');}else if(id==='fixOk'){delete S.ui.fix;save(true);paintStore();}});
 window.OTJ={logLines:logLines,bonusCalc:bonusCalc,otOf:otOf,weekShare:weekShare,ruleText:ruleText,cleanOt:cleanOt,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();paintStore();render();},pdCharge:pdCharge,store:function(){return {stale:STORE.stale,ok:STORE.ok,ro:STORE.ro,dirty:STORE.dirty,note:STORE.note,bad:storeBad()};},DATA_V:DATA_V,storeTest:storeTest,tax:function(){return TAX;},autoClock:autoClockHook,
   hash:function(o){var t=new TextEncoder().encode(JSON.stringify(o||S));return crypto.subtle.digest('SHA-256',t).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}};
 STORE.ok=storeTest();S=load();paintStore();VIEW=(S.ui&&S.ui.view)||'today';if(VIEW==='codes')VIEW='week';
 NAVH=navDepth();if(S.settings&&VIEW!=='today')NAV.push({t:'tab',from:'today'});/* steps left over from before a reload are walked back once the page has finished loading (doing it mid-load can cut the load short) */
 if(NAV.length<NAVH){if(document.readyState==='complete')navLater();else window.addEventListener('load',function(){setTimeout(navSync,60);});}
-fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();}).catch(function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});
+fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){if(!t||typeof t!=='object'||!t.pay_periods)throw new Error('tax tables');TAX=t;},function(){throw new Error('tax tables');}).then(render,function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});
 /* a new version of the app took over: reload once, and only when nothing unsaved or half-typed is on screen */
 var swHad=false,swWant=false,swDone=false;
 function swMaybeReload(){if(!swWant||swDone)return;if(storeBad()||document.getElementById('otjModal')||document.getElementById('sRate'))return;
