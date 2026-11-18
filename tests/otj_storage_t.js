@@ -40,7 +40,7 @@ const PD={};
   // ── 1. storage blocked from the first moment (Private Browsing) ──
   {const {c,p,errs}=await open(null,{block:'throw'});
    ok((await bar(p)).startsWith(BLOCK)&&await p.evaluate(()=>getComputedStyle(document.getElementById('storeBad')).backgroundColor==='rgb(185, 28, 28)'),'1a '+T0+'storage blocked: red banner on load, "'+BLOCK+'"');
-   await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','28');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);let t=await toastTxt(p);
+   await p.fill('#sJob','Harbor Line Builders');await p.selectOption('#sState','FL');await p.fill('#sRate','28');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);let t=await toastTxt(p);
    ok(t[0]===BLOCK&&t[1]==='1'&&!/Saved|You're set/.test(t[0])&&!!(await p.$('[data-a=start]')),'1b '+T0+'finishing setup shows the red error, not a success message, and the setup stays on screen');
    await addHours(p);t=await toastTxt(p);let s=await st(p);
    ok(live(s).length===1&&t[0]===BLOCK&&t[1]==='1'&&!/Saved/.test(await p.innerText('body')),'1c '+T0+'adding hours: the entry stays on screen, the message is the red error, "Saved" never appears');
@@ -74,7 +74,7 @@ const PD={};
    ok(ks.length===1&&/^yfs_otj_v1_raw_\d+$/.test(ks[0])&&(await ls(p,ks[0]))===BAD&&(await ls(p))===BAD,'3a '+T0+'unreadable data: an exact copy is saved as '+KEY+'_raw_<timestamp> before anything else, and the original is left alone');
    ok(/couldn't be read/.test(await p.textContent('#storeNote'))&&/kept on this phone, not erased/.test(await p.textContent('#storeNote'))&&/Set up your pay/.test(await p.textContent('#view')),'3b '+T0+'the app says the hours could not be read and were kept (no silent blank start)');
    await p.reload();await p.waitForFunction(()=>window.OTJ&&OTJ.tax());ok((await keys(p)).filter(k=>k.startsWith(KEY+'_raw_')).length===1,'3c '+T0+'reloading does not pile up duplicate copies');
-   await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','28');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);await addHours(p);
+   await p.fill('#sJob','Harbor Line Builders');await p.selectOption('#sState','FL');await p.fill('#sRate','28');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);await addHours(p);
    ok((await ls(p,ks[0]))===BAD&&JSON.parse(await ls(p)).entries.length===1&&!(await ls(p,KEY+'_last')||'').startsWith('{"app":"yfs-on-the-job","v":1,"entries":[{"id":"e1"')&&!!JSON.parse(await ls(p,KEY+'_last')),'3d '+T0+'starting over and saving new hours leaves the raw copy byte-for-byte intact (and the damaged text is never used as a safety copy)');
    const BAD2='not json at all {{{';await p.evaluate(([k,v])=>{window.__sv=Storage.prototype.setItem;localStorage.setItem(k,v);},[KEY,BAD2]);await back(p);ks=(await keys(p)).filter(k=>k.startsWith(KEY+'_raw_'));const vals=[];for(const k of ks)vals.push(await ls(p,k));
    ok(ks.length===2&&vals.includes(BAD)&&vals.includes(BAD2)&&live(await st(p)).length===1&&JSON.parse(await ls(p)).entries.length===1,'3e '+T0+'storage damaged while the app is open: second raw copy made, first one untouched, on-screen hours kept and written back');
@@ -112,7 +112,7 @@ const PD={};
    ok(!errs.length&&!y.errs.length,'5 '+T0+'no page errors '+errs.concat(y.errs).join('|').slice(0,140));await y.c.close();}
 
   // ── 6. coming back to the page never wipes what is on screen ──
-  {const {c,p,errs}=await open(null);await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','31.50');await back(p);
+  {const {c,p,errs}=await open(null);await p.fill('#sJob','Harbor Line Builders');await p.selectOption('#sState','FL');await p.fill('#sRate','31.50');await back(p);
    ok(await p.inputValue('#sJob')==='Harbor Line Builders'&&await p.inputValue('#sRate')==='31.50','6a '+T0+'half-filled pay setup survives leaving and coming back');
    await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);ok(await p.evaluate(()=>window.__persist)===1,'6b '+T0+'the browser is asked to keep the data permanently right after the first good save');
    await p.click('[data-a=add]');await p.waitForTimeout(150);await p.fill('#eStart','06:00');await p.fill('#eEnd','09:45');await back(p);
@@ -137,7 +137,7 @@ const PD={};
 
   // ── 8. per diem ──
   {const {c,p,errs}=await open(null);ok(!(await p.$('#sPd'))&&/More → Per diem/.test(await p.textContent('#pdHint')),'8a '+T0+'pay setup no longer hides per diem in the collapsed section; it points to More → Per diem');
-   await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','28');await p.selectOption('#sWs','1');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);
+   await p.fill('#sJob','Harbor Line Builders');await p.selectOption('#sState','FL');await p.fill('#sRate','28');await p.selectOption('#sWs','1');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);
    ok(!(await p.$('#pdToday')),'8b '+T0+'no per diem set: no per diem row on Today');
    await p.click('nav.tabs [data-v=more]');const order=await p.evaluate(()=>Array.from(document.querySelectorAll('#view .card h2')).map(h=>h.textContent));
    ok(order[0]==='Pay setup'&&order[1]==='Per diem'&&/Add per diem/.test(await p.textContent('#pdCard')),'8c '+T0+'More has its own "Per diem" card right under Pay setup');

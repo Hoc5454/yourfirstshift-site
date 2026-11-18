@@ -81,7 +81,7 @@ const PD={};
    await p.click('#preTaxBox summary');a=await ctl('#preTaxBox');ok(/^Hide/.test(a.label)&&await p.isVisible('#sK')&&await p.isVisible('#sH')&&await p.isVisible('#sCr')&&await p.isVisible('#sX'),'2c '+T0+'tapping it opens the 401(k), health, W-4 credits and extra withholding boxes and the control changes to "Hide ▴"');
    if(SHOTS)await p.screenshot({path:path.join(SHOTS,dev+'-setup-pretax.png'),fullPage:true});
    const bb=await ctl('#bonusBox');ok(/^Show/.test(bb.label)&&/^Bonus \(optional\) A percent of your pay or a flat amount\.$/.test(await txt(p,'#bonusBox summary')),'2d '+T0+'the Bonus section uses the same pattern');
-   await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','20');await p.fill('#sK','50');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);ok((await st(p)).settings.k401===50,'2e '+T0+'the fields still save (401(k) $50)');
+   await p.fill('#sJob','Harbor Line Builders');await p.selectOption('#sState','FL');await p.fill('#sRate','20');await p.fill('#sK','50');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);ok((await st(p)).settings.k401===50,'2e '+T0+'the fields still save (401(k) $50)');
    await p.click('nav.tabs [data-v=more]');await p.click('[data-a=setup]');await p.waitForTimeout(150);a=await ctl('#preTaxBox');ok(/^Hide/.test(a.label)&&await p.isVisible('#sK')&&await p.inputValue('#sK')==='50','2f '+T0+'editing pay setup later opens it already, with the saved amount showing');
    ok(await p.evaluate(()=>document.documentElement.scrollWidth-innerWidth<=1),'2g '+T0+'setup fits the screen');ok(!errs.length,'2 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
 

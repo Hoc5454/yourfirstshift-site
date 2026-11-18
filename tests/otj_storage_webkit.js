@@ -15,7 +15,7 @@ const UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605
  try{await d.manage().window().setRect({width:412,height:915});await d.get(O+'/job/');await wait(1200);
   ok(await js("return typeof window.OTJ==='object'&&!!OTJ.tax()&&OTJ.storeTest()===true&&!document.getElementById('storeBad')"),'loads; storage self-test passes; no banner');
   await js(blockJs);ok(await js("return OTJ.storeTest()===false"),'self-test reports blocked storage when writes throw');
-  await js("document.getElementById('sJob').value='Gulf Coast Grocers';document.getElementById('sRate').value='28';document.querySelector('[data-a=saveSetup]').click();");await wait(400);
+  await js("document.getElementById('sJob').value='Gulf Coast Grocers';document.getElementById('sState').value='FL';document.getElementById('sRate').value='28';document.querySelector('[data-a=saveSetup]').click();");await wait(400);
   let t=await js(toast);ok(/^Not saved\./.test(t[0])&&t[1]==='1'&&await js("return !!document.getElementById('storeBad')&&!!document.querySelector('[data-a=start]')&&localStorage.getItem('yfs_otj_v1')===null"),'blocked: setup shows the red error and banner, not a success message; nothing written');
   await js("document.querySelector('[data-a=start]').click()");await wait(1200);await js("document.querySelector('[data-a=stop]').click()");await wait(400);t=await js(toast);
   ok(t[1]==='1'&&!/Saved/.test(t[0])&&await js("return OTJ.state().entries.length===1"),'blocked: clock in/out keeps the shift on screen and never says Saved');

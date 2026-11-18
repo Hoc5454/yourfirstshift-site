@@ -12,7 +12,7 @@ const UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605
  const tap=async sel=>{const el=await d.findElement(By.css(sel));await js('arguments[0].scrollIntoView({block:"center"})',el);await wait(80);await el.click();};
  const bk=async()=>{await d.navigate().back();await wait(400);};
  try{await d.manage().window().setRect({width:412,height:915});await d.get('about:blank');await d.get(O+'/job/');await wait(1200);
-  await js("document.getElementById('sJob').value='Gulf Coast Grocers';document.getElementById('sRate').value='28';");await tap('[data-a=saveSetup]');await wait(500);await js("window.__mark=1");
+  await js("document.getElementById('sJob').value='Gulf Coast Grocers';document.getElementById('sState').value='FL';document.getElementById('sRate').value='28';");await tap('[data-a=saveSetup]');await wait(500);await js("window.__mark=1");
   let a=await js(at);ok(a.view==='today'&&a.depth===0,'Clock after setup: no history step');
   await tap('nav.tabs [data-v=week]');await wait(300);await tap('#sheet .tsday.today .tsd');await wait(300);a=await js(at);const title=a.h3;ok(a.modal&&a.path==='/job/','day sheet open');
   await tap('#dAdd');await wait(300);await bk();a=await js(at);ok(a.modal&&a.h3===title&&a.mark===1,'back from Add hours: the same day sheet is back');

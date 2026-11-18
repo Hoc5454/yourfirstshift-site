@@ -1,6 +1,6 @@
 // Clocked In finish-line checks: the take-home estimate is never shown below $0 (early in a pay period the 401(k), health and extra
 // withholding that come out of every paycheck can be more than the pay so far); there is a way to reach us from inside the app, plus the
-// Privacy and Terms pages; and a brand-new user is told to pick their own state. Page clock pinned (US Eastern). Made-up data only.
+// Privacy and Terms pages; a brand-new user chooses their own state (it is no longer filled in as Florida); and "1 hr" is not "1 hrs". Page clock pinned (US Eastern). Made-up data only.
 // Usage: node otj_finish_t.js .. [shotDir]
 process.env.TZ='America/New_York';
 const {chromium}=require('playwright');const http=require('http');const fs=require('fs');const path=require('path');
@@ -45,8 +45,16 @@ const state=(T,entries,settings)=>({app:'yfs-on-the-job',v:1,created:at(addDays(
   await p.evaluate(()=>{OTJ.state().entries=null;});await p.tap('nav.tabs [data-v=week]');await p.waitForTimeout(200);const em=await p.evaluate(()=>{const a=document.getElementById('viewMail');return a?decodeURIComponent(a.getAttribute('href')):'';});
   ok(/^mailto:hello@yourfirstshiftapp\.com/.test(em)&&/Error: .*(null|filter)/.test(em)&&h.errs.length>=1,'the "This screen hit a problem" card has Report this problem, and the email carries the error text');if(SHOTS)await p.screenshot({path:path.join(SHOTS,'finish-2-report.png')});await h.c.close();}
  // ── 4. A brand-new user is told to pick their own state ──
- {const T='2026-11-20',n=await open(T,null),a=await n.p.evaluate(()=>({hint:(document.getElementById('statePick')||{innerText:''}).innerText,st:document.getElementById('sState').value}));
-  ok(a.st==='FL'&&/^Not in Florida\? Pick your state so your take-home estimate is right\.$/.test(a.hint),'first-run setup starts on Florida as before and now says: "'+a.hint+'"');await n.c.close();
-  const e=await open(T,state(T,[]));await e.p.click('nav.tabs [data-v=more]');await e.p.click('[data-a=setup]');await e.p.waitForTimeout(150);const l=await open(T,state(T,[shift(T,'07:00','15:00',1)],null));
-  ok(await e.p.evaluate(()=>!document.getElementById('statePick')&&!!document.getElementById('sRate'))&&await l.p.evaluate(()=>!document.getElementById('statePick')&&!!document.getElementById('sRate'))&&!e.errs.length&&!l.errs.length,'someone who is already set up, or re-entering a lost setup, does not get that line');await e.c.close();await l.c.close();}
+ {const T='2026-11-20',n=await open(T,null),p=n.p,a=await p.evaluate(()=>{const s=document.getElementById('sState');return {st:s.value,first:s.options[0].text,rateRow:document.getElementById('stateRateRow').hidden};});
+  ok(a.st===''&&a.first==='Choose your state'&&a.rateRow,'first-run setup no longer starts on Florida: the state box says "'+a.first+'"');
+  await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','28');await p.tap('[data-a=saveSetup]');await p.waitForTimeout(200);
+  ok(await p.evaluate(k=>localStorage.getItem(k)===null&&/Choose the state you work in/.test((document.querySelector('.toast')||{innerText:''}).innerText),KEY),'Start tracking without a state says "Choose the state you work in." and saves nothing');
+  await p.selectOption('#sState','GA');await p.waitForTimeout(100);const row=await p.evaluate(()=>!document.getElementById('stateRateRow').hidden);await p.tap('[data-a=saveSetup]');await p.waitForTimeout(250);
+  ok(row&&await p.evaluate(k=>{const d=JSON.parse(localStorage.getItem(k));return d.settings.state==='GA'&&d.settings.rate===28&&d.jobs.length===1&&!!document.querySelector('[data-a=start]');},KEY)&&!n.errs.length,'choosing Georgia shows the state tax rate box, and Start tracking then saves and opens the Clock tab '+n.errs.join(' | '));await n.c.close();
+  const e=await open(T,state(T,[]));await e.p.click('nav.tabs [data-v=more]');await e.p.click('[data-a=setup]');await e.p.waitForTimeout(150);
+  ok(await e.p.evaluate(()=>document.getElementById('sState').value==='FL'&&document.getElementById('sState').options[0].value==='AL')&&!e.errs.length,'someone already set up sees their own state in Pay setup, with no "Choose your state" line');await e.c.close();}
+ // ── 5. "1 hr", not "1 hrs" ──
+ {const T='2026-11-19',mk=(d,z,n)=>({id:'w'+n,kind:'work',date:d,start:at(d,'06:00'),end:at(d,z),breakMin:30,jobId:'j1',codeId:'',splits:[],note:''});
+  const h=await open(T,state(T,[mk('2026-11-16','17:00',1),mk('2026-11-17','17:00',2),mk('2026-11-18','17:00',3),mk('2026-11-19','16:00',4)],SET({period:'weekly',k401:'',health:''}))),tx=await h.p.evaluate(()=>document.getElementById('view').innerText.replace(/\s+/g,' '));
+  ok(/Overtime: 1 hr this week/.test(tx)&&!/\b1 hrs\b/.test(tx)&&/41 hrs worked \(1 OT\)/.test(tx)&&!h.errs.length,'one hour of overtime reads "Overtime: 1 hr this week" (it used to read "1 hrs"); other amounts still read "41 hrs" '+h.errs.join(' | '));await h.c.close();}
  await b.close();srv.close();console.log(fails?fails+' FAIL ('+passes+' pass)':'ALL PASS ('+passes+')');process.exit(fails?1:0);})();
