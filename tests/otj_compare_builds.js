@@ -19,7 +19,8 @@ const addDays=(k,n)=>{const d=P(k);d.setDate(d.getDate()+n);return ymd(d);};cons
 const dow=k=>P(k).getDay();const weekStartOf=(k,ws)=>addDays(k,-((dow(k)-ws+7)%7));const WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 // one full week, the last and first days of a year, and the Sundays US clocks change (with the Mondays after)
 const ALL=['2026-11-22','2026-11-23','2026-11-24','2026-11-25','2026-11-26','2026-11-27','2026-11-28','2026-12-31','2027-01-01','2026-03-08','2026-03-09','2026-11-01','2026-11-02'];
-const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');const SKIP=process.argv[5]||'',IGNORE=process.argv[6]||'',ALLOW=process.argv[7]?new RegExp(process.argv[7]):null;const strip=v=>IGNORE&&typeof v==='string'?v.split(IGNORE).join('').replace(/\n{2,}/g,'\n').replace(/[ \t]+\n/g,'\n').trim():v;
+const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');const SKIP=process.argv[5]||'',IGNORE=process.argv[6]||'',ALLOW=process.argv[7]?new RegExp(process.argv[7]):null;const HR1=!!process.env.OTJ_SAME_HR;   // OTJ_SAME_HR=1: read "1 hrs" and "1 hr" as the same words (one build says the first, the other the second)
+const strip=v=>{if(typeof v!=='string')return v;if(HR1)v=v.replace(/\b1 hrs\b/g,'1 hr');return IGNORE?v.split(IGNORE).join('').replace(/\n{2,}/g,'\n').replace(/[ \t]+\n/g,'\n').trim():v;};
 function records(T){const e=[];let n=0;for(let i=-20;i<=0;i++){const d=addDays(T,i);
     if(i===-3){e.push({id:'p'+(++n),kind:'pto',date:d,hours:8,bucket:'v',jobId:'j1'});continue;}
     if(i===-5){e.push({id:'m'+(++n),kind:'work',date:d,start:at(d,'12:00'),manualHours:9.5,breakMin:0,jobId:'j1',codeId:'',splits:[],note:''});continue;}
