@@ -1,15 +1,17 @@
 // On the Job edge cases: damaged / hostile / extreme saved data must never crash the page or show NaN/undefined.
 // Usage: node otj_edge_t.js .. [caseFilter|''] [free|pro]   (slow: run free and pro in parallel)
+// OTJ_DAY=YYYY-MM-DD runs it as if that day were today (page clock pinned to noon, data sets built around it): OTJ_DAY=2026-11-22 is a Sunday.
 const {chromium}=require('playwright');const http=require('http');const fs=require('fs');const path=require('path');
-const ROOT=path.resolve(process.argv[2]||'..');const ONLY=process.argv[3]||'';const PORT=18891+(process.argv[4]==='pro'?1:0),O='http://127.0.0.1:'+PORT;
+const ROOT=path.resolve(process.argv[2]||'..');const ONLY=process.argv[3]||'';const PORT=+(process.env.OTJ_PORT||0)||18891+(process.argv[4]==='pro'?1:0),O='http://127.0.0.1:'+PORT;
 const TYPES={'.html':'text/html; charset=utf-8','.json':'application/json','.js':'text/javascript','.png':'image/png','.webmanifest':'application/manifest+json'};
 const srv=http.createServer((q,s)=>{let u=decodeURIComponent(q.url.split('?')[0]);if(u.endsWith('/'))u+='index.html';const f=path.join(ROOT,u);
   if(!f.startsWith(ROOT)||!fs.existsSync(f)){s.writeHead(404);return s.end('nf');}s.writeHead(200,{'Content-Type':TYPES[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache'});fs.createReadStream(f).pipe(s);});
 let fails=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(!c)fails++;};
-const {CASES}=require('./otj_damaged_sets.js');
+const {CASES,NOW}=require('./otj_damaged_sets.js');const PIN=/^\d{4}-\d\d-\d\d$/.test(process.env.OTJ_DAY||'')?NOW:0;if(PIN)console.log('as if today were '+new Date(PIN).toDateString());
 (async()=>{await new Promise(r=>srv.listen(PORT,r));const b=await chromium.launch();
  for(const pro of (process.argv[4]==='pro'?[true]:process.argv[4]==='free'?[false]:[false,true]))for(const [name,state] of Object.entries(CASES)){if(ONLY&&!name.includes(ONLY))continue;
   const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+  if(PIN)await c.addInitScript(now=>{const _D=Date;const off=now-_D.now();class D2 extends _D{constructor(...a){if(a.length)super(...a);else super(_D.now()+off);}static now(){return _D.now()+off;}}window.Date=D2;},PIN);
   await c.addInitScript(([v,pro])=>{if(!sessionStorage.getItem('s')){sessionStorage.setItem('s','1');localStorage.setItem('yfs_otj_v1',v);if(pro)localStorage.setItem('yfs_pro','1');}},[JSON.stringify(state),pro]);
   const p=await c.newPage();p.setDefaultTimeout(600);const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('dialog',d=>d.dismiss());
   const t=Date.now();await p.goto(O+'/job/');await p.waitForTimeout(600);const bad=[];let slow=Date.now()-t;
