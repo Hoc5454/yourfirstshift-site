@@ -26,6 +26,7 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .hd a.back{font-size:14px;font-weight:700;color:var(--blue);text-decoration:none;padding:8px 4px;}
 .pro-pill{font-size:12px;font-weight:800;color:var(--go);background:#ECFDF5;border:1px solid #A7F3D0;border-radius:999px;padding:3px 9px;}
 main{padding:14px 16px calc(96px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto;}
+#storeBar{max-width:720px;margin:0 auto;padding:14px 16px 0;}#storeBar:empty{display:none;}#storeBar>div{margin:0!important;}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px;}
 .card h2{margin:0 0 8px;font-size:18px;}
 .muted{color:var(--muted);font-size:14px;}
@@ -140,6 +141,7 @@ textarea.i{min-height:80px;}
   <span id="proPill" class="pro-pill" hidden>PRO</span>
   <a class="back" href="/app.html">Resume tools</a>
 </header>
+<div id="storeBar"></div>
 <main id="view" aria-live="polite"></main>
 <nav class="tabs" aria-label="Clocked In">
   <button type="button" data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>Clock</button>
@@ -207,7 +209,7 @@ function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isAr
   j=Object.assign(blank(),o(j)?j:{});
   j.app='yfs-on-the-job';
   j.settings=o(j.settings)?j.settings:null;if(j.settings)j.settings.bonus=cleanBonus(j.settings.bonus);j.labels=Object.assign({},DEFAULT_LABELS,o(j.labels)?j.labels:{});j.ui=o(j.ui)?j.ui:{};
-  j.jobs=arr(j.jobs).filter(function(x){return x.id!=null;}).map(function(x){x.otHist=cleanHist(x);x.ot=cleanOt(x.otHist[x.otHist.length-1].rule);return x;});
+  j.jobs=arr(j.jobs).filter(function(x){return x.id!=null;}).map(function(x){x.otHist=cleanHist(x);x.ot=cleanOt(x.otHist[x.otHist.length-1].rule);if(x.perDiem!=null&&x.perDiem!==''){var pv=+x.perDiem;if(isFinite(pv)&&pv>=0&&pv<=5000)x.perDiem=pv;else delete x.perDiem;}return x;});
   j.codes=arr(j.codes).filter(function(x){return x.id!=null;}).map(function(c){if(!o(c.fields))c.fields={};return c;});
   j.log=arr(j.log);j.pto=o(j.pto)?j.pto:{};j.pto.buckets=arr(j.pto.buckets).filter(function(x){return x.id!=null;});
   j.entries=arr(j.entries).filter(function(e){var dOk=typeof e.date==='string'&&/^\d{4}-\d\d-\d\d$/.test(e.date);
@@ -222,8 +224,68 @@ function clean(j){var o=function(x){return !!x&&typeof x==='object'&&!Array.isAr
   if(o(j.clock)&&num(j.clock.start)){j.clock.breaks=arr(j.clock.breaks);j.clock.codes=cleanCodes(j.clock.codes);}else j.clock=null;
   j.ui.lastCodes=cleanCodes(j.ui.lastCodes);j.ui.recentCodes=(Array.isArray(j.ui.recentCodes)?j.ui.recentCodes:[]).map(cleanCodes).filter(hasCodes).slice(0,RECENT_MAX);if(j.ui.view==='codes')j.ui.view='week';
   return j;}
-function load(){try{var j=JSON.parse(localStorage.getItem(KEY)||'null');if(j&&j.app==='yfs-on-the-job')return clean(j);}catch(_){}return blank();}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));return true;}catch(e){toast('Phone storage is full. Make a Backup, then free up space.');return false;}}
+/* Saving is honest: every save is written, then read back. "Saved" is only shown when the read-back matches. What is on screen is never
+   thrown away for what is (or is not) in storage, damaged data is copied aside before anything else happens, and data written by a newer
+   version of the app is opened read-only. */
+var DATA_V=1,LAST=KEY+'_last',LAST_T=KEY+'_last_t',RAWP=KEY+'_raw_';
+var STORE={ok:true,ro:false,dirty:false,hold:false,note:'',persisted:false,just:false},CORE='',LASTRAW=null;
+var MSG_BLOCK='This browser isn\'t saving your hours (Private Browsing or blocked storage). Use regular Safari/Chrome.';
+var MSG_FAIL='Not saved. This phone didn\'t keep that change. Your hours are still on screen: back them up now.';
+var MSG_RO='This app is out of date on this phone. Update the app to change your hours. Nothing was changed.';
+function readRaw(k){try{return localStorage.getItem(k);}catch(_){return null;}}
+function parseState(raw){try{var j=JSON.parse(raw);return j&&typeof j==='object'&&!Array.isArray(j)&&j.app==='yfs-on-the-job'?j:null;}catch(_){return null;}}
+function coreOf(st){try{return JSON.stringify(st,function(k,v){return (k==='ui'&&this===st)?undefined:v;});}catch(_){return '';}}
+function storeTest(){try{var k=KEY+'_selftest',v='t'+Date.now();localStorage.setItem(k,v);var same=localStorage.getItem(k)===v;localStorage.removeItem(k);return same;}catch(_){return false;}}
+/* damaged data is copied to its own key before anything else is done with it. Those copies are never written over. */
+function keepRaw(raw){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf(RAWP)===0&&localStorage.getItem(k)===raw)return true;}
+    var k2=RAWP+Date.now();while(localStorage.getItem(k2)!=null)k2+='x';localStorage.setItem(k2,raw);return localStorage.getItem(k2)===raw;}catch(_){return false;}}
+function storeMsg(){return STORE.ro?MSG_RO:(STORE.hold?'This phone is out of storage space, so your hours can\'t be saved safely. Free up space, then reopen Clocked In.':(STORE.ok?MSG_FAIL:MSG_BLOCK));}
+function storeBad(){return STORE.ro||STORE.hold||STORE.dirty||!STORE.ok;}
+function load(){STORE.ro=false;STORE.hold=false;STORE.note='';var raw=readRaw(KEY);LASTRAW=raw;var b;
+  if(raw==null||raw===''){b=blank();CORE=coreOf(b);return b;}
+  var j=parseState(raw);
+  if(!j){if(!keepRaw(raw))STORE.hold=true;
+    var lr=readRaw(LAST),lj=lr?parseState(lr):null;
+    if(lj&&!(+lj.v>DATA_V)){try{b=clean(lj);STORE.note='back';CORE='';return b;}catch(_){}}
+    STORE.note='damaged';b=blank();CORE=coreOf(b);return b;}
+  if(+j.v>DATA_V)STORE.ro=true;
+  b=clean(j);CORE=coreOf(b);return b;}
+function saveFail(quiet){STORE.dirty=true;paintStore();if(!quiet){STORE.just=true;setTimeout(function(){STORE.just=false;},0);toast(storeMsg());}return false;}
+function save(quiet){if(STORE.ro||STORE.hold)return saveFail(quiet);
+  var raw;try{raw=JSON.stringify(S);}catch(_){return saveFail(quiet);}
+  try{var old=localStorage.getItem(KEY),core=coreOf(S);
+    /* safety copy of the records as they were before this change (skipped when only the screen position changed) */
+    if(core!==CORE&&old&&old!==raw&&parseState(old)){try{localStorage.setItem(LAST,old);localStorage.setItem(LAST_T,String(Date.now()));}catch(_){}}
+    localStorage.setItem(KEY,raw);
+    if(localStorage.getItem(KEY)!==raw)throw new Error('read-back');
+    CORE=core;LASTRAW=raw;var was=storeBad()||STORE.note;STORE.ok=true;STORE.dirty=false;if(STORE.note==='back')STORE.note='';
+    if(!STORE.persisted){STORE.persisted=true;try{if(navigator.storage&&navigator.storage.persist){var pp=navigator.storage.persist();if(pp&&pp.catch)pp.catch(function(){});}}catch(_){}}
+    if(was)paintStore();return true;
+  }catch(e){return saveFail(quiet);}}
+function paintStore(){var el=document.getElementById('storeBar');if(!el)return;var h='';
+  if(storeBad()){var has=S&&((S.entries&&S.entries.length)||S.clock||S.settings);
+    h='<div id="storeBad" role="alert" style="background:#B91C1C;color:#fff;border-radius:12px;padding:12px 14px;margin:0 0 14px;font-size:15px;font-weight:700">'+esc(storeMsg())+
+      (STORE.ro?'<div style="margin-top:8px"><button type="button" id="storeUpd" style="background:#fff;color:#B91C1C;border:0;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Update the app</button></div>':
+       (has?'<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="storeBk" style="background:#fff;color:#B91C1C;border:0;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Back up now</button>'+(STORE.hold?'':'<button type="button" id="storeRetry" style="background:transparent;color:#fff;border:2px solid #fff;border-radius:10px;min-height:44px;padding:0 16px;font-weight:800;font-size:15px">Try saving again</button>')+'</div>':''))+'</div>';}
+  else if(STORE.note){h='<div id="storeNote" class="alert ot" role="status">'+(STORE.note==='back'?'Your latest save was damaged, so this is the copy from just before it. Check your last change. The damaged data was kept, not erased.':'Your saved hours couldn\'t be read. They were kept on this phone, not erased. If you have a Backup file, use More → Restore.')+'</div>';}
+  if(el.innerHTML!==h)el.innerHTML=h;}
+/* coming back to the page: never swap what is on screen for what storage holds unless storage really has newer, readable records */
+function refresh(){if(!S)return;var busy=!!document.getElementById('otjModal')||!!document.getElementById('sRate');
+  if(storeBad()){if(!STORE.ro&&!STORE.hold&&S.settings)save(true);paintStore();if(!busy)render();return;}
+  var raw=readRaw(KEY);
+  if(raw===LASTRAW){if(!busy)render();if(typeof swMaybeReload==='function')swMaybeReload();return;}
+  var j=raw?parseState(raw):null;
+  if(j){S=load();paintStore();render();return;}
+  if(raw!=null&&raw!=='')keepRaw(raw);
+  if(S.settings)save(true);else LASTRAW=raw;
+  paintStore();if(!busy)render();}
+function lastCopy(){var r=readRaw(LAST),j=r?parseState(r):null;if(!j||+j.v>DATA_V)return null;return {t:+readRaw(LAST_T)||0,data:j};}
+function undoLast(){var lc=lastCopy();if(!lc){toast('Nothing to undo.');return;}
+  if(!confirm('Undo your last change? Your records go back to how they were before it'+(lc.t?' ('+new Date(lc.t).toLocaleString()+')':'')+'. You can undo this too.'))return;
+  var cur=S,back;try{back=clean(lc.data);}catch(_){alert('The safety copy can\'t be read. Your records were not changed.');return;}
+  back.ui=cur.ui;S=back;log('backup','(last change undone)','','');
+  if(!save()){S=cur;render();return;}
+  render();toast('Undone. Your records are back to how they were.');}
 /* safety copy made by Restore: kept 14 days, then dropped */
 var PREV=KEY+'_prev',PREV_T=KEY+'_prev_t',PREV_DAYS=14;
 function prevCopy(){try{var t=+localStorage.getItem(PREV_T)||0,raw=localStorage.getItem(PREV);if(!raw)return null;if(!t||Date.now()-t>PREV_DAYS*86400000){ /* no timestamp = treat as expired */localStorage.removeItem(PREV);localStorage.removeItem(PREV_T);return null;}var d=JSON.parse(raw);return d&&typeof d==='object'?{t:t,data:d}:null;}catch(_){return null;}}
@@ -290,7 +352,7 @@ function liveEntries(){var a=S.entries.filter(function(e){return !e.deleted;});
    (hours already paid as daily OT never count toward the weekly N, so nothing is counted twice; this always gives at least as much OT as either rule alone).
    Optional double time past N hours in a day. PTO/holiday is paid but never counts toward overtime. Breaks never count. */
 function computeWeek(wsKey,now){
-  var days={},i,keys=[];for(i=0;i<7;i++){var k=addDays(wsKey,i);keys.push(k);days[k]={key:k,hours:0,reg:0,ot:0,dt:0,pto:0,gross:0,perDiem:0,items:[]};}
+  var days={},i,keys=[];for(i=0;i<7;i++){var k=addDays(wsKey,i);keys.push(k);days[k]={key:k,hours:0,reg:0,ot:0,dt:0,pto:0,gross:0,perDiem:0,pdJ:{},items:[]};}
   var es=liveEntries().filter(function(e){return days[entryDate(e)];});
   var byJob={};es.forEach(function(e){var j=e.jobId||(S.jobs[0]&&S.jobs[0].id)||'';(byJob[j]=byJob[j]||[]).push(e);});
   var jobsTot={};
@@ -304,11 +366,12 @@ function computeWeek(wsKey,now){
         var otD=o.mode!=='weekly'?Math.min(rest,Math.max(0,(b+rest)-Math.max(b,o.dayN))):0;        /* ...and past the daily OT mark */
         var regD=rest-otD,otW=o.mode!=='daily'?Math.max(0,regD-Math.max(0,o.weekN-cumReg)):0;      /* still-regular hours past the weekly mark */
         cumReg+=regD;var reg=regD-otW,ot=otD+otW;
-        it.reg=reg;it.ot=ot;it.dt=dt;it.gross=reg*rate+ot*otr+dt*dtr;d.reg+=reg;d.ot+=ot;d.dt+=dt;jt.worked+=h;jt.ot+=ot;jt.dt+=dt;}
+        it.reg=reg;it.ot=ot;it.dt=dt;it.gross=reg*rate+ot*otr+dt*dtr;d.reg+=reg;d.ot+=ot;d.dt+=dt;if(h>0)d.pdJ[jid]=1;jt.worked+=h;jt.ot+=ot;jt.dt+=dt;}
       d.hours+=h;d.gross+=it.gross;jt.gross+=it.gross;d.items.push(it);});
     jobsTot[jid]=jt;});
-  var pd=S.settings&&+S.settings.perDiem||0;
-  keys.forEach(function(k){var d=days[k];if(pd&&d.reg+d.ot+d.dt>0){d.perDiem=pd;}});
+  /* per diem: each job's own daily amount for a day worked at that job. Jobs with no amount of their own use the older single amount, counted once a day. */
+  var pd=pdLegacy();
+  keys.forEach(function(k){var d=days[k],sum=0,leg=false;Object.keys(d.pdJ).forEach(function(jid){var own=pdOf(jobOf(jid));if(own==null)leg=true;else sum+=own;});if(leg&&d.reg+d.ot+d.dt>0)sum+=pd;d.perDiem=sum;});
   var tot={hours:0,reg:0,ot:0,dt:0,pto:0,gross:0,perDiem:0,worked:0};
   keys.forEach(function(k){var d=days[k];['hours','reg','ot','dt','pto','gross','perDiem'].forEach(function(f){d[f]=r2(d[f]);tot[f]+=d[f];});});
   tot.worked=r2(tot.reg+tot.ot+tot.dt);Object.keys(tot).forEach(function(f){tot[f]=r2(tot[f]);});
@@ -373,14 +436,15 @@ function ptoBalance(b,asOf,now){asOf=asOf||todayKey();var bal=+b.start||0,used=0
   return {balance:r2(bal),used:r2(used),earned:r2(earned)};}
 
 /* ── UI chrome ── */
-function toast(m,btn,fn){$$('.toast').forEach(function(x){x.remove();});var t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=m;
+function toast(m,btn,fn){var bad=false;if(STORE.just&&storeBad()){m=storeMsg();bad=true;}else if(m===MSG_BLOCK||m===MSG_FAIL||m===MSG_RO||(storeBad()&&m===storeMsg()))bad=true;else if(m==='Saved.')m='Saved ✓';
+  $$('.toast').forEach(function(x){x.remove();});var t=document.createElement('div');t.className='toast';if(bad){t.style.background='#B91C1C';t.setAttribute('data-bad','1');}t.setAttribute('role','status');t.textContent=m;
   if(btn){var b=document.createElement('button');b.type='button';b.textContent=btn;b.addEventListener('click',function(){t.remove();fn();});t.appendChild(b);}
-  document.body.appendChild(t);setTimeout(function(){t.remove();},btn?7000:2600);}
+  document.body.appendChild(t);setTimeout(function(){t.remove();},bad?6000:(btn?7000:2600));}
 function modal(html,onOpen){closeModal();var m=document.createElement('div');m.className='modal';m.id='otjModal';m.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';
   m.addEventListener('click',function(e){if(e.target===m||e.target.closest('[data-close]'))closeModal();});document.body.appendChild(m);document.body.style.overflow='hidden';if(onOpen)onOpen(m);var f=m.querySelector('input,select,button');if(f&&f.focus&&!('ontouchstart' in window))f.focus();return m;}
 function closeModal(){var m=document.getElementById('otjModal');if(m)m.remove();document.body.style.overflow='';}
 function upsell(what){modal('<button class="x" data-close aria-label="Close">×</button><h3>That\'s a Pro feature</h3><p>'+esc(what)+'</p><p class="fine">Pro is $9/mo (cancel anytime) and also unlocks every resume tool. Your records are never locked: Backup and CSV export are always free.</p><a class="btn go block" href="/app.html#plans">See Pro plans</a>');}
-function go(v){VIEW=v;try{S.ui.view=v;save();}catch(_){}render();window.scrollTo(0,0);}
+function go(v){VIEW=v;try{S.ui.view=v;save(true);}catch(_){}render();window.scrollTo(0,0);}
 $$('.tabs button').forEach(function(b){b.addEventListener('click',function(){go(b.dataset.v);});});
 
 /* ── views ── */
@@ -422,6 +486,7 @@ function todayHTML(){var tk=todayKey(),w=weekNow(),d=w.days[tk],c=S.clock;var h=
   else{h+='<h2>Clock in</h2>'+jobPicker('cJob',S.ui.lastJob)+clockCodes(S.ui.lastCodes)+'<div style="margin-top:12px"><button type="button" class="btn go huge block" data-a="start">START</button><button type="button" class="link block" data-a="forgotin" style="display:block;margin:12px auto 0;min-height:44px">Forgot to clock in? Pick your start time</button></div>';}
   h+='</div>';
   h+='<div class="card"><div class="tot main"><span class="k">Earned today</span><span class="v" id="earnToday">'+money(d.gross+d.perDiem)+'</span></div>'+
+    (pdAny()?'<div class="tot" id="pdToday"><span class="k">Per diem today<br><span class="fine">included above</span></span><span class="v mid" id="pdTodayAmt">'+money(d.perDiem)+'</span></div>':'')+
     '<div class="tot"><span class="k">This week so far</span><span class="v mid" id="earnWeek">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
     '<div class="fine">'+hrs(w.tot.worked)+' hrs worked'+(w.tot.ot?' ('+hrs(w.tot.ot)+' OT)':'')+(w.tot.pto?' + '+hrs(w.tot.pto)+' PTO':'')+' · gross, before taxes · <span class="est">estimate</span></div>'+
     '<button type="button" class="link" data-a="gopay">See take-home + show the math →</button></div>';
@@ -458,7 +523,7 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
   /* The timesheet: every day, every shift, with in/out, hours, overtime and the codes, readable without opening anything. */
   h+='<div class="card" id="sheet" style="padding:4px 12px">';
   w.keys.forEach(function(k){var d=w.days[k];
-    h+='<div class="tsday'+(k===tk?' today':'')+'"><button type="button" class="tsd" data-day="'+k+'"><span class="grow"><span class="d">'+esc(dayName(k))+'</span> <span class="dd">'+esc(shortDate(k))+'</span>'+(d.pto?' <span class="tag pto">'+hrs(d.pto)+' PTO</span>':'')+(d.reg+d.ot+d.dt>0?'<br><span class="dd" data-daysplit>'+splitText(d)+'</span>':'')+'</span>'+
+    h+='<div class="tsday'+(k===tk?' today':'')+'"><button type="button" class="tsd" data-day="'+k+'"><span class="grow"><span class="d">'+esc(dayName(k))+'</span> <span class="dd">'+esc(shortDate(k))+'</span>'+(d.pto?' <span class="tag pto">'+hrs(d.pto)+' PTO</span>':'')+(d.reg+d.ot+d.dt>0?'<br><span class="dd" data-daysplit>'+splitText(d)+(d.perDiem>0?' · <span data-daypd>'+money(d.perDiem)+' per diem</span>':'')+'</span>':'')+'</span>'+
       (d.items.length?'<span class="tsh">'+hrs(d.hours)+' hrs</span><span class="tsp">'+money(d.gross+d.perDiem)+'</span>':'<span class="muted" style="font-size:14px">+ Add</span>')+'</button>';
     if(d.items.length)h+='<ul class="list tsl">'+d.items.map(function(it){var e=it.e;
       var top=e.kind==='pto'?'<b>PTO</b> '+hrs(it.hours)+' hrs · '+esc(bucketName(e.bucket)):(e.live?'<b>On the clock</b> since '+hm(e.start)+' · '+hrs(it.hours)+' hrs so far':'<b>'+esc(entryWhen(e))+'</b> · '+hrs(it.hours)+' hrs'+splitTags(it));
@@ -470,6 +535,7 @@ function weekHTML(){var wsk=addDays(weekStartKey(todayKey()),WEEK_OFF*7),w=compu
   var s=S.settings,ws=weekShare(w),wk=s.period==='weekly';
   h+='<div class="card" id="weekCard"><h2>This week</h2><div class="tot"><span class="k">Hours</span><span class="v" style="text-align:right">'+hrs(w.tot.worked)+' worked'+(w.tot.pto?' · '+hrs(w.tot.pto)+' PTO':'')+'<br><span class="fine" id="wkSplit" style="font-weight:700">'+splitText(w.tot)+'</span></span></div>'+
     '<div class="tot main"><span class="k">Gross so far</span><span class="v" id="wkGross">'+money(w.tot.gross+w.tot.perDiem)+'</span></div>'+
+    (pdAny()?(function(){var n=w.keys.filter(function(k){return w.days[k].perDiem>0;}).length;return '<div class="tot" id="wkPd"><span class="k">Per diem<br><span class="fine">'+n+(n===1?' day':' days')+' · included above</span></span><span class="v mid" id="wkPdAmt">'+money(w.tot.perDiem)+'</span></div>';})():'')+
     '<div class="tot main"><span class="k">Est. take-home</span><span class="v" id="wkNet" style="color:var(--go)">~'+money(ws.net)+'</span></div>'+
     (wk?'':'<div class="fine" id="wkHow">You\'re paid '+esc(freqText())+', so this is the week\'s share of that paycheck. Taxes are figured on the whole pay period.</div>'+
       ws.parts.map(function(p,i){return '<div class="tot" data-period="'+p.pr.from+'" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><span class="k">Paycheck for '+esc(shortDate(p.pr.from))+' – '+esc(shortDate(p.pr.to))+'<br><span class="fine">'+money(p.pt.gross+p.pt.perDiem)+' gross so far</span></span><span class="v mid" style="color:var(--go)">~'+money(p.th.net)+'</span></div>';}).join(''))+
@@ -495,6 +561,26 @@ function bonusCalc(upTo){var b=bonusOf();if(b.basis==='none')return null;var y=u
     if(b.prior&&b.priorYear===y)base+=b.prior;}
   base=r2(base);var bonus=b.basis==='flat'?b.amount:r2(base*b.pct/100);var st=S.settings||{},noTax=TAX.no_wage_tax_states.indexOf(st.state)>=0,sr=noTax?0:(+st.stateRate||0)/100;
   var tax=r2(bonus*(BONUS_FED+TAX.ss_rate+TAX.medicare_rate+sr));return {b:b,year:y,base:base,bonus:r2(bonus),tax:tax,net:r2(bonus-tax),state:sr};}
+function pdLegacy(){var v=S.settings&&+S.settings.perDiem;return v>0&&isFinite(v)?v:0;}
+function pdOf(job){if(!job||job.perDiem==null||job.perDiem==='')return null;var v=+job.perDiem;return isFinite(v)&&v>=0?v:null;}
+function pdFor(job){var o=pdOf(job);return o==null?pdLegacy():o;}
+function pdAny(){return pdLegacy()>0||S.jobs.some(function(j){return pdOf(j)>0;});}
+function pdCard(){var jobs=S.jobs.filter(function(j){return j.active!==false||pdFor(j)>0;});
+  return '<div class="card" id="pdCard"><h2>Per diem</h2>'+(pdAny()?'<ul class="list">'+jobs.map(function(j){var v=pdFor(j);return '<li class="tot" data-pdjob><span class="k">'+esc(j.name)+'</span><span class="v mid">'+(v>0?money(v)+' a day':'None')+'</span></li>';}).join('')+'</ul><div class="fine" id="pdTax">Added for each day you work. '+(S.settings.perDiemNT?'Not taxed on your stub, so it\'s left out of the tax estimate.':'Counted as taxed pay in the estimate.')+'</div>':'<div class="fine">Get paid a daily amount for meals or travel? Add it here and it shows on Today, your Timesheet and the pay math.</div>')+
+    '<button type="button" class="btn ghost block" style="margin-top:10px" data-a="perdiem">'+(pdAny()?'Change per diem':'Add per diem')+'</button></div>';}
+function perDiemModal(){var jobs=S.jobs.filter(function(j){return j.active!==false||pdFor(j)>0;});
+  modal('<button class="x" data-close aria-label="Close">×</button><h3>Per diem</h3><div class="fine">The daily amount each job pays you for a day worked. Leave blank for none.</div>'+
+    jobs.map(function(j,i){var v=pdFor(j);return '<label class="f" for="pd_'+i+'">'+esc(j.name)+', $ per day worked</label><input class="i" id="pd_'+i+'" inputmode="decimal" value="'+(v>0?esc(String(v)):'')+'">';}).join('')+
+    '<label class="chk" style="margin-top:12px"><input type="checkbox" id="pdNT"'+(S.settings.perDiemNT?' checked':'')+'><span>My per diem isn\'t taxed on my stub</span></label><div class="fine">If you tick this, we leave per diem out of the tax estimate. Your employer\'s payroll is the final word.</div>'+
+    '<div class="fine" id="pdErr" role="alert" style="color:var(--red);font-weight:700"></div><button type="button" class="btn go block" style="margin-top:14px" id="pdSave">Save</button>',function(){
+    $('#pdSave').addEventListener('click',function(){var vals=[],bad=-1;jobs.forEach(function(j,i){var t=String($('#pd_'+i).value||'').replace(/[$,\s]/g,'');var v=t===''?0:+t;if(!isFinite(v)||v<0||v>5000)bad=bad<0?i:bad;vals.push(Math.round(v*100)/100);});
+      if(bad>=0){$('#pdErr').textContent='Enter a dollar amount per day (0 to 5,000), or leave it blank.';$('#pd_'+bad).focus();return;}
+      var oldSet=JSON.stringify(S.settings);
+      /* every job gets its own amount from here on, so the older single amount is retired */
+      S.jobs.forEach(function(j,ix){var k=jobs.indexOf(j),nv=k>=0?vals[k]:pdFor(j),ov=pdFor(j);var n=Object.assign({},j,{perDiem:nv});if(nv!==ov)log('job',j.name,JSON.stringify(Object.assign({},j,{perDiem:ov})),JSON.stringify(n));S.jobs[ix]=n;});
+      S.settings=Object.assign({},S.settings,{perDiem:'',perDiemNT:$('#pdNT').checked});
+      var a=JSON.parse(oldSet);if(!!a.perDiemNT!==S.settings.perDiemNT)log('settings','pay setup',JSON.stringify({perDiemNT:!!a.perDiemNT}),JSON.stringify({perDiemNT:S.settings.perDiemNT}));
+      save();closeModal();render();toast('Saved.');});});}
 function bonusLine(upTo,wsk){try{var c=bonusCalc(upTo);if(!c)return '';var b=c.b,gain=0;
   if(wsk&&b.basis!=='flat'){var pv=addDays(wsk,-1);if(pv.slice(0,4)===c.year){var c0=bonusCalc(pv);gain=r2(c.bonus-(c0?c0.bonus:0));}else gain=r2(c.bonus-(b.prior&&b.priorYear===c.year?r2(b.prior*b.pct/100):0));}
   return '<div id="bonusLine" style="margin-top:8px;border-top:1px solid var(--line);padding-top:8px"><div class="tot main"><span class="k">Bonus so far<br><span class="fine">'+esc(c.year)+' · estimate</span></span><span class="v" style="text-align:right;color:var(--go)"><span id="bonusAmt">~'+money(c.bonus)+'</span>'+(gain>0?'<br><span class="fine" id="bonusWk" style="font-weight:700;color:var(--go)">+'+money(gain)+' this week</span>':'')+'</span></div>'+
@@ -528,12 +614,13 @@ function jobsCard(){var pro=isPro();return '<div class="card"><h2>Jobs</h2><ul c
   '<button type="button" class="btn ghost block" data-a="addjob">+ Add a job'+(pro||S.jobs.length<FREE_JOBS?'':' <span class="lock">PRO</span>')+'</button></div>';}
 
 function moreHTML(){var pro=isPro();var h='<div class="card"><h2>Pay setup</h2><div class="fine">'+esc(S.settings.state)+' · '+esc(S.settings.period)+' · '+esc(filingText(S.settings.filing))+' · '+money(+S.settings.rate)+'/hr'+(bonusOf().basis!=='none'?' · bonus '+esc(bonusText(bonusOf())):'')+'</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="setup">Edit pay setup</button></div>';
+  h+=pdCard();
   h+=jobsCard();
   h+='<div class="card"><h2>Backup + restore</h2><div class="fine">Last backup: <b id="lastBk">'+(S.lastBackup?new Date(S.lastBackup).toLocaleString():'never')+'</b>. A backup is one file with all your hours, codes, PTO and change history. Keep it in Files, iCloud Drive, Google Drive or email it to yourself.</div>'+
-    '<div class="row wrap" style="margin-top:10px"><button type="button" class="btn go grow" data-a="backup">Back up now</button><button type="button" class="btn ghost grow" data-a="restore">Restore</button></div>'+(prevCopy()?'<button type="button" class="link" data-a="undorestore" style="margin-top:8px">Undo last restore</button>':'')+'<input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="Choose backup file"></div>';
+    '<div class="row wrap" style="margin-top:10px"><button type="button" class="btn go grow" data-a="backup">Back up now</button><button type="button" class="btn ghost grow" data-a="restore">Restore</button></div>'+(prevCopy()?'<button type="button" class="link" data-a="undorestore" style="margin-top:8px">Undo last restore</button>':'')+(lastCopy()&&!STORE.ro?'<button type="button" class="link" data-a="undolast" style="display:block;margin-top:8px;min-height:44px">Undo last change</button>':'')+'<input type="file" id="restoreFile" accept="application/json,.json" class="sr" aria-label="Choose backup file"></div>';
   h+='<div class="card"><h2>Export</h2><div class="fine">CSV opens in Excel, Google Sheets or Numbers. Exporting your own records is always free.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="csv">Export CSV</button></div>';
   h+='<div class="card"><h2>Change history</h2><div class="fine">Every change to an entry is saved with the time, the old value and the new value. Nothing is silently overwritten. '+S.log.length+' changes saved.</div><button type="button" class="btn ghost block" style="margin-top:10px" data-a="logview">View change history'+(pro?'':' <span class="lock">PRO</span>')+'</button></div>';
-  h+='<div class="card"><h2>Keep it on your phone</h2><div class="fine">On iPhone: Safari → Share → <b>Add to Home Screen</b>. Home Screen apps keep their data; Safari can erase website data after 7 days without a visit. Works with no signal once it\'s opened.</div>'+(BIP?'<button type="button" class="btn ghost block" style="margin-top:10px" data-a="install">Install app</button>':'')+'</div>';
+  h+='<div class="card"><h2>Keep it on your phone</h2><div class="fine">On iPhone: Safari → Share → <b>Add to Home Screen</b>. Home Screen apps keep their data; Safari can erase website data after 7 days without a visit. Works with no signal once it\'s opened.</div><ul class="fine" id="iosNotes" style="margin:8px 0 0;padding-left:18px"><li><b>Private Browsing does not keep your hours.</b> Use a regular Safari tab.</li><li>The Home Screen app keeps its own records, separate from Safari. Hours you entered in Safari won\'t show up there.</li><li>To move your hours from one to the other: <b>Back up</b> in one, then <b>Restore</b> in the other.</li></ul>'+(BIP?'<button type="button" class="btn ghost block" style="margin-top:10px" data-a="install">Install app</button>':'')+'</div>';
   h+='<div class="card fine"><b>About these numbers.</b> Pay amounts are estimates for your own planning. Federal withholding uses IRS Pub 15-T (2026) percentage method for a 2020+ W-4 with Step 2 not checked. Social Security 6.2% (to the $184,500 2026 wage base, not tracked across checks here), Medicare 1.45%. '+esc(TAX.label)+'. Your employer\'s payroll is the final word. This is a personal record, not legal, tax or payroll advice. Keep records at least 3 years. We never auto-delete them.</div>';
   return h;}
 function filingText(f){return f==='mfj'?'Married filing jointly':f==='hoh'?'Head of household':'Single';}
@@ -554,14 +641,12 @@ function setupHTML(first){var s=S.settings||{state:'FL',period:'weekly',filing:'
   '<div class="fine" id="stateNote"></div>'+
   '<label class="f" for="sFil">Filing status on your W-4</label><select class="i" id="sFil">'+[['single','Single or married filing separately'],['mfj','Married filing jointly'],['hoh','Head of household']].map(function(o){return '<option value="'+o[0]+'"'+(s.filing===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'+
   bonusFields()+
-  '<details style="margin-top:12px"'+(first?'':' open')+'><summary style="font-weight:800;min-height:44px;display:flex;align-items:center">More (optional): 401(k), health, per diem</summary>'+
+  '<details style="margin-top:12px"'+(first?'':' open')+'><summary style="font-weight:800;min-height:44px;display:flex;align-items:center">More (optional): 401(k), health</summary>'+
   '<label class="f" for="sK">Pre-tax 401(k) per check, $</label><input class="i" id="sK" inputmode="decimal" value="'+esc(s.k401||'')+'">'+
   '<label class="f" for="sH">Pre-tax health insurance per check, $</label><input class="i" id="sH" inputmode="decimal" value="'+esc(s.health||'')+'">'+
   '<label class="f" for="sCr">W-4 Step 3 credits (yearly total), $</label><input class="i" id="sCr" inputmode="decimal" value="'+esc(s.credits||'')+'">'+
   '<label class="f" for="sX">Extra withholding per check (W-4 Step 4c), $</label><input class="i" id="sX" inputmode="decimal" value="'+esc(s.extraWH||'')+'">'+
-  '<label class="f" for="sPd">Per diem per day worked, $</label><input class="i" id="sPd" inputmode="decimal" value="'+esc(s.perDiem||'')+'">'+
-  '<label class="chk"><input type="checkbox" id="sPdNT"'+(s.perDiemNT?' checked':'')+'><span>My per diem isn\'t taxed on my stub</span></label>'+
-  '<div class="fine">If you mark per diem as non-taxable, we leave it out of the tax estimate. Your employer\'s payroll is the final word.</div></details>'+
+  '</details>'+'<div class="fine" id="pdHint" style="margin-top:10px">Get per diem? '+(first?'Add it after setup under <b>More → Per diem</b>.':'It has its own spot now: <b>More → Per diem</b>.')+'</div>'+
   '<button type="button" class="btn go block" style="margin-top:16px" data-a="saveSetup">'+(first?'Start tracking':'Save')+'</button>'+
   (first?'':'<button type="button" class="btn ghost block" style="margin-top:8px" data-a="cancelSetup">Cancel</button>')+'</div>';
   return h;}
@@ -572,7 +657,7 @@ function wireSetup(first){var st=$('#sState'),per=$('#sPer');function upd(){var 
     var rate=num('sRate');if(!(rate>0)){toast('Enter your hourly rate.');$('#sRate').focus();return;}
     var bm=($('#sBb')||{}).value;if(bm&&bm!=='none'){var bv=String(($('#'+(bm==='flat'?'sBa':'sBp'))||{}).value||'').replace(/[$,%\s]/g,'');if(!(+bv>0)||(bm!=='flat'&&+bv>100)){toast(bm==='flat'?'Enter your bonus amount, or choose No bonus.':'Enter your bonus percent (1 to 100), or choose No bonus.');try{$('#bonusBox').open=true;$('#'+(bm==='flat'?'sBa':'sBp')).focus();}catch(_){}return;}}
     var old=S.settings?JSON.stringify(S.settings):null,bon=readBonus();
-    S.settings={rate:rate,otRate:num('sOt'),period:per.value,anchor:($('#sAnchor')||{}).value||weekStartKey(todayKey()),weekStart:+$('#sWs').value,state:st.value,stateRate:num('sStRate'),filing:$('#sFil').value,k401:num('sK'),health:num('sH'),credits:num('sCr'),extraWH:num('sX'),perDiem:num('sPd'),perDiemNT:$('#sPdNT').checked,bonus:bon};
+    S.settings={rate:rate,otRate:num('sOt'),period:per.value,anchor:($('#sAnchor')||{}).value||weekStartKey(todayKey()),weekStart:+$('#sWs').value,state:st.value,stateRate:num('sStRate'),filing:$('#sFil').value,k401:num('sK'),health:num('sH'),credits:num('sCr'),extraWH:num('sX'),perDiem:S.settings?S.settings.perDiem:'',perDiemNT:!!(S.settings&&S.settings.perDiemNT),bonus:bon};
     if(first){var jn=($('#sJob').value||'').trim()||'My job';var r0=readOt('sO_');S.jobs=[{id:uid(),name:jn,rate:'',otRate:'',active:true,created:Date.now(),ot:r0,otHist:[{rule:r0,effectiveFrom:BEGIN}]}];log('settings','(setup)','','rate '+rate+', '+per.value+', '+st.value);}
     else{log('settings','pay setup',old,JSON.stringify(S.settings));
       if(S.jobs.length===1&&document.getElementById('sO_mode')){var j0=S.jobs[0],r1=readOt('sO_');if(!sameRule(otOf(j0),r1)){var n0=applyRule(j0,r1,($('#sO_when')||{}).value||weekStartKey(todayKey()));log('job',j0.name,JSON.stringify(j0),JSON.stringify(n0));S.jobs[0]=n0;}}}
@@ -589,7 +674,7 @@ function wire(){var v=$('#view');
   var cj=$('#cJob');if(cj&&cj.tagName==='SELECT')cj.addEventListener('change',function(){S.ui.lastJob=cj.value;save();render();});
   var rf=$('#restoreFile');if(rf)rf.addEventListener('change',restoreFile);
   if(S.clock&&S.clock.start&&VIEW==='today'){var t=function(){var el=$('#clkT');if(!el)return;var live={kind:'work',start:S.clock.start,breaks:(S.clock.breaks||[]).concat(S.clock.onBreak?[{s:S.clock.onBreak}]:[])};var nw=Date.now(),brk=live.breaks.reduce(function(x,b){return x+((b.e||nw)-b.s);},0);var sec=Math.max(0,Math.floor((nw-live.start-brk)/1000));el.textContent=Math.floor(sec/3600)+':'+pad(Math.floor(sec%3600/60))+':'+pad(sec%60);
-      var w=weekNow(),d=w.days[todayKey()];var a=$('#earnToday'),b=$('#earnWeek');if(a)a.textContent=money(d.gross+d.perDiem);if(b)b.textContent=money(w.tot.gross+w.tot.perDiem);var lo=$('#liveOT');if(lo){var hh=liveSplitHTML(w);if(lo.innerHTML!==hh)lo.innerHTML=hh;}};t();TICK=setInterval(t,1000);}}
+      var w=weekNow(),d=w.days[todayKey()];var a=$('#earnToday'),b=$('#earnWeek'),pt=$('#pdTodayAmt');if(pt)pt.textContent=money(d.perDiem);if(a)a.textContent=money(d.gross+d.perDiem);if(b)b.textContent=money(w.tot.gross+w.tot.perDiem);var lo=$('#liveOT');if(lo){var hh=liveSplitHTML(w);if(lo.innerHTML!==hh)lo.innerHTML=hh;}};t();TICK=setInterval(t,1000);}}
 function act(a,el){
   if(a==='a2hsx'){S.ui.a2hsX=1;save();render();return;}
   if(a==='install'&&BIP){BIP.prompt();BIP.userChoice.finally(function(){BIP=null;render();});return;}
@@ -614,6 +699,8 @@ function act(a,el){
   if(a==='backup')return backup();
   if(a==='restore'){$('#restoreFile').click();return;}
   if(a==='undorestore'){undoRestore();return;}
+  if(a==='undolast'){undoLast();return;}
+  if(a==='perdiem')return perDiemModal();
   if(a==='csv')return csvModal();
   if(a==='logview'){if(!isPro())return upsell('See every change with the time, the old value and the new value. Your history is always saved (free) and included in your Backup; viewing it here is Pro.');return logModal();}}
 
@@ -822,11 +909,11 @@ function logLines(){var CAT={backup:1,clock:1,job:1,pto:1,settings:1,labels:1,co
   var setFmt=function(k,v){if(v==='')return '';if(k==='rate'||k==='otRate'||k==='k401'||k==='health'||k==='credits'||k==='extraWH'||k==='perDiem')return money(+v);if(k==='stateRate')return v+'%';if(k==='weekStart')return DAYS[+v]||v;if(k==='filing')return filingText(v);if(k==='perDiemNT'||k==='active')return v===true||v==='true'?'yes':'no';if(k==='anchor'||k==='startDate')return dShort(v);return v;};
   var user=function(r){r=str(r);return r&&['clock','manual','repeat yesterday'].indexOf(r)<0?' · “'+plain(r)+'”':'';};
   function one(l,grp){var f=str(l.field),o=str(l.old),n=str(l.new),id=str(l.id);
-    if(id==='backup')return f==='(restore undone)'?'Undid the last restore ('+plain(n)+')':'Restored a backup ('+plain(n.replace(/^(\d{4}-\d\d-\d\d)T[\d:.]+Z?/,function(_,d){return 'made '+shortDate(d);}).replace(/^unknown date/,'date unknown'))+')';
+    if(id==='backup')return f==='(last change undone)'?'Undid the last change':f==='(restore undone)'?'Undid the last restore ('+plain(n)+')':'Restored a backup ('+plain(n.replace(/^(\d{4}-\d\d-\d\d)T[\d:.]+Z?/,function(_,d){return 'made '+shortDate(d);}).replace(/^unknown date/,'date unknown'))+')';
     if(id==='clock'&&f==='(started late)')return 'Clocked in, start set to '+plain(n)+' (forgot to clock in)';
     if(id==='clock'&&f==='start')return 'Changed the running shift\'s start: '+plain(o)+' → '+plain(n);
     if(id==='clock')return o&&n?'Changed codes on the running shift: '+arrow(o,n):n?'Added job codes to the running shift: '+plain(n):'Cleared the codes on the running shift';
-    if(id==='job'){if(f==='(added)')return 'Added job: '+plain(n);var jp=jdiff(o,n,{name:'name',rate:'hourly rate',otRate:'overtime rate',active:'open'},setFmt);try{var ja=JSON.parse(o),jb=JSON.parse(n);if(jp&&ruleText(ja)!==ruleText(jb)){var hb=otHistOf(jb),fr=hb[hb.length-1].effectiveFrom;jp.push('OT rule '+ruleText(ja)+' → '+ruleText(jb)+(fr===BEGIN?', for all weeks':', starting the week of '+shortDate(fr)));}if(jp&&otOf(ja).mult!==otOf(jb).mult)jp.push('OT pays ×'+otOf(ja).mult+' → ×'+otOf(jb).mult);}catch(_){}return 'Edited job '+plain(f)+(jp&&jp.length?': '+jp.join('; '):'');}
+    if(id==='job'){if(f==='(added)')return 'Added job: '+plain(n);var jp=jdiff(o,n,{name:'name',rate:'hourly rate',otRate:'overtime rate',active:'open',perDiem:'per diem a day'},setFmt);try{var ja=JSON.parse(o),jb=JSON.parse(n);if(jp&&ruleText(ja)!==ruleText(jb)){var hb=otHistOf(jb),fr=hb[hb.length-1].effectiveFrom;jp.push('OT rule '+ruleText(ja)+' → '+ruleText(jb)+(fr===BEGIN?', for all weeks':', starting the week of '+shortDate(fr)));}if(jp&&otOf(ja).mult!==otOf(jb).mult)jp.push('OT pays ×'+otOf(ja).mult+' → ×'+otOf(jb).mult);}catch(_){}return 'Edited job '+plain(f)+(jp&&jp.length?': '+jp.join('; '):'');}
     if(id==='pto'){if(f==='(bucket added)')return 'Added PTO bucket: '+plain(n);if(f==='(buckets)')return 'Added PTO buckets: '+plain(n);var pp=jdiff(o,n,{name:'name',start:'starting balance',startDate:'start date',type:'how it is earned',earn:'hours earned',per:'per hours worked',cap:'max balance',carry:'carryover limit'},setFmt);return 'Edited PTO '+plain(f)+(pp&&pp.length?': '+pp.join('; '):'');}
     if(id==='settings'){if(f==='(setup)'){var m=n.match(/^rate ([\d.]+), (\w+), (\w+)/);return 'Set up pay'+(m?': '+money(+m[1])+'/hr, '+m[2]+', '+m[3]:'');}var sp=jdiff(o,n,{rate:'hourly rate',otRate:'overtime rate',period:'pay period',anchor:'pay period start',weekStart:'workweek starts',state:'state',stateRate:'state tax rate',filing:'filing status',k401:'401(k)',health:'health insurance',credits:'W-4 credits',extraWH:'extra withholding',perDiem:'per diem',perDiemNT:'per diem untaxed'},setFmt);try{var ba=bonusText(JSON.parse(o).bonus),bb=bonusText(JSON.parse(n).bonus);if(sp&&ba!==bb)sp.push('bonus '+ba+' → '+bb);}catch(_){}return 'Changed pay setup'+(sp&&sp.length?': '+sp.join('; '):'');}
     if(id==='labels')return 'Renamed the code labels';
@@ -880,11 +967,12 @@ function csvModal(){var pro=isPro();
 function backupObj(){return {app:'yfs-on-the-job',kind:'backup',v:1,exported:Date.now(),data:S};}
 function deliver(blob,name){try{var file=new File([blob],name,{type:blob.type});if(navigator.canShare&&navigator.canShare({files:[file]})&&/iPhone|iPad|Android/.test(navigator.userAgent)){navigator.share({files:[file],title:name}).catch(function(){dl(blob,name);});return;}}catch(_){}dl(blob,name);}
 function dl(blob,name){var u=URL.createObjectURL(blob);var a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},4000);}
-function backup(){S.lastBackup=Date.now();save();var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-clocked-in-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
+function backup(){S.lastBackup=Date.now();save(true);var txt=JSON.stringify(backupObj());deliver(new Blob([txt],{type:'application/json'}),'yfs-clocked-in-backup-'+todayKey()+'.json');render();toast('Backup made. Keep the file somewhere safe.');}
 function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){
     /* Everything that can fail happens BEFORE the worker's current records are touched. */
     var j=null;try{j=JSON.parse(rd.result);}catch(_){}
     if(!j||typeof j!=='object'||j.app!=='yfs-on-the-job'||!j.data||typeof j.data!=='object'||!Array.isArray(j.data.entries)){alert('That file isn\'t a Clocked In backup.');return;}
+    if(+j.v>DATA_V||+j.data.v>DATA_V){alert('That backup was made by a newer version of Clocked In. Update the app first, then restore. Your records were not changed.');return;}
     var rawN=j.data.entries.length,next;try{next=clean(JSON.parse(JSON.stringify(j.data)));}catch(_){alert('That backup is damaged and can\'t be read. Your records were not changed.');return;}
     var ex=new Date(j.exported),okD=j.exported!=null&&j.exported!==''&&!isNaN(ex.getTime());
     var when=okD?ex.toLocaleString():'an unknown date',stamp=okD?ex.toISOString():'unknown date';
@@ -894,20 +982,27 @@ function restoreFile(ev){var f=ev.target.files&&ev.target.files[0];if(!f)return;
     var prev=S;try{localStorage.setItem(PREV,JSON.stringify(prev));localStorage.setItem(PREV_T,String(Date.now()));}catch(_){}
     var okSave=false;try{S=next;log('backup','(restored)','',stamp+' · '+note);okSave=save();}catch(_){okSave=false;}
     if(!okSave){S=prev;try{localStorage.setItem(KEY,JSON.stringify(prev));}catch(_){}try{localStorage.removeItem(PREV);localStorage.removeItem(PREV_T);}catch(_){}try{render();}catch(_){}alert('Restore failed. Your records were not changed.');return;}
-    try{render();}catch(_){}toast('Restored'+(skipped?' ('+skipped+' damaged record'+(skipped===1?'':'s')+' skipped)':'')+'. Your records are back.');};
+    STORE.note='';paintStore();try{render();}catch(_){}toast('Restored'+(skipped?' ('+skipped+' damaged record'+(skipped===1?'':'s')+' skipped)':'')+'. Your records are back.');};
   rd.readAsText(f);ev.target.value='';}
 
 /* ── boot ── */
 window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();BIP=e;if(S&&S.settings)render();});
-window.addEventListener('pageshow',function(e){if(e.persisted&&S){S=load();render();}});
-document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&S){S=load();render();}});
-window.addEventListener('storage',function(e){if(e.key===KEY||e.key==='yfs_pro'){S=load();render();}});
-window.OTJ={logLines:logLines,bonusCalc:bonusCalc,otOf:otOf,weekShare:weekShare,ruleText:ruleText,cleanOt:cleanOt,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();render();},tax:function(){return TAX;},autoClock:autoClockHook,
+window.addEventListener('pageshow',function(e){if(e.persisted)refresh();});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')refresh();});
+window.addEventListener('storage',function(e){if(e.key===KEY||e.key==='yfs_pro')refresh();});
+document.getElementById('storeBar').addEventListener('click',function(e){var id=e.target&&e.target.id;if(id==='storeUpd'){location.reload();}else if(id==='storeBk'){backup();}else if(id==='storeRetry'){if(save())toast('Saved.');}});
+window.OTJ={logLines:logLines,bonusCalc:bonusCalc,otOf:otOf,weekShare:weekShare,ruleText:ruleText,cleanOt:cleanOt,entryHours:entryHours,computeWeek:computeWeek,takeHome:takeHome,ptoBalance:ptoBalance,periodRange:periodRange,rangeTotals:rangeTotals,buildCSV:buildCSV,state:function(){return S;},reload:function(){S=load();paintStore();render();},store:function(){return {ok:STORE.ok,ro:STORE.ro,dirty:STORE.dirty,note:STORE.note,bad:storeBad()};},DATA_V:DATA_V,storeTest:storeTest,tax:function(){return TAX;},autoClock:autoClockHook,
   hash:function(o){var t=new TextEncoder().encode(JSON.stringify(o||S));return crypto.subtle.digest('SHA-256',t).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return ('0'+x.toString(16)).slice(-2);}).join('');});}};
-S=load();VIEW=(S.ui&&S.ui.view)||'today';if(VIEW==='codes')VIEW='week';
-fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();
-  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(_){}}).catch(function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/job/sw.js',{scope:'/job/'}).catch(function(){});});}
+STORE.ok=storeTest();S=load();paintStore();VIEW=(S.ui&&S.ui.view)||'today';if(VIEW==='codes')VIEW='week';
+fetch('/job/tax-2026.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(t){TAX=t;render();}).catch(function(){$('#view').innerHTML='<div class="card">Couldn\'t load the pay tables. Check your signal and reload once; after that it works offline.</div>';});
+/* a new version of the app took over: reload once, and only when nothing unsaved or half-typed is on screen */
+var swHad=false,swWant=false,swDone=false;
+function swMaybeReload(){if(!swWant||swDone)return;if(storeBad()||document.getElementById('otjModal')||document.getElementById('sRate'))return;
+  try{var k='otj_sw_reload',t=+sessionStorage.getItem(k)||0;if(t&&Date.now()-t<15000){swDone=true;return;}sessionStorage.setItem(k,String(Date.now()));}catch(_){}
+  swDone=true;location.reload();}
+if('serviceWorker' in navigator){swHad=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){if(!swHad){swHad=true;return;}swWant=true;swMaybeReload();});
+  window.addEventListener('load',function(){navigator.serviceWorker.register('/job/sw.js',{scope:'/job/'}).catch(function(){});});}
 })();
 </script>
 </body>
