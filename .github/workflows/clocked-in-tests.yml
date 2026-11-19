@@ -22,6 +22,9 @@ concurrency:
 
 jobs:
   suites:
+    # Only on a public repository, where GitHub's standard runners are free. If this repository is ever made private,
+    # this job is skipped, so it can never use paid minutes without someone deciding to.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
