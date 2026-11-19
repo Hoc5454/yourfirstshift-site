@@ -1,0 +1,60 @@
+name: Live site check
+
+# Answers one question without anyone doing it by hand: is the site customers get the same as the code on main?
+# Press "Run workflow" after a deploy. To check a preview before it ships, give its *.pages.dev address and the branch.
+# It only downloads public files, the way a visitor's browser does. It uses no secrets, changes nothing and deploys nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Site to read: the live site, or a *.pages.dev preview'
+        required: false
+        default: 'https://yourfirstshiftapp.com'
+      ref:
+        description: 'Branch or commit to compare with'
+        required: false
+        default: 'main'
+  pull_request:
+    paths:
+      - 'tools/live-check.js'
+      - 'tests/live_check_t.js'
+      - '.github/workflows/live-site-check.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-site-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    # Only on a public repository, where GitHub's standard runners are free (the same rule as the Clocked In tests).
+    # If this repository is ever made private, this job is skipped, so it can never use paid minutes without someone deciding to.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the check names the earlier version the site has, so it needs the history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The check's own test (a stand-in site on this runner, not the real one)
+        working-directory: tests
+        run: node live_check_t.js ..
+      - name: Compare the site with the repository
+        env:
+          BASE: ${{ inputs.base || 'https://yourfirstshiftapp.com' }}
+          REF: ${{ inputs.ref || 'main' }}
+        run: |
+          set +e
+          node tools/live-check.js --base "$BASE" --ref "$REF" --md "$GITHUB_STEP_SUMMARY" | tee live-check.txt
+          code=${PIPESTATUS[0]}
+          verdict="$(tail -n 1 live-check.txt)"
+          if [ "$code" = 0 ]; then echo "::notice title=Live site check::$verdict"; exit 0; fi
+          if [ "$code" != 1 ] && [ "$code" != 2 ]; then echo "::error title=Live site check::The check itself stopped (exit $code)."; exit "$code"; fi
+          # On a pull request this is information only: a pull request to this tool does not change what is on the site.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then echo "::warning title=Live site check::$verdict"; exit 0; fi
+          echo "::error title=Live site check::$verdict"; exit 1
