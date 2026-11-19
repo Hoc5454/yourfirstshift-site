@@ -84,6 +84,12 @@ const run=args=>new Promise(res=>cp.execFile('node',[TOOL].concat(args),{cwd:os.
   if(!oldCf)console.log('SKIP 5g no earlier version of '+RES+' with a mailto link in this checkout\'s history');
   else{site[RES]=oldCf.b;r=await run(['--base',BASE,'--ref','HEAD']);
    ok(r.code===1&&r.out.indexOf('(with Cloudflare\'s email protection undone) the site has an OLDER copy: the one this branch had as of '+rOld.slice(0,7)+' ')>0,'5g an OLDER resume app behind the email protection is still named by its commit ('+rOld.slice(0,7)+')');}
+  // a page that already carries the decode script from an earlier save (the home page): Cloudflare takes it out of its place and puts its own back elsewhere
+  const cutAt=res.toString('latin1').indexOf('<script',2000),cut2=res.toString('latin1').indexOf('</body>');const own=Buffer.concat([res.subarray(0,cutAt),Buffer.from(CFS),res.subarray(cutAt)]);
+  const moved=Buffer.concat([res.subarray(0,cut2),Buffer.from(CFS.replace('5c5dd728','0a1b2c3d')),res.subarray(cut2)]);const tc=T.throughCf(moved,own);
+  ok(cutAt>0&&cut2>cutAt&&!!tc&&T.sha256(tc.a)===T.sha256(tc.b)&&tc.own===1&&tc.scripts===1&&tc.links===0,'5i a page that already carries the decode script, served with that script moved: the same, and it says the file carries one');
+  const moved2=Buffer.from(moved);const at2=Math.floor(moved2.length*0.3);moved2[at2]=moved2[at2]===65?66:65;const tc2=T.throughCf(moved2,own);const tc3=T.throughCf(res,own);
+  ok(!!tc2&&T.sha256(tc2.a)!==T.sha256(tc2.b)&&tc3===null,'5j only the script is left out: one more changed byte is still a difference, and a served page with no sign of the protection is compared as it is');
   site[RES]=res;site['/job/sw.js']=Buffer.concat([HEADFILES['/job/sw.js'],Buffer.from(CFS)]);r=await run(['--base',BASE,'--ref','HEAD']);
   ok(r.code===1&&r.out.indexOf('NOT THE SAME: 1 of '+N)>=0&&r.out.trim().split('\n').pop().indexOf('/job/sw.js.')>0&&r.out.indexOf('PLUS '+CFS.length+' extra bytes')>0,'5h nothing is undone in a file that is not a page: the same script added to sw.js is a plain difference');}
 

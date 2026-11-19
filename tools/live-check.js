@@ -122,8 +122,18 @@ function undoEmailProtection(live) {
   s = s.replace(CF_SCRIPT, () => { scripts++; return ''; });
   return { bytes: Buffer.from(s, 'latin1'), links, scripts };
 }
-const noMarks = b => Buffer.from(b.toString('latin1').replace(CF_MARK, ''), 'latin1');
 const marks = b => (b.toString('latin1').match(CF_MARK) || []).length;
+// What only Cloudflare reads or adds, left out of a page: its markers and its decode script. Nothing else.
+const bare = b => Buffer.from(b.toString('latin1').replace(CF_MARK, '').replace(CF_SCRIPT, ''), 'latin1');
+// A page that came through the email protection, made ready to compare with the repository's copy. null when the live copy
+// shows no sign of it. The decode script is left out of BOTH copies: a file that already carries that script from an earlier
+// save (the home page does, Nov 19 2026) has it taken out of its place and put back elsewhere by Cloudflare on the way out,
+// so on either side the script is Cloudflare's, not ours. Every other byte still has to match.
+function throughCf(live, want) {
+  if (!CF_SIGN.test(live.toString('latin1'))) return null;
+  const u = undoEmailProtection(live);
+  return { a: bare(u.bytes), b: bare(want), links: u.links, scripts: u.scripts, own: (want.toString('latin1').match(CF_SCRIPT) || []).length, marks: Math.max(0, marks(want) - marks(u.bytes)) };
+}
 
 // ── which earlier version is this? ──
 // Walks the branch's own line of commits (merges count once), newest first.
@@ -147,7 +157,7 @@ function explain(ref, file, live, want, loose) {
   else {
     const liveSha = sha256(live); ids = [];
     const all = []; log.forEach(c => { if (c.blob && all.indexOf(c.blob) < 0) all.push(c.blob); }); tipIds.forEach(i => { if (i && all.indexOf(i) < 0) all.push(i); });
-    for (const id of all.slice(0, 150)) { const b = tryGit(['cat-file', 'blob', id]); if (b && sha256(noMarks(b)) === liveSha) ids.push(id); }
+    for (const id of all.slice(0, 150)) { const b = tryGit(['cat-file', 'blob', id]); if (b && sha256(bare(b)) === liveSha) ids.push(id); }
   }
   const at = log.findIndex(c => ids.indexOf(c.blob) >= 0);
   if (at >= 0) {
@@ -213,9 +223,9 @@ async function check(base, ref) {
       if (row.liveSha === row.wantSha) row.state = 'same';
       else {
         // a page that came through Cloudflare's email protection: compare with that undone
-        const cf = /^text\/html/.test(type) && CF_SIGN.test(got.body.toString('latin1')) ? undoEmailProtection(got.body) : null;
-        const a = cf ? noMarks(cf.bytes) : got.body, b = cf ? noMarks(want) : want;
-        if (cf && sha256(a) === sha256(b)) { row.state = 'same'; row.cf = { links: cf.links, scripts: cf.scripts, marks: Math.max(0, marks(want) - marks(cf.bytes)) }; }
+        const cf = /^text\/html/.test(type) ? throughCf(got.body, want) : null;
+        const a = cf ? cf.a : got.body, b = cf ? cf.b : want;
+        if (cf && sha256(a) === sha256(b)) { row.state = 'same'; row.cf = { links: cf.links, scripts: cf.scripts, own: cf.own, marks: cf.marks }; }
         else { const e = explain(ref.sha, file, a, b, !!cf); row.state = 'differs'; row.kind = e.kind; row.note = (cf ? '(with Cloudflare\'s email protection undone) ' : '') + e.text; }
       }
     }
@@ -238,7 +248,7 @@ function report(base, ref, rows) {
       (cf.length ? ' (' + cf.map(r => r.path).join(', ') + ' with Cloudflare\'s email protection undone; the rest byte for byte).' : ', byte for byte.'); code = 0;
   }
   const cfNote = r => 'Cloudflare\'s email protection, undone for the comparison: ' + r.cf.links + ' mailto link' + (r.cf.links === 1 ? '' : 's') + ' hidden from scrapers' +
-    (r.cf.scripts ? ', its decode script added' : '') + (r.cf.marks ? ', ' + r.cf.marks + ' <!--email_off--> marker' + (r.cf.marks === 1 ? '' : 's') + ' removed' : '') +
+    (r.cf.scripts ? (r.cf.own ? ', its decode script moved (the file already carries one)' : ', its decode script added') : '') + (r.cf.marks ? ', ' + r.cf.marks + ' <!--email_off--> marker' + (r.cf.marks === 1 ? '' : 's') + ' removed' : '') +
     '. Everything else in the file is byte for byte the same.';
   const stamp = when(new Date().toISOString());
   const word = { same: 'same', differs: 'DIFFERENT', unread: 'not read' };
@@ -277,5 +287,5 @@ async function main(argv) {
   return out.code;
 }
 
-module.exports = { okBase, okHop, resolveRef, check, report, main, sha256, undoEmailProtection };
+module.exports = { okBase, okHop, resolveRef, check, report, main, sha256, undoEmailProtection, throughCf };
 if (require.main === module) main(process.argv.slice(2)).then(c => process.exit(c), e => { console.error(e && e.stack || e); process.exit(4); });
