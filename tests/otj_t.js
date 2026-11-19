@@ -27,7 +27,7 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
  // ── 1. first run: setup in 30 seconds + iPhone Add to Home Screen prompt ──
  {const c=await b.newContext({...DEVS[DEV],deviceScaleFactor:2});const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));await p.goto(O+'/job/');await p.waitForTimeout(600);
   ok(await p.isVisible('text=Set up your pay'),'1a first visit = 30-second pay setup, no blank screen');await shot(p,'0-setup');
-  await p.fill('#sJob','Gulf Coast Grocers');await p.fill('#sRate','28');await p.selectOption('#sState','FL');await p.click('[data-a=saveSetup]');await p.waitForTimeout(400);
+  await p.fill('#sJob','Gulf Coast Grocers');await p.selectOption('#sState','FL');await p.fill('#sRate','28');await p.selectOption('#sState','FL');await p.click('[data-a=saveSetup]');await p.waitForTimeout(400);
   ok(await p.isVisible('text=START'),'1b setup saved → Clock screen with a big START');
   if(DEV==='iphone'){ok(await p.isVisible('#a2hs')&&/Add to Home Screen/.test(await p.textContent('#a2hs')),'1c iPhone shows Add to Home Screen steps');await shot(p,'1-add-to-home-screen');
    await p.click('[data-a=a2hsx]');await p.reload();await p.waitForTimeout(500);ok(!(await p.isVisible('#a2hs')),'1d prompt dismissed stays dismissed (shows once)');}
@@ -127,7 +127,7 @@ const W=(id,d,a,b,brk)=>({id,kind:'work',date:d,start:ms(d,a),end:ms(d,b),breakM
   await shot(p,'11-backup');
   await p.evaluate(()=>{localStorage.clear();});await p.reload();await p.waitForTimeout(500);ok(await p.isVisible('text=Set up your pay'),'8c site data cleared → app is empty');
   // restore from setup-less state: open More via injected settings-less path → use the file input directly
-  await p.fill('#sRate','1');await p.click('[data-a=saveSetup]');await p.click('nav.tabs [data-v=more]');await p.setInputFiles('#restoreFile',fpath);await p.waitForTimeout(500);
+  await p.fill('#sRate','1');await p.selectOption('#sState','FL');await p.click('[data-a=saveSetup]');await p.click('nav.tabs [data-v=more]');await p.setInputFiles('#restoreFile',fpath);await p.waitForTimeout(500);
   const back=await p.evaluate(()=>{const s=JSON.parse(localStorage.getItem('yfs_otj_v1'));s.log=s.log.filter(l=>l.field!=='(restored)');return JSON.stringify(s);});
   const h1=crypto.createHash('sha256').update(back).digest('hex');ok(h0===h1,'8d restore brings everything back identically (sha256 '+h0.slice(0,12)+' = '+h1.slice(0,12)+')');
   ok(/Restored/.test(await p.textContent('body')),'8e restore confirms');await shot(p,'12-restored');

@@ -63,7 +63,7 @@ const PD={};
    await p.evaluate(s=>{localStorage.setItem('yfs_otj_v1',JSON.stringify(s));OTJ.reload();},two({settings:SET({perDiem:50,someFutureKey:{a:1},bonus:{basis:'all',pct:9}})}));await saveSetup(p);s=await st(p);
    ok(s.settings.perDiem===50&&JSON.stringify(s.settings.someFutureKey)==='{"a":1}'&&s.settings.bonus.pct===9,'3c '+T0+'any other saved setting is kept too (older single per diem amount, bonus, and a key this form knows nothing about)');
    ok(!errs.length,'3 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
-  {const {c,p,errs}=await open(null);await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','28');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);const s=await st(p);const k=Object.keys(s.settings).sort().join();
+  {const {c,p,errs}=await open(null);await p.fill('#sJob','Harbor Line Builders');await p.selectOption('#sState','FL');await p.fill('#sRate','28');await p.click('[data-a=saveSetup]');await p.waitForTimeout(250);const s=await st(p);const k=Object.keys(s.settings).sort().join();
    ok(k==='anchor,bonus,credits,extraWH,filing,health,k401,otRate,perDiem,perDiemNT,period,rate,state,stateRate,weekStart'&&s.settings.rate===28&&s.settings.perDiem===''&&s.settings.perDiemNT===false&&!('perDiemEach' in s.settings)&&!('perDiemTax' in s.settings)&&!!(await p.$('[data-a=start]')),'4a '+T0+'first-run "Start tracking" still creates the same settings as before, with no per diem answers invented');
    ok(!errs.length,'4 '+T0+'no page errors '+errs.join('|').slice(0,140));await c.close();}
  }

@@ -53,7 +53,7 @@ const near=(a,b)=>Math.abs(a-b)<0.006;
   // ── 2. on screen ──
   {const {c,p,errs}=await open(null);
    ok(/Bonus \(optional\)/.test(await p.textContent('#bonusBox summary'))&&await p.evaluate(()=>!document.getElementById('bonusBox').open),'2a '+T0+'first-run pay setup has a closed "Bonus (optional)" section (nothing extra to fill in unless you want it)');
-   await p.fill('#sJob','Harbor Line Builders');await p.fill('#sRate','28');await p.selectOption('#sWs','1');await p.click('#bonusBox summary');
+   await p.fill('#sJob','Harbor Line Builders');await p.selectOption('#sState','FL');await p.fill('#sRate','28');await p.selectOption('#sWs','1');await p.click('#bonusBox summary');
    const opts=await p.$$eval('#sBb option',o=>o.map(x=>x.textContent));ok(opts.length===4&&/No bonus/.test(opts[0])&&/all my pay for the year \(regular \+ overtime\)/.test(opts[1])&&/regular pay only/.test(opts[2])&&/flat dollar amount/.test(opts[3]),'2b '+T0+'choices: No bonus, percent of all pay, percent of regular pay only, flat amount (one job only appears with 2+ jobs)');
    await p.selectOption('#sBb','all');ok(await p.isVisible('#sBp')&&await p.isVisible('#sBpr')&&!(await p.isVisible('#sBa')),'2c '+T0+'choosing a percent shows the percent box and the optional "earned before" box');
    await p.click('[data-a=saveSetup]');await p.waitForTimeout(200);ok(/Set up your pay/.test(await p.textContent('#view'))&&/Enter your bonus percent/.test(await p.textContent('.toast')),'2d '+T0+'a bonus type with no percent is not saved: it asks for the percent');

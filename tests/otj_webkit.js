@@ -11,7 +11,7 @@ const UA='Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605
  try{await d.manage().window().setRect({width:412,height:915});await d.get(O+'/job/');await wait(1200);
   ok(await js("return typeof window.OTJ==='object'&&!!OTJ.tax()"),'app + tax table load on WebKit');
   ok(await js("return /Set up your pay/.test(document.body.innerText)&&/Add to Home Screen/.test(document.body.innerText)===false||true"),'setup screen');
-  await js("document.getElementById('sJob').value='Gulf Coast Grocers';document.getElementById('sRate').value='28';document.querySelector('[data-a=saveSetup]').click();");await wait(500);
+  await js("document.getElementById('sJob').value='Gulf Coast Grocers';document.getElementById('sState').value='FL';document.getElementById('sRate').value='28';document.querySelector('[data-a=saveSetup]').click();");await wait(500);
   ok(await js("return !!document.querySelector('[data-a=start]')"),'setup → START');
   ok(await js("return !!document.getElementById('a2hs')&&/Add to Home Screen/.test(document.getElementById('a2hs').innerText)"),'iPhone Add to Home Screen steps shown');await shot('1-add-to-home-screen');
   await js("document.querySelector('[data-a=start]').click()");await wait(2300);const t=await js("return document.getElementById('clkT').innerText");ok(/^0:00:0[1-3]$/.test(t),'clock runs ('+t+')');await shot('2-clock');
