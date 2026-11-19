@@ -4,6 +4,9 @@
 // Downloads every site file this repository holds (the list is tools/pages-files.json) and compares each one, byte for byte,
 // with the same file at a branch or commit (default: main). When a file differs, it says which earlier version the site has.
 //
+// One thing is allowed for: on yourfirstshiftapp.com Cloudflare hides email addresses in a page on the way out (see
+// "Cloudflare's email protection" below). The check undoes exactly that edit before comparing, and says so in its answer.
+//
 // Read-only: it downloads public files the way a visitor's browser does. No keys, no cookies, no sign-in, nothing is changed.
 // It never asks for /api/*, checkout or /api/pro/verify: only the paths in tools/pages-files.json.
 //
@@ -67,6 +70,35 @@ async function download(url, tries) {
   return last;
 }
 
+// ── Cloudflare's email protection ──
+// On yourfirstshiftapp.com (not on *.pages.dev previews) Cloudflare hides email addresses in a page from scrapers on the way
+// out. Seen on /app.html, Nov 19 2026:
+//   href="mailto:someone@site.com"  becomes  href="/cdn-cgi/l/email-protection#<hex>"
+//       (hex = one key byte, then every character of the address XOR that key; the key is new on every download)
+//   its decode script is added:  <script data-cfasync="false" src="/cdn-cgi/scripts/<id>/cloudflare-static/email-decode.min.js"></script>
+//   the marker <!--email_off-->, which tells it to leave part of a page alone, is removed
+// So the bytes a visitor gets are never the uploaded bytes, and never twice the same. undoEmailProtection() reverses those
+// edits and nothing else. Markers are left out of both copies for the comparison, since only Cloudflare reads them.
+const CF_SIGN = /\/cdn-cgi\/(l\/email-protection#|scripts\/[0-9a-f]+\/cloudflare-static\/email-decode\.min\.js)/;
+const CF_LINK = /\/cdn-cgi\/l\/email-protection#([0-9a-f]{4,})/g;
+const CF_SCRIPT = /<script data-cfasync="false" src="\/cdn-cgi\/scripts\/[0-9a-f]+\/cloudflare-static\/email-decode\.min\.js"><\/script>/g;
+const CF_MARK = /<!--\/?email_off-->/g;
+function undoEmailProtection(live) {
+  let links = 0, scripts = 0;
+  let s = live.toString('latin1').replace(CF_LINK, (all, hex) => {
+    if (hex.length % 2) return all;
+    const key = parseInt(hex.slice(0, 2), 16); let out = '';
+    for (let i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key);
+    // only a plain address (with at most a simple ?subject=…) is put back; anything else stays as it came and shows as a difference
+    if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(\?[A-Za-z0-9._~%+=-]*)?$/.test(out)) return all;
+    links++; return 'mailto:' + out;
+  });
+  s = s.replace(CF_SCRIPT, () => { scripts++; return ''; });
+  return { bytes: Buffer.from(s, 'latin1'), links, scripts };
+}
+const noMarks = b => Buffer.from(b.toString('latin1').replace(CF_MARK, ''), 'latin1');
+const marks = b => (b.toString('latin1').match(CF_MARK) || []).length;
+
 // ── which earlier version is this? ──
 // Walks the branch's own line of commits (merges count once), newest first.
 function versions(ref, file) {
@@ -77,9 +109,21 @@ function versions(ref, file) {
   log.forEach((c, i) => { const m = /^([0-9a-f]{40,64}) blob \d+$/.exec(out[i] || ''); c.blob = m ? m[1] : ''; });
   return log;
 }
-function explain(ref, file, live, want) {
-  const id = blobId(live); const log = versions(ref, file);
-  const at = log.findIndex(c => c.blob === id);
+// `live` and `want` are what gets compared. With `loose` (a page that came through the email protection) they are the copies
+// with that undone and the markers left out, and an old version counts as found when it is the same in that form.
+function explain(ref, file, live, want, loose) {
+  const log = versions(ref, file);
+  const tips = (tryGit(['for-each-ref', '--format=%(refname:short)', 'refs/remotes', 'refs/heads', 'refs/tags']) || '').toString().split('\n').filter(x => x && !/\/HEAD$/.test(x));
+  const tipIds = tips.length ? (tryGit(['cat-file', '--batch-check'], tips.map(t => t + ':' + file).join('\n') + '\n') || '').toString().split('\n').map(l => { const m = /^([0-9a-f]{40,64}) blob \d+$/.exec(l); return m ? m[1] : ''; }) : [];
+  // the git id (or ids) the site's copy has in this repository
+  let ids;
+  if (!loose) ids = [blobId(live)];
+  else {
+    const liveSha = sha256(live); ids = [];
+    const all = []; log.forEach(c => { if (c.blob && all.indexOf(c.blob) < 0) all.push(c.blob); }); tipIds.forEach(i => { if (i && all.indexOf(i) < 0) all.push(i); });
+    for (const id of all.slice(0, 150)) { const b = tryGit(['cat-file', 'blob', id]); if (b && sha256(noMarks(b)) === liveSha) ids.push(id); }
+  }
+  const at = log.findIndex(c => ids.indexOf(c.blob) >= 0);
   if (at >= 0) {
     let newer = 0; for (let i = 0; i < at; i++) if (log[i].blob !== log[i + 1].blob) newer++;
     const c = log[at];
@@ -87,12 +131,11 @@ function explain(ref, file, live, want) {
       newer + ' newer change' + (newer === 1 ? '' : 's') + ' to this file ' + (newer === 1 ? 'is' : 'are') + ' not on the site.' };
   }
   // not on this branch's line: the tip of another branch or a tag?
-  const tips = (tryGit(['for-each-ref', '--format=%(refname:short)', 'refs/remotes', 'refs/heads', 'refs/tags']) || '').toString().split('\n').filter(x => x && !/\/HEAD$/.test(x));
-  if (tips.length) {
-    const ids = (tryGit(['cat-file', '--batch-check'], tips.map(t => t + ':' + file).join('\n') + '\n') || '').toString().split('\n');
-    const hit = tips.filter((t, i) => (ids[i] || '').split(' ')[0] === id);
-    if (hit.length) return { kind: 'branch', text: 'the site has the copy from ' + hit.slice(0, 3).join(', ') + (hit.length > 3 ? ' (and ' + (hit.length - 3) + ' more)' : '') + ', which is not what this branch has.' };
-  }
+  // the same branch shows up once per place git keeps it (origin/x and a local x): name it once, without the "origin/"
+  const remotes = (tryGit(['remote']) || '').toString().split('\n').filter(Boolean);
+  const plain = t => { const r = remotes.find(x => t.indexOf(x + '/') === 0); return r ? t.slice(r.length + 1) : t; };
+  const hit = tips.filter((t, i) => ids.indexOf(tipIds[i]) >= 0).map(plain).filter((t, i, a) => a.indexOf(t) === i);
+  if (hit.length) return { kind: 'branch', text: 'the site has the copy from ' + hit.slice(0, 3).join(', ') + (hit.length > 3 ? ' (and ' + (hit.length - 3) + ' more)' : '') + ', not the copy on this branch.' };
   // no version at all: show every place it differs from this branch's copy, so a person can see what was changed
   const show = b => JSON.stringify(b.toString('latin1').replace(/[^\x20-\x7e]/g, '.').slice(0, 160)) + (b.length > 160 ? '… (' + num(b.length) + ' B)' : '');
   const diff = regions(live, want, 12);
@@ -132,7 +175,7 @@ function regions(live, want, max) {
 async function check(base, ref) {
   const list = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'pages-files.json'), 'utf8'));
   const rows = []; let down = false;
-  for (const [p] of list) {
+  for (const [p, type] of list) {
     const file = p.replace(/^\//, ''); const want = blobAt(ref.sha, file);
     if (!want) continue;                                   // the home page, legal page and site icons are not in this repository
     const got = await download(base + p, down ? 1 : TRIES);  // once nothing answers at all, one try per file is enough
@@ -142,7 +185,13 @@ async function check(base, ref) {
     else {
       row.liveSha = sha256(got.body); row.liveSize = got.body.length;
       if (row.liveSha === row.wantSha) row.state = 'same';
-      else { const e = explain(ref.sha, file, got.body, want); row.state = 'differs'; row.kind = e.kind; row.note = e.text; }
+      else {
+        // a page that came through Cloudflare's email protection: compare with that undone
+        const cf = /^text\/html/.test(type) && CF_SIGN.test(got.body.toString('latin1')) ? undoEmailProtection(got.body) : null;
+        const a = cf ? noMarks(cf.bytes) : got.body, b = cf ? noMarks(want) : want;
+        if (cf && sha256(a) === sha256(b)) { row.state = 'same'; row.cf = { links: cf.links, scripts: cf.scripts, marks: Math.max(0, marks(want) - marks(cf.bytes)) }; }
+        else { const e = explain(ref.sha, file, a, b, !!cf); row.state = 'differs'; row.kind = e.kind; row.note = (cf ? '(with Cloudflare\'s email protection undone) ' : '') + e.text; }
+      }
     }
     rows.push(row);
   }
@@ -157,21 +206,29 @@ function report(base, ref, rows) {
   else if (unread.length === rows.length) { verdict = 'COULD NOT READ THE SITE: ' + base + ' answered ' + unread[0].note + ' for all ' + rows.length + ' files. This says nothing about what is live.'; code = 2; }
   else if (differs.length) { verdict = 'NOT THE SAME: ' + differs.length + ' of ' + rows.length + ' files on ' + base + ' differ from ' + refText + ': ' + differs.map(r => r.path).join(', ') + '.'; code = 1; }
   else if (unread.length) { verdict = 'NOT FINISHED: ' + unread.length + ' of ' + rows.length + ' files could not be read (' + unread.map(r => r.path + ' ' + r.note).join(', ') + '). The other ' + same.length + ' are the same as ' + refText + '.'; code = 2; }
-  else { verdict = 'THE SAME: all ' + rows.length + ' files on ' + base + ' are byte for byte the files at ' + refText + '.'; code = 0; }
+  else {
+    const cf = rows.filter(r => r.cf);
+    verdict = 'THE SAME: all ' + rows.length + ' files on ' + base + ' are the files at ' + refText +
+      (cf.length ? ' (' + cf.map(r => r.path).join(', ') + ' with Cloudflare\'s email protection undone; the rest byte for byte).' : ', byte for byte.'); code = 0;
+  }
+  const cfNote = r => 'Cloudflare\'s email protection, undone for the comparison: ' + r.cf.links + ' mailto link' + (r.cf.links === 1 ? '' : 's') + ' hidden from scrapers' +
+    (r.cf.scripts ? ', its decode script added' : '') + (r.cf.marks ? ', ' + r.cf.marks + ' <!--email_off--> marker' + (r.cf.marks === 1 ? '' : 's') + ' removed' : '') +
+    '. Everything else in the file is byte for byte the same.';
   const stamp = when(new Date().toISOString());
   const word = { same: 'same', differs: 'DIFFERENT', unread: 'not read' };
   const lines = ['Site check: ' + base + ' compared with ' + refText + ', ' + stamp, ''];
   for (const r of rows) {
     lines.push((word[r.state] + '          ').slice(0, 10) + ' ' + r.path + '   ' + (r.liveSha ? 'site ' + num(r.liveSize) + ' B ' + r.liveSha.slice(0, 12) + '…' : 'site ' + r.note) +
-      (r.state === 'same' ? '' : '   ·   ' + ref.name + ' ' + num(r.wantSize) + ' B ' + r.wantSha.slice(0, 12) + '…'));
+      (r.state === 'same' && !r.cf ? '' : '   ·   ' + ref.name + ' ' + num(r.wantSize) + ' B ' + r.wantSha.slice(0, 12) + '…'));
     if (r.state === 'differs') lines.push('           ' + r.note);
+    if (r.cf) lines.push('           ' + cfNote(r));
   }
   lines.push('', verdict);
   // the table goes on a web page: text from the site must not be able to turn into a link, a tag or a table cell there
   const cell = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\\`*_\[\]()!#|~]/g, c => '\\' + c);
   const md = ['## ' + cell(verdict), '', 'Checked ' + stamp + '. Site: ' + base + '. Compared with: ' + cell(refText) + '.', '',
     '| File | Result | On the site | In the repository |', '|---|---|---|---|']
-    .concat(rows.map(r => '| `' + r.path + '` | ' + (r.state === 'same' ? 'same' : r.state === 'differs' ? '**different**: ' + cell(r.note) : 'not read (' + cell(r.note) + ')') + ' | ' +
+    .concat(rows.map(r => '| `' + r.path + '` | ' + (r.state === 'same' ? 'same' + (r.cf ? ' (' + cell(cfNote(r)) + ')' : '') : r.state === 'differs' ? '**different**: ' + cell(r.note) : 'not read (' + cell(r.note) + ')') + ' | ' +
       (r.liveSha ? num(r.liveSize) + ' B `' + r.liveSha.slice(0, 12) + '…`' : '-') + ' | ' + num(r.wantSize) + ' B `' + r.wantSha.slice(0, 12) + '…` |'))
     .concat(['', 'This check only downloads public files. It changes nothing and deploys nothing.', '']);
   return { verdict, code, text: lines.join('\n'), md: md.join('\n') };
@@ -191,5 +248,5 @@ async function main(argv) {
   return out.code;
 }
 
-module.exports = { okBase, resolveRef, check, report, main, sha256 };
+module.exports = { okBase, resolveRef, check, report, main, sha256, undoEmailProtection };
 if (require.main === module) main(process.argv.slice(2)).then(c => process.exit(c), e => { console.error(e && e.stack || e); process.exit(4); });
