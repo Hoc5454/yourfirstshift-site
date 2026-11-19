@@ -10,7 +10,7 @@
 process.env.TZ='America/New_York';
 const {chromium}=require('playwright');const http=require('http');const fs=require('fs');const path=require('path');
 if(!process.argv[2]||!process.argv[3]){console.log('Usage: node otj_compare_builds.js <old-root> <new-root> [days]');process.exit(2);}
-const OLD=path.resolve(process.argv[2]),NEW=path.resolve(process.argv[3]);const PORT=18883,KEY='yfs_otj_v1';
+const OLD=path.resolve(process.argv[2]),NEW=path.resolve(process.argv[3]);const PORT=+(process.env.CMP_PORT||18883),KEY='yfs_otj_v1';
 const TYPES={'.html':'text/html; charset=utf-8','.json':'application/json','.js':'text/javascript','.png':'image/png','.webmanifest':'application/manifest+json'};
 const serve=(ROOT,port)=>new Promise(r=>{const srv=http.createServer((q,s)=>{let u=decodeURIComponent(q.url.split('?')[0]);if(u.endsWith('/'))u+='index.html';const f=path.join(ROOT,u);if(!f.startsWith(ROOT)||!fs.existsSync(f)){s.writeHead(404);return s.end('nf');}s.writeHead(200,{'Content-Type':TYPES[path.extname(f)]||'application/octet-stream','Cache-Control':'no-cache'});fs.createReadStream(f).pipe(s);});srv.listen(port,()=>r(srv));});
 let fails=0,passes=0;const ok=(c,m)=>{console.log((c?'PASS ':'FAIL ')+m);if(c)passes++;else fails++;};
@@ -19,7 +19,8 @@ const addDays=(k,n)=>{const d=P(k);d.setDate(d.getDate()+n);return ymd(d);};cons
 const dow=k=>P(k).getDay();const weekStartOf=(k,ws)=>addDays(k,-((dow(k)-ws+7)%7));const WD=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 // one full week, the last and first days of a year, and the Sundays US clocks change (with the Mondays after)
 const ALL=['2026-11-22','2026-11-23','2026-11-24','2026-11-25','2026-11-26','2026-11-27','2026-11-28','2026-12-31','2027-01-01','2026-03-08','2026-03-09','2026-11-01','2026-11-02'];
-const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');const SKIP=process.argv[5]||'',IGNORE=process.argv[6]||'',ALLOW=process.argv[7]?new RegExp(process.argv[7]):null;const strip=v=>IGNORE&&typeof v==='string'?v.split(IGNORE).join('').replace(/\n{2,}/g,'\n').replace(/[ \t]+\n/g,'\n').trim():v;
+const DAYS=!process.argv[4]||process.argv[4]==='all'?ALL:process.argv[4].split(',');const SKIP=process.argv[5]||'',IGNORE=process.argv[6]||'',ALLOW=process.argv[7]?new RegExp(process.argv[7]):null;const HR1=!!process.env.OTJ_SAME_HR;   // OTJ_SAME_HR=1: read "1 hrs" and "1 hr" as the same words (one build says the first, the other the second)
+const strip=v=>{if(typeof v!=='string')return v;if(HR1)v=v.replace(/\b1 hrs\b/g,'1 hr');return IGNORE?v.split(IGNORE).join('').replace(/\n{2,}/g,'\n').replace(/[ \t]+\n/g,'\n').trim():v;};
 function records(T){const e=[];let n=0;for(let i=-20;i<=0;i++){const d=addDays(T,i);
     if(i===-3){e.push({id:'p'+(++n),kind:'pto',date:d,hours:8,bucket:'v',jobId:'j1'});continue;}
     if(i===-5){e.push({id:'m'+(++n),kind:'work',date:d,start:at(d,'12:00'),manualHours:9.5,breakMin:0,jobId:'j1',codeId:'',splits:[],note:''});continue;}
@@ -70,7 +71,7 @@ const SNAP=()=>{const out={};const cap=k=>{out[k]=document.body.innerText.replac
   step('home',()=>{click('nav.tabs [data-v=today]');});
   const s=OTJ.state();out.settings=JSON.stringify(s.settings);out.state=JSON.stringify(s,(k,v)=>k==='ui'?undefined:v);out.stored1=localStorage.getItem('yfs_otj_v1');out.bar=(document.getElementById('storeBar')||{innerText:''}).innerText;
   return out;};
-(async()=>{const PORT2=18875;const s1=await serve(OLD,PORT),s2=await serve(NEW,PORT2);const b=await chromium.launch();
+(async()=>{const PORT2=+(process.env.CMP_PORT2||18875);const s1=await serve(OLD,PORT),s2=await serve(NEW,PORT2);const b=await chromium.launch();
  const open=async(port,T)=>{const c=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block',timezoneId:'America/New_York',userAgent:'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36'});
    await c.addInitScript(now=>{const _D=Date;class D2 extends _D{constructor(...a){if(a.length)super(...a);else super(now);}static now(){return now;}}window.Date=D2;},at(T,'12:00'));   // the clock is stopped at noon, so both builds see the same instant
    const p=await c.newPage();p.setDefaultTimeout(8000);const h={c,p,errs:[]};p.on('pageerror',e=>h.errs.push(e.message));p.on('dialog',d=>d.dismiss().catch(()=>{}));await p.goto('http://127.0.0.1:'+port+'/job/');await p.waitForFunction(()=>window.OTJ&&OTJ.tax());
