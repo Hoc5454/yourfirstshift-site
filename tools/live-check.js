@@ -9,9 +9,10 @@
 //
 // Read-only: it downloads public files the way a visitor's browser does. No keys, no cookies, no sign-in, nothing is changed.
 // It never asks for /api/*, checkout or /api/pro/verify: only the paths in tools/pages-files.json.
+// A redirect is followed only to the same path on the same site (the plain address passes visitors on to www); see okHop().
 //
 // Usage: node tools/live-check.js [--base https://yourfirstshiftapp.com] [--ref main] [--md out.md]
-//   --base  the site to read: the live site (default), a *.pages.dev preview, or localhost (for the test).
+//   --base  the site to read: the live site (default; with or without www), a *.pages.dev preview, or localhost (for the test).
 //   --ref   the branch or commit to compare with (default: main).
 //   --md    also write the result to this file as a short table (GitHub shows it on the run page).
 // Exit code: 0 = every file is the same · 1 = at least one file differs · 2 = the site could not be read · 3 = wrong usage
@@ -20,9 +21,11 @@ const fs = require('fs'); const path = require('path'); const crypto = require('
 
 const ROOT = path.resolve(__dirname, '..');
 const LIVE = 'https://yourfirstshiftapp.com';
+const LIVE_HOSTS = ['yourfirstshiftapp.com', 'www.yourfirstshiftapp.com'];   // the plain address answers 301 and passes visitors on to www
 const UA = 'yourfirstshift-live-check (+https://github.com/Hoc5454/yourfirstshift-site)';
 const HISTORY = 500;      // how far back on the branch to look for the version the site has
 const TRIES = 3;          // downloads per file before giving up
+const HOPS = 5;           // redirects followed for one file before giving up
 const sha256 = b => crypto.createHash('sha256').update(b).digest('hex');
 const num = n => n.toLocaleString('en-US');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -35,10 +38,22 @@ function okBase(b) {
   let u; try { u = new URL(b); } catch (_) { return null; }
   if (u.username || u.password || u.search || u.hash || (u.pathname !== '/' && u.pathname !== '')) return null;
   const h = u.hostname;
-  const site = u.protocol === 'https:' && !u.port && (h === 'yourfirstshiftapp.com' || /^[a-z0-9-]+(\.[a-z0-9-]+)*\.pages\.dev$/.test(h));
-  const local = u.protocol === 'http:' && (h === '127.0.0.1' || h === 'localhost');
+  const site = u.protocol === 'https:' && !u.port && (LIVE_HOSTS.indexOf(h) >= 0 || /^[a-z0-9-]+(\.[a-z0-9-]+)*\.pages\.dev$/.test(h));
+  const local = u.protocol === 'http:' && isLocal(h);
   return site || local ? u.origin : null;
 }
+const isLocal = h => h === '127.0.0.1' || h === 'localhost';
+// May a redirect from one address to another be followed? Only when it is the same file on the same site:
+// the same path and no query, on the same host or between the plain address and www. Never to any other host (not even
+// another *.pages.dev), never to another path (so nothing outside tools/pages-files.json is ever asked for), never from
+// https down to http, never to an address with a sign-in in it. `from` and `to` are URL objects.
+function okHop(from, to) {
+  if (to.username || to.password || to.pathname !== from.pathname || to.search || from.search) return false;
+  if (from.protocol === 'https:') return to.protocol === 'https:' && !to.port && (to.hostname === from.hostname || (LIVE_HOSTS.indexOf(from.hostname) >= 0 && LIVE_HOSTS.indexOf(to.hostname) >= 0));
+  return from.protocol === 'http:' && to.protocol === 'http:' && isLocal(from.hostname) && isLocal(to.hostname);   // the stand-in site the test runs
+}
+// where a redirect pointed, for the report: text from the site, so only plain characters and not much of it
+const place = u => (u.origin + u.pathname).replace(/[^\x21-\x7e]/g, '?').slice(0, 120);
 function resolveRef(r) {
   if (typeof r !== 'string' || !/^[A-Za-z0-9._\/-]{1,120}$/.test(r) || r[0] === '-' || r.indexOf('..') >= 0) return null;
   const exact = r === 'HEAD' || /^[0-9a-f]{7,64}$/.test(r);
@@ -61,9 +76,20 @@ async function download(url, tries) {
   for (let i = 0; i < tries; i++) {
     if (i) await sleep(1500);
     try {
-      const r = await fetch(url, { redirect: 'follow', headers: { 'user-agent': UA, 'cache-control': 'no-cache', accept: '*/*' }, signal: AbortSignal.timeout(30000) });
+      // redirects are followed by hand, one at a time, so each one can be checked before anything is asked of the next address
+      let at = new URL(url), r;
+      for (let hops = 0; ; hops++) {
+        r = await fetch(at, { redirect: 'manual', headers: { 'user-agent': UA, 'cache-control': 'no-cache', accept: '*/*' }, signal: AbortSignal.timeout(30000) });
+        if ([301, 302, 303, 307, 308].indexOf(r.status) < 0) break;
+        const loc = r.headers.get('location'); let to = null; try { if (loc) to = new URL(loc, at); } catch (_) { /* no usable address */ }
+        try { if (r.body) await r.body.cancel(); } catch (_) { /* nothing to drop */ }
+        // a refused redirect is an answer, not a hiccup: no second try
+        if (!to || !okHop(at, to)) return { status: r.status, why: 'HTTP ' + r.status + ' (a redirect to ' + (to ? place(to) : 'nowhere') + ', which this check does not follow)' };
+        if (hops >= HOPS) return { status: r.status, why: 'HTTP ' + r.status + ' (more than ' + HOPS + ' redirects in a row)' };
+        at = to;
+      }
       const body = Buffer.from(await r.arrayBuffer());
-      last = { status: r.status, body, why: 'HTTP ' + r.status };
+      last = { status: r.status, body, why: 'HTTP ' + r.status, via: at.host !== new URL(url).host ? at.host : '' };
       if (r.status < 500) return last;       // a 4xx will not change on a second try
     } catch (e) { last = { status: 0, why: String((e && e.cause && e.cause.code) || (e && e.name) || 'no answer') }; }
   }
@@ -183,7 +209,7 @@ async function check(base, ref) {
     const row = { path: p, wantSha: sha256(want), wantSize: want.length };
     if (got.status !== 200 || !got.body) { row.state = 'unread'; row.note = got.why; }
     else {
-      row.liveSha = sha256(got.body); row.liveSize = got.body.length;
+      row.liveSha = sha256(got.body); row.liveSize = got.body.length; if (got.via) row.via = got.via;
       if (row.liveSha === row.wantSha) row.state = 'same';
       else {
         // a page that came through Cloudflare's email protection: compare with that undone
@@ -216,7 +242,10 @@ function report(base, ref, rows) {
     '. Everything else in the file is byte for byte the same.';
   const stamp = when(new Date().toISOString());
   const word = { same: 'same', differs: 'DIFFERENT', unread: 'not read' };
-  const lines = ['Site check: ' + base + ' compared with ' + refText + ', ' + stamp, ''];
+  // when the address asked passed the requests on (the plain address does, to www), say where the files were really read
+  const via = rows.map(r => r.via).filter((v, i, a) => v && a.indexOf(v) === i);
+  const viaNote = via.length ? base.replace(/^https?:\/\//, '') + ' passed ' + (rows.every(r => r.via) ? 'every request' : rows.filter(r => r.via).length + ' of ' + rows.length + ' requests') + ' on to ' + via.join(', ') + ', so those files were read from there.' : '';
+  const lines = ['Site check: ' + base + ' compared with ' + refText + ', ' + stamp].concat(viaNote ? [viaNote] : [], ['']);
   for (const r of rows) {
     lines.push((word[r.state] + '          ').slice(0, 10) + ' ' + r.path + '   ' + (r.liveSha ? 'site ' + num(r.liveSize) + ' B ' + r.liveSha.slice(0, 12) + '…' : 'site ' + r.note) +
       (r.state === 'same' && !r.cf ? '' : '   ·   ' + ref.name + ' ' + num(r.wantSize) + ' B ' + r.wantSha.slice(0, 12) + '…'));
@@ -226,7 +255,7 @@ function report(base, ref, rows) {
   lines.push('', verdict);
   // the table goes on a web page: text from the site must not be able to turn into a link, a tag or a table cell there
   const cell = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\\`*_\[\]()!#|~]/g, c => '\\' + c);
-  const md = ['## ' + cell(verdict), '', 'Checked ' + stamp + '. Site: ' + base + '. Compared with: ' + cell(refText) + '.', '',
+  const md = ['## ' + cell(verdict), '', 'Checked ' + stamp + '. Site: ' + base + '. Compared with: ' + cell(refText) + '.' + (viaNote ? ' ' + cell(viaNote) : ''), '',
     '| File | Result | On the site | In the repository |', '|---|---|---|---|']
     .concat(rows.map(r => '| `' + r.path + '` | ' + (r.state === 'same' ? 'same' + (r.cf ? ' (' + cell(cfNote(r)) + ')' : '') : r.state === 'differs' ? '**different**: ' + cell(r.note) : 'not read (' + cell(r.note) + ')') + ' | ' +
       (r.liveSha ? num(r.liveSize) + ' B `' + r.liveSha.slice(0, 12) + '…`' : '-') + ' | ' + num(r.wantSize) + ' B `' + r.wantSha.slice(0, 12) + '…` |'))
@@ -239,7 +268,7 @@ async function main(argv) {
   const known = ['--base', '--ref', '--md'];
   if (argv.some((a, i) => (i % 2 === 0) !== (known.indexOf(a) >= 0)) || argv.length % 2) { console.error('Usage: node tools/live-check.js [--base ' + LIVE + '] [--ref main] [--md out.md]'); return 3; }
   const base = okBase(arg('--base') || LIVE);
-  if (!base) { console.error('--base must be ' + LIVE + ', an https://….pages.dev preview, or http://localhost (no path).'); return 3; }
+  if (!base) { console.error('--base must be ' + LIVE + ' (with or without www), an https://….pages.dev preview, or http://localhost (no path).'); return 3; }
   const ref = resolveRef(arg('--ref') || 'main');
   if (!ref) { console.error('--ref: no such branch or commit here: ' + (arg('--ref') || 'main')); return 3; }
   const out = report(base, ref, await check(base, ref));
@@ -248,5 +277,5 @@ async function main(argv) {
   return out.code;
 }
 
-module.exports = { okBase, resolveRef, check, report, main, sha256, undoEmailProtection };
+module.exports = { okBase, okHop, resolveRef, check, report, main, sha256, undoEmailProtection };
 if (require.main === module) main(process.argv.slice(2)).then(c => process.exit(c), e => { console.error(e && e.stack || e); process.exit(4); });

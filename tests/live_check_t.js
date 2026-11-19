@@ -90,13 +90,44 @@ const run=args=>new Promise(res=>cp.execFile('node',[TOOL].concat(args),{cwd:os.
  // ── 6. what it may be pointed at, and a site that is not there ──
  srv.close();r=await run(['--base',BASE,'--ref','HEAD']);
  ok(r.code===2&&r.out.indexOf('COULD NOT READ THE SITE')>=0&&r.out.indexOf('THE SAME: all')<0,'6a nothing answering at all: COULD NOT READ THE SITE, exit 2');
- const good=['https://yourfirstshiftapp.com','https://yourfirstshiftapp.com/','https://abc123.yourfirstshift.pages.dev','http://127.0.0.1:8123','http://localhost:8123'];
+ const good=['https://yourfirstshiftapp.com','https://yourfirstshiftapp.com/','https://www.yourfirstshiftapp.com','https://abc123.yourfirstshift.pages.dev','http://127.0.0.1:8123','http://localhost:8123'];
  const bad=['http://yourfirstshiftapp.com','https://www.example.com','https://yourfirstshiftapp.com.example.com','https://examplepages.dev','https://x.pages.dev.example.com','https://user:pw@yourfirstshiftapp.com',
-  'https://yourfirstshiftapp.com/?a=1','https://yourfirstshiftapp.com/api/pro/verify','https://yourfirstshiftapp.com:8443','ftp://yourfirstshiftapp.com','file:///etc/passwd','yourfirstshiftapp.com',''];
- ok(good.every(b=>T.okBase(b))&&bad.every(b=>!T.okBase(b)),'6b --base: only the live site, a *.pages.dev preview or localhost; no other host, no path, no query, no sign-in ('+good.length+' allowed, '+bad.length+' refused)');
+  'https://yourfirstshiftapp.com/?a=1','https://yourfirstshiftapp.com/api/pro/verify','https://yourfirstshiftapp.com:8443','ftp://yourfirstshiftapp.com','file:///etc/passwd','yourfirstshiftapp.com','',
+  'http://www.yourfirstshiftapp.com','https://api.yourfirstshiftapp.com','https://wwww.yourfirstshiftapp.com','https://www.yourfirstshiftapp.com.example.com'];
+ ok(good.every(b=>T.okBase(b))&&bad.every(b=>!T.okBase(b)),'6b --base: only the live site (with or without www), a *.pages.dev preview or localhost; no other host, no path, no query, no sign-in ('+good.length+' allowed, '+bad.length+' refused)');
  ok(['--upload-pack=x','-n','a..b','main;id','$(id)','a b',''].every(x=>!T.resolveRef(x))&&!!T.resolveRef('HEAD')&&T.resolveRef('HEAD').sha===git(['rev-parse','HEAD']).toString().trim(),'6c --ref: a plain branch name or commit only; nothing that could be read as an option or a command');
  r=await run(['--base','https://www.example.com']);const r2=await run(['--ref','no-such-branch-here']);const r3=await run(['--bogus','1']);const r4=await run(['--base']);
  ok(r.code===3&&r2.code===3&&r3.code===3&&r4.code===3&&!/THE SAME/.test(r.out+r2.out+r3.out+r4.out),'6d a refused site, an unknown branch, an unknown option and a missing value all stop with exit 3 before anything is downloaded');
+
+ // ── 7. redirects: followed only to the same file on the same site ──
+ // The plain address answers 301 and passes visitors on to www. That one is followed. Nothing else is: not another host, not another path.
+ const U=s=>new URL(s);
+ const hopOk=[['https://yourfirstshiftapp.com/job/sw.js','https://www.yourfirstshiftapp.com/job/sw.js'],['https://www.yourfirstshiftapp.com/app.html','https://yourfirstshiftapp.com/app.html'],
+  ['https://abc.yourfirstshift-site.pages.dev/app.html','https://abc.yourfirstshift-site.pages.dev/app.html'],['http://127.0.0.1:8123/a','http://localhost:9000/a']];
+ const hopBad=[['https://yourfirstshiftapp.com/app.html','https://www.example.com/app.html'],['https://yourfirstshiftapp.com/app.html','https://yourfirstshiftapp.com.example.com/app.html'],
+  ['https://yourfirstshiftapp.com/app.html','https://x.pages.dev/app.html'],['https://a.pages.dev/app.html','https://b.pages.dev/app.html'],
+  ['https://yourfirstshiftapp.com/app.html','http://www.yourfirstshiftapp.com/app.html'],['https://yourfirstshiftapp.com/app.html','https://www.yourfirstshiftapp.com:8443/app.html'],
+  ['https://yourfirstshiftapp.com/app.html','https://user:pw@www.yourfirstshiftapp.com/app.html'],['https://yourfirstshiftapp.com/job/sw.js','https://www.yourfirstshiftapp.com/api/pro/verify'],
+  ['https://yourfirstshiftapp.com/app.html','https://www.yourfirstshiftapp.com/app.html?x=1'],['https://yourfirstshiftapp.com/app.html','https://api.yourfirstshiftapp.com/app.html'],
+  ['http://127.0.0.1:8123/a','https://yourfirstshiftapp.com/a'],['https://yourfirstshiftapp.com/a','http://127.0.0.1:8123/a'],['http://127.0.0.1:8123/a','http://192.0.2.1/a']];
+ ok(hopOk.every(h=>T.okHop(U(h[0]),U(h[1])))&&hopBad.every(h=>!T.okHop(U(h[0]),U(h[1]))),'7a a redirect may go only to the same file on the same site: same host, or between the plain address and www; never another host, another path, a query, a port, a sign-in or http ('+hopOk.length+' allowed, '+hopBad.length+' refused)');
+ // the stand-in site again (6a closed the first one), and a second address in front of it that only redirects
+ const seen2=[],front=[];let rule=()=>[404];
+ const www=http.createServer((q,s)=>{seen2.push(q.url);const v=HEADFILES[q.url];if(!v){s.writeHead(404,{'content-type':'text/plain'});s.end('Not found');return;}s.writeHead(200,{'content-type':'application/octet-stream'});s.end(v);});
+ const plain=http.createServer((q,s)=>{front.push(q.url);const a=rule(q.url);const h={'content-type':'text/plain'};if(a[1])h.location=a[1];s.writeHead(a[0],h);s.end('moved');});
+ await new Promise(r=>www.listen(0,'127.0.0.1',r));await new Promise(r=>plain.listen(0,'127.0.0.1',r));
+ const WWW='http://127.0.0.1:'+www.address().port,PLAIN='http://127.0.0.1:'+plain.address().port;const reset=()=>{seen2.length=0;front.length=0;};
+ rule=u=>[301,WWW+u];r=await run(['--base',PLAIN,'--ref','HEAD']);
+ ok(r.code===0&&r.out.indexOf('THE SAME: all '+N+' files')>=0&&r.out.indexOf(PLAIN.slice(7)+' passed every request on to '+WWW.slice(7)+', so those files were read from there.')>0&&front.length===N&&seen2.length===N&&seen2.every(u=>LIST.indexOf(u)>=0),'7b the plain address passing every file on to www: followed, THE SAME, and it says where the files were really read ('+seen2.length+' files)');
+ reset();rule=u=>[302,'https://not-our-site.example'+u];r=await run(['--base',PLAIN,'--ref','HEAD']);const first=LIST.find(p=>HEADFILES[p]);
+ ok(r.code===2&&r.out.indexOf('COULD NOT READ THE SITE')>=0&&r.out.indexOf('HTTP 302 (a redirect to https://not-our-site.example'+first+', which this check does not follow)')>0&&r.out.indexOf('THE SAME')<0&&seen2.length===0&&front.length===N,'7c a redirect to another site is not followed: nothing is asked of that site, COULD NOT READ, exit 2, never "the same"');
+ reset();rule=u=>u==='/job/sw.js'?[302,WWW+'/api/pro/verify']:[301,WWW+u];r=await run(['--base',PLAIN,'--ref','HEAD']);
+ ok(r.code===2&&r.out.indexOf('NOT FINISHED: 1 of '+N+' files could not be read (/job/sw.js HTTP 302 (a redirect to '+WWW+'/api/pro/verify, which this check does not follow))')>=0&&seen2.length===N-1&&!seen2.concat(front).some(u=>/\/api\//.test(u)),'7d a redirect to another path on our own site is not followed either: /api/pro/verify is never asked for, NOT FINISHED, exit 2');
+ reset();rule=u=>u==='/job/sw.js'?[307,PLAIN+u]:[301,WWW+u];r=await run(['--base',PLAIN,'--ref','HEAD']);
+ ok(r.code===2&&r.out.indexOf('/job/sw.js HTTP 307 (more than 5 redirects in a row)')>0&&front.filter(u=>u==='/job/sw.js').length===6,'7e a redirect that goes round in circles is given up on after 5, with no second try');
+ reset();rule=u=>u==='/job/sw.js'?[301]:[301,WWW+u];r=await run(['--base',PLAIN,'--ref','HEAD']);
+ ok(r.code===2&&r.out.indexOf('/job/sw.js HTTP 301 (a redirect to nowhere, which this check does not follow)')>0&&front.filter(u=>u==='/job/sw.js').length===1,'7f a redirect that names no address: not read, one request only');
+ www.close();plain.close();
 
  console.log(fails?'\n'+fails+' FAILED':'\nALL PASS');process.exit(fails?1:0);
 })().catch(e=>{console.error(e);process.exit(1);});
