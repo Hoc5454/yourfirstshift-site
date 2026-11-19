@@ -93,14 +93,39 @@ function explain(ref, file, live, want) {
     const hit = tips.filter((t, i) => (ids[i] || '').split(' ')[0] === id);
     if (hit.length) return { kind: 'branch', text: 'the site has the copy from ' + hit.slice(0, 3).join(', ') + (hit.length > 3 ? ' (and ' + (hit.length - 3) + ' more)' : '') + ', which is not what this branch has.' };
   }
-  // the same file with something added on the way out (a host can add a line to a page)?
-  const P = (() => { let i = 0; const n = Math.min(live.length, want.length); while (i < n && live[i] === want[i]) i++; return i; })();
-  const S = (() => { let i = 0; const n = Math.min(live.length, want.length) - P; while (i < n && live[live.length - 1 - i] === want[want.length - 1 - i]) i++; return i; })();
-  const show = b => JSON.stringify(b.toString('latin1').replace(/[^\x20-\x7e]/g, '.').slice(0, 200));
-  if (live.length > want.length && P + S === want.length) {
-    return { kind: 'added', text: 'the site has this branch\'s copy PLUS ' + num(live.length - want.length) + ' extra bytes at byte ' + num(P) + ': ' + show(live.subarray(P, live.length - S)) };
+  // no version at all: show every place it differs from this branch's copy, so a person can see what was changed
+  const show = b => JSON.stringify(b.toString('latin1').replace(/[^\x20-\x7e]/g, '.').slice(0, 160)) + (b.length > 160 ? '… (' + num(b.length) + ' B)' : '');
+  const diff = regions(live, want, 12);
+  if (diff.length === 1 && !diff[0].want.length && !diff[0].open) {
+    return { kind: 'added', text: 'the site has this branch\'s copy PLUS ' + num(diff[0].live.length) + ' extra bytes at byte ' + num(diff[0].at) + ': ' + show(diff[0].live) };
   }
-  return { kind: 'unknown', text: 'the site\'s copy is NOT a version on this branch or at the tip of any branch. First difference at byte ' + num(P) + ': site ' + show(live.subarray(P, P + 80)) + ' · branch ' + show(want.subarray(P, P + 80)) };
+  return { kind: 'unknown', text: 'the site\'s copy is NOT a version on this branch or at the tip of any branch. It differs from this branch\'s copy in ' +
+    (diff.more ? 'more than ' : '') + diff.length + ' place' + (diff.length === 1 ? '' : 's') + ':' +
+    diff.map(d => '\n             byte ' + num(d.at) + ': site ' + (d.live.length ? show(d.live) : '(nothing)') + ' · branch ' + (d.want.length ? show(d.want) : '(nothing)') + (d.open ? ' (the rest could not be lined up)' : '')).join('') };
+}
+
+// Every place two nearly identical files differ, at most `max` places. After a difference it looks for the nearest run of
+// 24 bytes that both files have again, within 6,000 bytes, and carries on from there.
+function regions(live, want, max) {
+  const W = 24, REACH = 6000; const out = []; let i = 0, j = 0;
+  for (;;) {
+    while (i < live.length && j < want.length && live[i] === want[j]) { i++; j++; }
+    if (i >= live.length && j >= want.length) break;
+    if (out.length >= max) { out.more = true; break; }
+    const seen = new Map();
+    for (let dj = 0; dj <= REACH && j + dj + W <= want.length; dj++) { const k = want.toString('latin1', j + dj, j + dj + W); if (!seen.has(k)) seen.set(k, dj); }
+    let hit = null;
+    for (let di = 0; di <= REACH && i + di + W <= live.length; di++) { const dj = seen.get(live.toString('latin1', i + di, i + di + W)); if (dj !== undefined) { hit = [di, dj]; break; } }
+    // nothing lines up again nearby: what is left of each file, less the ending they share, is the last difference
+    if (!hit) {
+      let e = 0; const n = Math.min(live.length - i, want.length - j); while (e < n && live[live.length - 1 - e] === want[want.length - 1 - e]) e++;
+      const a = live.subarray(i, live.length - e), b = want.subarray(j, want.length - e);
+      out.push({ at: i, live: a, want: b, open: a.length > REACH || b.length > REACH }); break;
+    }
+    out.push({ at: i, live: live.subarray(i, i + hit[0]), want: want.subarray(j, j + hit[1]) });
+    i += hit[0]; j += hit[1];
+  }
+  return out;
 }
 
 // ── the check ──

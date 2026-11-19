@@ -45,7 +45,10 @@ const run=args=>new Promise(res=>cp.execFile('node',[TOOL].concat(args),{cwd:os.
  site=Object.assign({},HEADFILES);site[APP]=Buffer.concat([src.subarray(0,cut),extra,src.subarray(cut)]);r=await run(['--base',BASE,'--ref','HEAD']);
  ok(cut>0&&src[cut-1]!==64&&r.code===1&&r.out.indexOf('PLUS '+extra.length+' extra bytes at byte '+cut.toLocaleString('en-US'))>0&&r.out.indexOf('added-by-host.js')>0,'3a the right file with a line added on the way out: NOT the same, and it shows the '+extra.length+' added bytes and where');
  const flipped=Buffer.from(src);const at=Math.floor(src.length/2);flipped[at]=flipped[at]===65?66:65;site[APP]=flipped;r=await run(['--base',BASE,'--ref','HEAD']);
- ok(r.code===1&&r.out.indexOf('NOT a version on this branch or at the tip of any branch. First difference at byte '+at.toLocaleString('en-US'))>0,'3b one changed byte: NOT a version in this repository, with the place of the first difference');
+ ok(r.code===1&&r.out.indexOf('NOT a version on this branch or at the tip of any branch. It differs from this branch\'s copy in 1 place:')>0&&r.out.indexOf('byte '+at.toLocaleString('en-US')+': site '+JSON.stringify(String.fromCharCode(flipped[at]))+' · branch '+JSON.stringify(String.fromCharCode(src[at])))>0,'3b one changed byte: NOT a version in this repository, and it shows the one place, with both bytes');
+ // three separate changes: every one is listed, each at its own place
+ const multi=Buffer.concat([src.subarray(0,1000),Buffer.from('#one#'),src.subarray(1000,5000),src.subarray(5040,90000),Buffer.from('#three#'),src.subarray(90010)]);site[APP]=multi;r=await run(['--base',BASE,'--ref','HEAD']);
+ ok(r.code===1&&r.out.indexOf('in 3 places:')>0&&r.out.indexOf('byte 1,000: site "#one#" · branch (nothing)')>0&&r.out.indexOf('byte 5,005: site (nothing) · branch ')>0&&r.out.indexOf('byte 89,965: site "#three#" · branch ')>0,'3c three changes in one file (text added, text removed, text replaced): all three listed, each at its own byte');
 
  // ── 4. a site that cannot be read never reads as "the same" ──
  site={};for(const p of Object.keys(HEADFILES))site[p]=403;r=await run(['--base',BASE,'--ref','HEAD']);
