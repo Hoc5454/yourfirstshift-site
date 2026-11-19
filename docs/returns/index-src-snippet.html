@@ -1,0 +1,16 @@
+<!-- src-links: paste this on the home page (index.html), right before </body>. The home page is not in this repository.
+     It keeps a known ?src= or ?utm_source= on the links to app.html, so the source survives the tap. #tool-N is kept.
+     With no known source in the address it changes nothing. No cookies, no storage, no network, no third-party script. -->
+<script id="yfs-src-links">
+(function(){
+  var OK=['tiktok','reels','shorts','youtube','tiktok-ad'],s='';
+  function clean(v){v=String(v||'').trim().toLowerCase();return OK.indexOf(v)>=0?v:'';}
+  try{var q=new URLSearchParams(location.search);s=clean(q.get('src'))||clean(q.get('utm_source'));}catch(_){}
+  if(!s)return;
+  function go(){var a=document.querySelectorAll('a[href]');
+    for(var i=0;i<a.length;i++){try{var u=new URL(a[i].getAttribute('href'),location.href);
+      if(u.origin!==location.origin||!/\/app\.html$/.test(u.pathname)||u.searchParams.get('src'))continue;
+      u.searchParams.set('src',s);a[i].setAttribute('href',u.pathname+u.search+u.hash);}catch(_){}}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
+})();
+</script>
