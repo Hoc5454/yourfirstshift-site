@@ -45,6 +45,15 @@ Checks: `node tests/pages_worker_t.js ..` builds a bundle and sends requests thr
 With the 21 production files in a folder, `node tests/pages_worker_t.js .. --prod-dir <folder>` also rebuilds production be89f333 and compares it byte for byte
 (sha256 `1a7d3063…`, 1,009,929 B; expected hashes in `tools/prod-be89f333.expected.json`).
 
+Is it live? `node tools/live-check.js` downloads every site file this repo holds and compares it with `main`, byte for byte.
+If a file differs, it says which earlier version the site has. `--base <preview address> --ref <branch>` checks a preview before it ships.
+On GitHub: Actions → Live site check → Run workflow (green = the site is main). It only reads public files: no keys, nothing changed, nothing deployed.
+On yourfirstshiftapp.com (not on `*.pages.dev` previews) Cloudflare hides email addresses in a page on the way out, with a new key on every download,
+so `/app.html` as a visitor gets it never has the hash of the uploaded file. The check undoes exactly that edit before comparing and says so in its answer.
+In `app.html`, the marker that ends an `<!--email_off-->` part is `<!--/email_off-->`. The file has `<!--email_on-->` there, which Cloudflare does not read,
+so protection stays off from that point to the end of the page (harmless; fix it with the next `app.html` change).
+Its own test, against a stand-in site: `node tests/live_check_t.js ..`.
+
 Deploying is Shift's job, after Hunter says so. Nothing in this repo deploys anything.
 
 Clocked In offline: it opens with no signal from `/job/` or the Home Screen icon (`/job/?src=homescreen`) after one visit with signal. The address `/job` (no slash) needs signal.
