@@ -1976,9 +1976,28 @@ const FREE_LIMITS = {
 const ALLOWED_ORIGINS = ['https://yourfirstshiftapp.com', 'https://www.yourfirstshiftapp.com', 'https://yourfirstshift.pages.dev', 'https://yourfirstshift-site.pages.dev'];
 const RL_LIMIT = 20;
 function originOk(o) { if (!o) return false; if (ALLOWED_ORIGINS.includes(o)) return true; try { const u = new URL(o); return u.protocol === 'https:' && /^[a-z0-9-]+\.yourfirstshift-site\.pages\.dev$/.test(u.hostname); } catch { return false; } }
-function cors(origin) { if (!originOk(origin)) return { 'Vary': 'Origin' }; return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-YFS-Pro, X-YFS-Kind', 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' }; }
+function cors(origin) { if (!originOk(origin)) return { 'Vary': 'Origin' }; return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-YFS-Pro, X-YFS-Kind, X-YFS-Run, X-YFS-Dev', 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' }; }
 function requestOriginAllowed(request) { const o = request.headers.get('Origin'); if (o) return originOk(o); const r = request.headers.get('Referer'); if (!r) return false; try { return originOk(new URL(r).origin); } catch { return false; } }
 async function rateLimit(request) { const ip = request.headers.get('CF-Connecting-IP') || 'unknown'; const hour = Math.floor(Date.now() / 3600000); const key = new Request(`https://rl.internal/rl:${ip}:${hour}`); const cache = caches.default; const hit = await cache.match(key); const count = hit ? parseInt(await hit.text(), 10) || 0 : 0; if (count >= RL_LIMIT) return { ok: false, count }; await cache.put(key, new Response(String(count + 1), { headers: { 'Cache-Control': 'max-age=3600' } })); return { ok: true, count: count + 1 }; }
+// sec-fix 3: a valid Pro/org/pack token is limited per subscription/seat (not per IP); free callers per IP.
+// v4: the AI route (POST / and /api/claude) is the only caller. /api/pro/{verify,checkout,restore,status,refresh}
+// stay on the unchanged live limiter rateLimit(request): 20/h per IP, Cache API, shared rl:<ip> key.
+const RL_FREE_PER_HOUR = 60, RL_PRO_PER_HOUR = 120;
+const RL_FREE_IP_CEIL = 300; // per-IP ceiling across all devices (classrooms / shared Wi-Fi); stops device-id rotation
+function yfsRlId(p) { if (!p) return ''; if (p.org) { const c = yfsOrgCode(p.org), d = yfsOrgDevice(p.did); return c && d ? 'org:' + c + ':' + d : ''; } if (p.sub) return 'sub:' + String(p.sub); if (p.pack) return 'pack:' + String(p.pack); return ''; }
+async function yfsRateLimit(request, env) { const hour = Math.floor(Date.now() / 3600000); let id = ''; const tok = request.headers.get('X-YFS-Pro'); if (tok && env && env.PRO_SIGNING_SECRET) { try { id = yfsRlId(await verifyProToken(env, tok)); } catch (_) { id = ''; } } if (id) { const r = await yfsRlHit(env, id, hour, RL_PRO_PER_HOUR); return { ...r, max: RL_PRO_PER_HOUR, keyed: 'token', hour }; } const ip = request.headers.get('CF-Connecting-IP') || 'unknown'; const dev = yfsDevId(request); if (dev) { const [c, r] = await Promise.all([yfsRlHit(env, 'ip:' + ip + '|all', hour, RL_FREE_IP_CEIL), yfsRlHit(env, 'ip:' + ip + '|d:' + dev, hour, RL_FREE_PER_HOUR)]); if (!c.ok) return { ...c, max: RL_FREE_IP_CEIL, keyed: 'ip-ceiling', hour }; return { ...r, max: RL_FREE_PER_HOUR, keyed: 'ip+device', hour }; } const r = await yfsRlHit(env, 'ip:' + ip, hour, RL_FREE_PER_HOUR); return { ...r, max: RL_FREE_PER_HOUR, keyed: 'ip', hour }; }
+// 429 body for the new limiter (app shows its own text for 429s; this is for humans/devtools). Retry-After = seconds to the hour boundary.
+function yfsRateLimited(rl, origin) { const now = Math.floor(Date.now() / 1000); const hour = (rl && rl.hour) || Math.floor(now / 3600); const retry = Math.max(60, (hour + 1) * 3600 - now); return j({ error: 'rate_limited', message: 'Too many requests right now. Please wait about ' + Math.ceil(retry / 60) + ' minutes and try again.', retry_after: retry, limit_per_hour: (rl && rl.max) || null }, 429, origin, { 'Retry-After': String(retry), 'Cache-Control': 'no-store' }); }
+// Counter lives in D1 (one global, atomic count; the Cache API counter is per data center). IPs are stored only as a
+// keyed HMAC prefix; rows expire after ~2h. Fails OPEN on a D1 error or after RL_STORE_TIMEOUT_MS (a slow or down
+// counter never blocks or hangs a request).
+let yfsRlReady = false;
+const RL_STORE_TIMEOUT_MS = 1500;
+// IP keys are an HMAC keyed by the existing PRO_SIGNING_SECRET binding (no salt in source); plain SHA-256 if it is missing.
+let yfsRlKey = null;
+async function yfsRlHash(env, v) { if (env.PRO_SIGNING_SECRET) { if (!yfsRlKey) yfsRlKey = await crypto.subtle.importKey('raw', te.encode('yfs-rl:' + env.PRO_SIGNING_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); return hex(await crypto.subtle.sign('HMAC', yfsRlKey, te.encode(v))).slice(0, 32); } return hex(await crypto.subtle.digest('SHA-256', te.encode(v))).slice(0, 32); }
+async function yfsRlHit(env, id, hour, max) { if (!env || !env.DB) return { ok: true, count: 0, store: 'none' }; let timer; const to = new Promise(res => { timer = setTimeout(() => { try { console.error('yfs rate-limit store timeout'); } catch (_) {} res({ ok: true, count: 0, store: 'timeout' }); }, RL_STORE_TIMEOUT_MS); }); try { return await Promise.race([yfsRlHitD1(env, id, hour, max), to]); } finally { clearTimeout(timer); } }
+async function yfsRlHitD1(env, id, hour, max) { if (!env || !env.DB) return { ok: true, count: 0, store: 'none' }; try { if (id.startsWith('ip:')) id = 'ip:' + (await yfsRlHash(env, id.slice(3))); if (!yfsRlReady) { await env.DB.prepare('CREATE TABLE IF NOT EXISTS yfs_rl (k TEXT PRIMARY KEY, n INTEGER NOT NULL, exp INTEGER NOT NULL)').run(); yfsRlReady = true; } const k = id + ':' + hour; const row = await env.DB.prepare('INSERT INTO yfs_rl (k, n, exp) VALUES (?, 1, ?) ON CONFLICT(k) DO UPDATE SET n = n + 1 RETURNING n').bind(k, (hour + 2) * 3600).first(); const n = (row && Number(row.n)) || 1; if (Math.random() < 0.01) { try { await env.DB.prepare('DELETE FROM yfs_rl WHERE exp < ?').bind(Math.floor(Date.now() / 1000)).run(); } catch (_) {} } return { ok: n <= max, count: n, store: 'd1' }; } catch (e) { try { console.error('yfs rate-limit store error', String(e && e.message || e)); } catch (_) {} return { ok: true, count: 0, store: 'error' }; } }
 
 function json(data, status=200, origin='') {
   return new Response(JSON.stringify(data), {
@@ -2037,6 +2056,7 @@ async function verifyProToken(env, token) {
   if (!p.exp || p.exp < Math.floor(Date.now() / 1000)) return null;
   // Org-code Pro (B2B): code must still exist, not ended, and this device's seat must still exist.
   if (p.org) { if (!(await yfsOrgTokenOk(env, p))) return null; return p; }
+  if (p.pack) { if (p.pi && env.YFS_KV && await env.YFS_KV.get('packrev:' + p.pi)) return null; return p; }
   // Revocation: subscription state from webhook (missing record => trust token until exp)
   if (p.sub && env.YFS_KV) {
     const rec = await env.YFS_KV.get('sub:' + p.sub, 'json');
@@ -2066,6 +2086,12 @@ async function handleProVerify(request, env, origin) {
   catch (e) { return j({ error: 'session not found' }, 404, origin); }
   if (s.status !== 'complete') return j({ error: 'session not complete' }, 402, origin);
   if (!yfsIsProSession(s)) return j({ error: 'wrong product' }, 403, origin);
+  if (s.mode === 'payment') {
+    if (!yfsIsPackSession(s)) return j({ error: 'not paid' }, 402, origin);
+    const t = await yfsPackToken(env, s, 'pack');
+    if (!t) return j({ error: 'pack ended' }, 410, origin);
+    return j({ ok: true, token: t.token, exp: t.exp, plan: 'pack' }, 200, origin);
+  }
   if (s.mode !== 'subscription' || !s.subscription) return j({ error: 'not a subscription' }, 403, origin);
   const subId = typeof s.subscription === 'string' ? s.subscription : s.subscription.id;
   // Seed KV in case webhook hasn't landed yet
@@ -2117,6 +2143,13 @@ async function handleYfsProStripeWebhook(request, env) {
       await put(typeof o.subscription === 'string' ? o.subscription
         : (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription), 'active');
       break;
+    case 'charge.refunded':
+      if (o.payment_intent && (o.refunded || o.amount_refunded > 0)) await env.YFS_KV.put('packrev:' + (typeof o.payment_intent === 'string' ? o.payment_intent : o.payment_intent.id), '1', { expirationTtl: 60 * 86400 });
+      break;
+    case 'charge.dispute.created':
+      // chargeback on a $29 Job Hunt Pack → pass stops working (same as a refund)
+      if (o.payment_intent) await env.YFS_KV.put('packrev:' + (typeof o.payment_intent === 'string' ? o.payment_intent : o.payment_intent.id), '1', { expirationTtl: 120 * 86400 });
+      break;
     case 'invoice.payment_failed':
       await put(typeof o.subscription === 'string' ? o.subscription
         : (o.parent && o.parent.subscription_details && o.parent.subscription_details.subscription), 'past_due');
@@ -2135,12 +2168,13 @@ async function handleProRestore(request, env, origin) {
   let email; try { email = String((await request.json()).email || '').trim(); } catch {}
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return j({ error: 'bad email' }, 400, origin);
   const variants = [...new Set([email, email.toLowerCase()])];
-  let found = null;
+  let found = null, pack = null;
   try {
     // Lookup via Checkout Sessions on the Pro Payment Link (key has checkout read; no customer read needed)
     for (const em of variants) {
       const ss = await stripeGet(env, 'checkout/sessions?limit=50&status=complete&customer_details[email]=' + encodeURIComponent(em));
       for (const x of (ss.data || [])) {
+        if (yfsIsPackSession(x)) { const t = await yfsPackToken(env, x, 'restore'); if (t && (!pack || t.exp > pack.exp)) pack = t; continue; }
         if (!yfsIsProSession(x) || x.mode !== 'subscription' || !x.subscription) continue;
         const subId = typeof x.subscription === 'string' ? x.subscription : x.subscription.id;
         let status = null;
@@ -2156,6 +2190,7 @@ async function handleProRestore(request, env, origin) {
     const m = String(e && e.message || ''); console.log('restore lookup failed', /ermission/.test(m) ? 'permission' : 'other');
     return j({ error: 'lookup failed, try again' }, 502, origin);
   }
+  if (!found && pack) return j({ ok: true, token: pack.token, exp: pack.exp, plan: 'pack' }, 200, origin);
   if (!found) return j({ error: 'no active Pro subscription for that email' }, 404, origin);
   const now = Math.floor(Date.now() / 1000);
   const token = await signProToken(env, { sub: found.sub, cus: found.cus, iat: now, exp: now + PRO_TOKEN_TTL_S, src: 'restore' });
@@ -2228,22 +2263,59 @@ async function handleMetrics(request, env, path, origin){
 // ---- Worker-created Pro Checkout Session (cancel returns to the free result) ----
 const YFS_PRO_PRICE = 'price_1TtWAN2UF854inJLHEqOW9Lx'; // same $9/mo price as Payment Link
 function yfsIsProSession(s) { return !!s && (s.payment_link === PAYMENT_LINK_ID || (s.metadata && s.metadata.yfs_pro === '1')); }
+// ---- Plans: $9/mo Pro (always), $59/yr Pro and $29 one-time 30-day Job Hunt Pack (only when Shift sets their Stripe price IDs as plain vars) ----
+const YFS_PACK_DAYS = 30;
+function yfsPlanFor(env, id) {
+  id = String(id || 'pro');
+  if (id === 'pro') return { id: 'pro', mode: 'subscription', price: YFS_PRO_PRICE };
+  if (id === 'pro_year' && /^price_[A-Za-z0-9]+$/.test(env.YFS_PRICE_YEAR || '')) return { id, mode: 'subscription', price: env.YFS_PRICE_YEAR };
+  if (id === 'pack' && /^price_[A-Za-z0-9]+$/.test(env.YFS_PRICE_PACK || '')) return { id, mode: 'payment', price: env.YFS_PRICE_PACK };
+  return null;
+}
+function yfsIsPackSession(s) {
+  return !!s && s.mode === 'payment' && s.payment_status === 'paid' && !!s.metadata && s.metadata.yfs_pro === '1' && s.metadata.yfs_plan === 'pack';
+}
+function yfsPackPi(s) { return s && (typeof s.payment_intent === 'string' ? s.payment_intent : (s.payment_intent && s.payment_intent.id)) || ''; }
+async function yfsPackToken(env, s, src) {
+  const now = Math.floor(Date.now() / 1000), exp = (Number(s.created) || now) + YFS_PACK_DAYS * 86400;
+  if (exp <= now) return null;
+  const pi = yfsPackPi(s);
+  if (pi && env.YFS_KV && await env.YFS_KV.get('packrev:' + pi)) return null;      // refunded
+  return { token: await signProToken(env, { pack: s.id, pi, cus: s.customer, iat: now, exp, src }), exp };
+}
+// GET /api/pro/plans → which plans can be bought right now (app shows only these)
+function handleProPlans(env, origin) {
+  return j({ plans: { pro: true, pro_year: !!yfsPlanFor(env, 'pro_year'), pack: !!yfsPlanFor(env, 'pack') }, pack_days: YFS_PACK_DAYS }, 200, origin, { 'Cache-Control': 'no-store' });
+}
+
 async function handleProCheckout(request, env, origin) {
   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
   const rl = await rateLimit(request);
   if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
-  let email = ''; try { email = String((await request.json()).email || '').trim(); } catch {}
+  let b = {}; try { b = await request.json(); } catch {}
+  let email = String(b.email || '').trim();
   if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) email = '';
+  const plan = yfsPlanFor(env, b.plan);
+  if (!plan) return j({ error: 'plan_unavailable' }, 409, origin);
+  const src = String(b.src || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
   const base = originOk(origin) ? origin : 'https://yourfirstshiftapp.com';
   const p = new URLSearchParams();
-  p.set('mode', 'subscription');
-  p.set('line_items[0][price]', YFS_PRO_PRICE);
+  p.set('mode', plan.mode);
+  p.set('line_items[0][price]', plan.price);
   p.set('line_items[0][quantity]', '1');
   p.set('success_url', base + '/app.html?checkout=success&session_id={CHECKOUT_SESSION_ID}');
   p.set('cancel_url', base + '/app.html?checkout=canceled');
   p.set('billing_address_collection', 'auto');
   p.set('metadata[yfs_pro]', '1');
-  p.set('subscription_data[metadata][yfs_pro]', '1');
+  p.set('metadata[yfs_plan]', plan.id);
+  if (src) p.set('metadata[yfs_src]', src);
+  if (plan.mode === 'subscription') {
+    p.set('subscription_data[metadata][yfs_pro]', '1');
+    p.set('subscription_data[metadata][yfs_plan]', plan.id);
+  } else {
+    p.set('customer_creation', 'always');
+    p.set('payment_intent_data[metadata][yfs_plan]', plan.id);
+  }
   if (email) p.set('customer_email', email);
   const r = await fetch('https://api.stripe.com/v1/checkout/sessions', { method: 'POST',
     headers: { Authorization: 'Bearer ' + env.STRIPE_RK, 'Content-Type': 'application/x-www-form-urlencoded' }, body: p.toString() });
@@ -2403,6 +2475,73 @@ async function handleProRefresh(request, env, origin) {
   return j({ ok: true, token: fresh, exp }, 200, origin);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// resume-fix (Claude): phones kill the result stream when the user switches apps.
+//  • Each AI run carries X-YFS-Run (32 hex, new per run) + X-YFS-Dev (32 hex device id, no personal data).
+//  • freeGate: retrying the SAME run (same request body) within 10 min doesn't count a new free run (max 3 retries).
+//  • The finished result (already free-cut for free users) is cached 10 min under runres:<dev>:<run>;
+//    GET /api/run/<run>?d=<dev> returns it, so a returning user gets it instantly with no new AI cost.
+//    Needs both random ids → nobody can fetch someone else's result. Expires automatically.
+//  • POST /api/metrics/client_err logs error TYPES only (no text, no ids) → GET /api/metrics/errors.
+// ════════════════════════════════════════════════════════════════════════════
+const RUN_TTL_S = 600, RUN_RETRIES = 3;
+const ERR_TYPES = ['interrupted', 'network', 'http_5xx', 'http_4xx', 'busy', 'incomplete', 'empty', 'timeout', 'other'];
+const UA_FAM = ['samsung', 'chrome', 'safari', 'firefox', 'edge', 'inapp', 'other'];
+function yfsRunId(request) { const v = String(request.headers.get('X-YFS-Run') || ''); return /^[a-f0-9]{32}$/.test(v) ? v : ''; }
+function yfsDevId(request) { const v = String(request.headers.get('X-YFS-Dev') || ''); return /^[a-f0-9]{32}$/.test(v) ? v : ''; }
+async function yfsBodyHash(request) { try { return hex(await crypto.subtle.digest('SHA-256', te.encode(await request.clone().text()))); } catch (_) { return ''; } }
+async function yfsCacheRun(env, dev, run, stream, free) {
+  try {
+    const rd = stream.getReader(), dec = new TextDecoder(); let buf = '', text = '', done = false;
+    while (true) { const r = await rd.read(); if (r.done) break; buf += dec.decode(r.value, { stream: true });
+      let i; while ((i = buf.indexOf('\n')) >= 0) { const ln = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (!ln.startsWith('data:')) continue; let o = null; try { o = JSON.parse(ln.slice(5).trim()); } catch (_) { continue; }
+        if (o && o.type === 'content_block_delta' && o.delta && typeof o.delta.text === 'string') text += o.delta.text;
+        else if (o && o.type === 'message_stop') done = true; } }
+    if (done && text) await env.YFS_KV.put('runres:' + dev + ':' + run, JSON.stringify({ text, free: free ? 1 : 0, ts: Date.now() }), { expirationTtl: RUN_TTL_S });
+  } catch (_) {}
+}
+async function yfsBucket(request, name, max) {
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown', hour = Math.floor(Date.now() / 3600000);
+  const key = new Request(`https://rl.internal/${name}:${ip}:${hour}`), cache = caches.default;
+  const hit = await cache.match(key), n = hit ? parseInt(await hit.text(), 10) || 0 : 0;
+  if (n >= max) return false;
+  await cache.put(key, new Response(String(n + 1), { headers: { 'Cache-Control': 'max-age=3600' } })); return true;
+}
+async function handleRunFetch(request, env, path, origin) {
+  const H = { 'Cache-Control': 'no-store' };
+  if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin, H);
+  if (!env.YFS_KV) return j({ error: 'unavailable' }, 503, origin, H);
+  if (!(await yfsBucket(request, 'run', 120))) return j({ error: 'Rate limit' }, 429, origin, H);
+  const run = path.slice('/api/run/'.length), dev = String(new URL(request.url).searchParams.get('d') || '');
+  if (!/^[a-f0-9]{32}$/.test(run) || !/^[a-f0-9]{32}$/.test(dev)) return j({ error: 'bad_request' }, 400, origin, H);
+  const rec = await env.YFS_KV.get('runres:' + dev + ':' + run, 'json');
+  if (!rec || !rec.text) return j({ error: 'not_found' }, 404, origin, H);
+  return j({ ok: true, done: true, text: rec.text }, 200, origin, H);
+}
+async function handleClientErr(request, env, origin) {
+  const done = () => new Response(null, { status: 204, headers: { ...cors(origin), 'Cache-Control': 'no-store' } });
+  if (!env.YFS_KV || !requestOriginAllowed(request)) return done();
+  if (!(await yfsBucket(request, 'err', 30))) return done();
+  let b = {}; try { b = JSON.parse(await request.text()); } catch (_) { return done(); }
+  const t = ERR_TYPES.includes(b.t) ? b.t : 'other', ua = UA_FAM.includes(b.ua) ? b.ua : 'other';
+  await kvInc(env, `m:err:${new Date().toISOString().slice(0, 10)}:${t}:${ua}`, { expirationTtl: 30 * 86400 });
+  return done();
+}
+async function handleErrStats(env, origin) {
+  const out = {}; const days = [0, 1].map(k => new Date(Date.now() - k * 864e5).toISOString().slice(0, 10));
+  for (const d of days) { out[d] = {}; const pg = await env.YFS_KV.list({ prefix: 'm:err:' + d + ':' });
+    for (const k of pg.keys) out[d][k.name.slice(('m:err:' + d + ':').length)] = parseInt(await env.YFS_KV.get(k.name) || '0', 10) || 0; }
+  return j({ errors: out }, 200, origin, { 'Cache-Control': 'no-store' });
+}
+async function routeResume(request, env, path, origin) {
+  const opt = () => new Response(null, { status: 204, headers: cors(origin) });
+  if (path.startsWith('/api/run/')) { if (request.method === 'OPTIONS') return opt(); if (request.method === 'GET') return handleRunFetch(request, env, path, origin); }
+  if (path === '/api/metrics/client_err') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleClientErr(request, env, origin); }
+  if (path === '/api/metrics/errors' && request.method === 'GET' && env.YFS_KV) return handleErrStats(env, origin);
+  return null;
+}
+
 async function routeOrg(request, env, path, origin) {
   const opt = () => new Response(null, { status: 204, headers: cors(origin) });
   if (path === '/api/metrics/heard_about') { if (request.method === 'OPTIONS') return opt(); if (request.method === 'POST') return handleHeardAbout(request, env, origin); }
@@ -2413,6 +2552,8 @@ async function routeOrg(request, env, path, origin) {
 }
 
 async function routePro(request, env, path, origin) {
+  const resumeRes = await routeResume(request, env, path, origin);
+  if (resumeRes) return resumeRes;
   const orgRes = await routeOrg(request, env, path, origin);
   if (orgRes) return orgRes;
   if (path === '/api/metrics' || path.startsWith('/api/metrics/')) return handleMetrics(request, env, path, origin);
@@ -2420,6 +2561,10 @@ async function routePro(request, env, path, origin) {
   if (path === '/api/pro/restore') {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
     if (request.method === 'POST') return handleProRestore(request, env, origin);
+  }
+  if (path === '/api/pro/plans') {
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
+    if (request.method === 'GET') return handleProPlans(env, origin);
   }
   if (path === '/api/pro/refresh') {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
@@ -2440,6 +2585,18 @@ async function routePro(request, env, path, origin) {
   return null;
 }
 
+// ── sec-fix 1+2: real file reads only; fixed model; capped max_tokens; body size limits ──
+const AI_MODEL = 'claude-sonnet-4-6', AI_MAX_TOKENS = 3000, AI_DEFAULT_TOKENS = 2800;
+const MAX_BODY_BYTES = 10 * 1024 * 1024;      // 10 MiB: any request carrying a PDF/image file read
+const MAX_TEXT_BODY_BYTES = 256 * 1024;      // 256 KiB: every request without a file block
+const YFS_EXTRACT_PROMPT = { document: 'Extract ALL text from this resume exactly as written. Return only the raw text — every job title, company, date, skill, and bullet point. No commentary, no formatting labels.', image: 'Extract ALL text from this resume image exactly as it appears. Return only the raw text — every job, date, skill, and bullet point. No commentary.' };
+function yfsFileBlocks(body) { const out = []; const m = body && body.messages; if (!Array.isArray(m)) return out; for (const x of m) { if (x && Array.isArray(x.content)) for (const c of x.content) { if (c && (c.type === 'document' || c.type === 'image') && c.source && typeof c.source === 'object') out.push(c); } } return out; }
+function yfsIsFileRead(body) { return yfsFileBlocks(body).length > 0; }
+function yfsClampTokens(v) { const n = Math.floor(Number(v)); if (!Number.isFinite(n) || n <= 0) return AI_DEFAULT_TOKENS; return Math.min(n, AI_MAX_TOKENS); }
+const yfsBodies = new WeakMap();
+async function yfsAiBody(request) { if (yfsBodies.has(request)) return yfsBodies.get(request); let raw = ''; try { raw = await request.clone().text(); } catch (_) { raw = ''; } const bytes = te.encode(raw).length; let json = null; try { json = JSON.parse(raw); } catch (_) { json = null; } const rec = { bytes, json }; yfsBodies.set(request, rec); return rec; }
+async function yfsBodyTooBig(request, origin) { const cl = parseInt(request.headers.get('Content-Length') || '', 10); if (Number.isFinite(cl) && cl > MAX_BODY_BYTES) return j({ error: 'too_large', max_bytes: MAX_BODY_BYTES }, 413, origin); const b = await yfsAiBody(request); const max = yfsIsFileRead(b.json) ? MAX_BODY_BYTES : MAX_TEXT_BODY_BYTES; if (b.bytes > max) return j({ error: 'too_large', max_bytes: max }, 413, origin); return null; }
+async function yfsIsExtract(request) { if (request.headers.get('X-YFS-Kind') !== 'extract') return false; const b = await yfsAiBody(request); return yfsIsFileRead(b.json); }
 // ---- Optional server-side free limit (insert point D) ----
 // NOTE: app also POSTs for PDF/image text extraction; those count as calls. Free users
 // therefore get FREE_PER_DAY *requests*, so set >=2 or have app send X-YFS-Kind: extract.
@@ -2447,13 +2604,22 @@ async function freeGate(request, env, origin) {
   if (env.ENFORCE_FREE_LIMIT !== '1' || !env.YFS_KV) return null;
   const tok = request.headers.get('X-YFS-Pro');
   if (tok && await verifyProToken(env, tok)) return null;
-  if (request.headers.get('X-YFS-Kind') === 'extract') return null; // extraction is free
+  if (await yfsIsExtract(request)) return null; // sec-fix 1: only a REAL file read (document/image block) is free extraction
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const day = new Date().toISOString().slice(0, 10);
   const key = `free:${ip}:${day}`;
+  const run = yfsRunId(request), h = run ? await yfsBodyHash(request) : '';
+  if (run) {   // resume-fix: same run retried after an interruption → not a new free run (max RUN_RETRIES, same request only)
+    const rec = await env.YFS_KV.get('frun:' + run, 'json');
+    if (rec && rec.h === h && (rec.n || 0) < RUN_RETRIES) {
+      await env.YFS_KV.put('frun:' + run, JSON.stringify({ h, n: (rec.n || 0) + 1 }), { expirationTtl: RUN_TTL_S });
+      return null;
+    }
+  }
   const n = parseInt(await env.YFS_KV.get(key) || '0', 10);
   if (n >= FREE_PER_DAY) return j({ error: 'pro_required', upgrade: 'https://buy.stripe.com/3cIbIU3p4dJS7zd3BN04800' }, 402, origin);
   await env.YFS_KV.put(key, String(n + 1), { expirationTtl: 60 * 60 * 26 });
+  if (run) await env.YFS_KV.put('frun:' + run, JSON.stringify({ h, n: 0 }), { expirationTtl: RUN_TTL_S });
   return null;
 }
 
@@ -2485,9 +2651,9 @@ function yfsFreeSSE(body){const dec=new TextDecoder(),enc=new TextEncoder(),cut=
     ctl.enqueue(enc.encode(ln+'\n'));};
   return body.pipeThrough(new TransformStream({transform(ch,ctl){buf+=dec.decode(ch,{stream:true});let i;while((i=buf.indexOf('\n'))>=0){const ln=buf.slice(0,i).replace(/\r$/,'');buf=buf.slice(i+1);handle(ln,ctl);}},
     flush(ctl){buf+=dec.decode();if(buf)handle(buf,ctl);const f=cut.flush();if(f)ctl.enqueue(enc.encode(ev(f)));}}));}
-async function handleAnthropicProxy(request, env, origin) { try { const _tok = request.headers.get('X-YFS-Pro'); const _free = request.headers.get('X-YFS-Kind') !== 'extract' && !(_tok && await verifyProToken(env, _tok)); if (!env.ANTHROPIC_API_KEY) { return json({ error: 'Server misconfigured: missing ANTHROPIC_API_KEY' }, 500, origin); } const body = await request.json(); const payload = { model: body.model || 'claude-sonnet-4-6', max_tokens: body.max_tokens || 2800, messages: body.messages }; if (body.system) payload.system = body.system; if (body.stream === true) payload.stream = true; const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(payload) }); if (payload.stream && res.ok && res.body) { return new Response(_free ? yfsFreeSSE(res.body) : res.body, { status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-YFS-Free-Cut': _free ? '1' : '0', 'Cache-Control': 'no-cache', ...cors(origin) } }); } const data = await res.json(); if (_free && res.ok && data && Array.isArray(data.content)) { try { for (const b of data.content) if (b && typeof b.text === 'string') b.text = yfsCutText(b.text); } catch (_) {} } return new Response(JSON.stringify(data), { status: res.status, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); } catch (err) { return json({ error: 'Server error', detail: String(err && err.message || err) }, 500, origin); } }
+async function handleAnthropicProxy(request, env, origin, ctx) { try { const _tok = request.headers.get('X-YFS-Pro'); if (!env.ANTHROPIC_API_KEY) { return json({ error: 'Server misconfigured: missing ANTHROPIC_API_KEY' }, 500, origin); } const body = await request.json(); if (!body || !Array.isArray(body.messages)) return json({ error: 'bad_request' }, 400, origin); const _files = request.headers.get('X-YFS-Kind') === 'extract' ? yfsFileBlocks(body) : []; const _extract = _files.length > 0; const _free = !_extract && !(_tok && await verifyProToken(env, _tok)); const payload = { model: AI_MODEL, max_tokens: yfsClampTokens(body.max_tokens), messages: body.messages }; if (_extract) { payload.messages = [{ role: 'user', content: [..._files, { type: 'text', text: _files.some(f => f.type === 'document') ? YFS_EXTRACT_PROMPT.document : YFS_EXTRACT_PROMPT.image }] }]; } else if (body.system) payload.system = body.system; if (body.stream === true) payload.stream = true; const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(payload) }); if (payload.stream && res.ok && res.body) { let _out = _free ? yfsFreeSSE(res.body) : res.body; const _run = yfsRunId(request), _dev = yfsDevId(request); if (_run && _dev && ctx && typeof ctx.waitUntil === 'function' && env.YFS_KV) { const _t = _out.tee(); _out = _t[0]; ctx.waitUntil(yfsCacheRun(env, _dev, _run, _t[1], _free)); } return new Response(_out, { status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-YFS-Free-Cut': _free ? '1' : '0', 'Cache-Control': 'no-cache', ...cors(origin) } }); } const data = await res.json(); if (_free && res.ok && data && Array.isArray(data.content)) { try { for (const b of data.content) if (b && typeof b.text === 'string') b.text = yfsCutText(b.text); } catch (_) {} } return new Response(JSON.stringify(data), { status: res.status, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); } catch (err) { return json({ error: 'Server error', detail: String(err && err.message || err) }, 500, origin); } }
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = request.headers.get('Origin') || '';
     const path = url.pathname;
@@ -2495,7 +2661,7 @@ export default {
   const pro = await routePro(request, env, path, origin);
   if (pro) return pro;
 if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
-    if (request.method === 'POST' && (path === '/' || path === '' || path === '/api/claude')) { if (!requestOriginAllowed(request)) return new Response(JSON.stringify({ error: 'Forbidden origin' }), { status: 403, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); const rl = await rateLimit(request); if (!rl.ok) return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '3600', ...cors(origin) } }); }
+    if (request.method === 'POST' && (path === '/' || path === '' || path === '/api/claude')) { if (!requestOriginAllowed(request)) return new Response(JSON.stringify({ error: 'Forbidden origin' }), { status: 403, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); const rl = await yfsRateLimit(request, env); if (!rl.ok) return yfsRateLimited(rl, origin); const big = await yfsBodyTooBig(request, origin); if (big) return big; }
 
     if (request.method === 'OPTIONS')
       return new Response(null, { headers: cors(origin) });
@@ -2505,7 +2671,7 @@ if (request.method === 'OPTIONS') return new Response(null, { status: 204, heade
     if (gate) return gate;
 
 
-    if (request.method === 'POST' && (path === '/' || path === '')) return handleAnthropicProxy(request, env, origin); // Serve HTML pages
+    if (request.method === 'POST' && (path === '/' || path === '')) return handleAnthropicProxy(request, env, origin, ctx); // Serve HTML pages
     if (request.method === 'GET') {
       if (path === '/' || path === '' || path === '/index.html') {
         return new Response(LANDING_PAGE, {
@@ -2521,7 +2687,7 @@ if (request.method === 'OPTIONS') return new Response(null, { status: 204, heade
 
     // Claude API
     if (path === '/api/claude' && request.method === 'POST')
-      return handleClaude(request, env, origin);
+      return json({ error: 'gone', message: 'This endpoint was retired. Use the app at yourfirstshiftapp.com.' }, 410, origin); // sec-fix: legacy route retired (handleClaude kept, unused)
 
     // Auth
     if (path === '/auth/google') return handleGoogleLogin(request, env);
@@ -2548,14 +2714,17 @@ if (request.method === 'OPTIONS') return new Response(null, { status: 204, heade
 async function handleClaude(request, env, origin) {
   try {
     const body = await request.json();
-    const { tool, messages, model } = body;
+    const { tool, messages } = body;
+    // sec-fix 1: only known tools (FREE_LIMITS keys); unknown names used to get unlimited runs
+    if (typeof tool !== 'string' || !Object.prototype.hasOwnProperty.call(FREE_LIMITS, tool)) return json({ error: 'unknown_tool', tool: typeof tool === 'string' ? tool.slice(0, 40) : null }, 400, origin);
+    if (!Array.isArray(messages)) return json({ error: 'bad_request' }, 400, origin);
     const session = await getSession(request, env);
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     const trackingKey = session?.user_id ? String(session.user_id) : `ip_${ip}`;
 
     // Pro users — unlimited, no checks
     if (session?.is_pro) {
-      return await callClaude(messages, model, env, origin);
+      return await callClaude(messages, env, origin);
     }
 
     // Check if tool is Pro-only
@@ -2582,7 +2751,7 @@ async function handleClaude(request, env, origin) {
     }
 
     // Make the Claude call
-    const result = await callClaude(messages, model, env, origin);
+    const result = await callClaude(messages, env, origin);
 
     // Increment usage on success
     if (result.status === 200) {
@@ -2597,7 +2766,7 @@ async function handleClaude(request, env, origin) {
   }
 }
 
-async function callClaude(messages, model, env, origin) {
+async function callClaude(messages, env, origin) { // sec-fix 2: caller model ignored
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -2606,8 +2775,8 @@ async function callClaude(messages, model, env, origin) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: model || 'claude-sonnet-4-6',
-      max_tokens: 2800,
+      model: AI_MODEL,
+      max_tokens: AI_DEFAULT_TOKENS,
       messages,
     }),
   });
