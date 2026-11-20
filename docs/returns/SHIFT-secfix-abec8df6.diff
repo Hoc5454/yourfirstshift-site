@@ -1,0 +1,165 @@
+diff --git a/worker/worker.js b/worker/worker.js
+index 13e0883..e43aa60 100644
+--- a/worker/worker.js
++++ b/worker/worker.js
+@@ -1979,6 +1979,23 @@ function originOk(o) { if (!o) return false; if (ALLOWED_ORIGINS.includes(o)) re
+ function cors(origin) { if (!originOk(origin)) return { 'Vary': 'Origin' }; return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-YFS-Pro, X-YFS-Kind, X-YFS-Run, X-YFS-Dev', 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' }; }
+ function requestOriginAllowed(request) { const o = request.headers.get('Origin'); if (o) return originOk(o); const r = request.headers.get('Referer'); if (!r) return false; try { return originOk(new URL(r).origin); } catch { return false; } }
+ async function rateLimit(request) { const ip = request.headers.get('CF-Connecting-IP') || 'unknown'; const hour = Math.floor(Date.now() / 3600000); const key = new Request(`https://rl.internal/rl:${ip}:${hour}`); const cache = caches.default; const hit = await cache.match(key); const count = hit ? parseInt(await hit.text(), 10) || 0 : 0; if (count >= RL_LIMIT) return { ok: false, count }; await cache.put(key, new Response(String(count + 1), { headers: { 'Cache-Control': 'max-age=3600' } })); return { ok: true, count: count + 1 }; }
++// sec-fix 3: a valid Pro/org/pack token is limited per subscription/seat (not per IP); free callers per IP.
++const RL_FREE_PER_HOUR = 60, RL_PRO_PER_HOUR = 120;
++const RL_FREE_IP_CEIL = 300; // per-IP ceiling across all devices (classrooms / shared Wi-Fi); stops device-id rotation
++function yfsRlId(p) { if (!p) return ''; if (p.org) { const c = yfsOrgCode(p.org), d = yfsOrgDevice(p.did); return c && d ? 'org:' + c + ':' + d : ''; } if (p.sub) return 'sub:' + String(p.sub); if (p.pack) return 'pack:' + String(p.pack); return ''; }
++async function yfsRateLimit(request, env) { const hour = Math.floor(Date.now() / 3600000); let id = ''; const tok = request.headers.get('X-YFS-Pro'); if (tok && env && env.PRO_SIGNING_SECRET) { try { id = yfsRlId(await verifyProToken(env, tok)); } catch (_) { id = ''; } } if (id) { const r = await yfsRlHit(env, id, hour, RL_PRO_PER_HOUR); return { ...r, max: RL_PRO_PER_HOUR, keyed: 'token', hour }; } const ip = request.headers.get('CF-Connecting-IP') || 'unknown'; const dev = yfsDevId(request); if (dev) { const [c, r] = await Promise.all([yfsRlHit(env, 'ip:' + ip + '|all', hour, RL_FREE_IP_CEIL), yfsRlHit(env, 'ip:' + ip + '|d:' + dev, hour, RL_FREE_PER_HOUR)]); if (!c.ok) return { ...c, max: RL_FREE_IP_CEIL, keyed: 'ip-ceiling', hour }; return { ...r, max: RL_FREE_PER_HOUR, keyed: 'ip+device', hour }; } const r = await yfsRlHit(env, 'ip:' + ip, hour, RL_FREE_PER_HOUR); return { ...r, max: RL_FREE_PER_HOUR, keyed: 'ip', hour }; }
++// 429 body for the new limiter (app shows its own text for 429s; this is for humans/devtools). Retry-After = seconds to the hour boundary.
++function yfsRateLimited(rl, origin) { const now = Math.floor(Date.now() / 1000); const hour = (rl && rl.hour) || Math.floor(now / 3600); const retry = Math.max(60, (hour + 1) * 3600 - now); return j({ error: 'rate_limited', message: 'Too many requests right now. Please wait about ' + Math.ceil(retry / 60) + ' minutes and try again.', retry_after: retry, limit_per_hour: (rl && rl.max) || null }, 429, origin, { 'Retry-After': String(retry), 'Cache-Control': 'no-store' }); }
++// Counter lives in D1 (one global, atomic count; the Cache API counter is per data center). IPs are stored only as a
++// keyed HMAC prefix; rows expire after ~2h. Fails OPEN on a D1 error or after RL_STORE_TIMEOUT_MS (a slow or down
++// counter never blocks or hangs a request).
++let yfsRlReady = false;
++const RL_STORE_TIMEOUT_MS = 1500;
++// IP keys are an HMAC keyed by the existing PRO_SIGNING_SECRET binding (no salt in source); plain SHA-256 if it is missing.
++let yfsRlKey = null;
++async function yfsRlHash(env, v) { if (env.PRO_SIGNING_SECRET) { if (!yfsRlKey) yfsRlKey = await crypto.subtle.importKey('raw', te.encode('yfs-rl:' + env.PRO_SIGNING_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); return hex(await crypto.subtle.sign('HMAC', yfsRlKey, te.encode(v))).slice(0, 32); } return hex(await crypto.subtle.digest('SHA-256', te.encode(v))).slice(0, 32); }
++async function yfsRlHit(env, id, hour, max) { if (!env || !env.DB) return { ok: true, count: 0, store: 'none' }; let timer; const to = new Promise(res => { timer = setTimeout(() => { try { console.error('yfs rate-limit store timeout'); } catch (_) {} res({ ok: true, count: 0, store: 'timeout' }); }, RL_STORE_TIMEOUT_MS); }); try { return await Promise.race([yfsRlHitD1(env, id, hour, max), to]); } finally { clearTimeout(timer); } }
++async function yfsRlHitD1(env, id, hour, max) { if (!env || !env.DB) return { ok: true, count: 0, store: 'none' }; try { if (id.startsWith('ip:')) id = 'ip:' + (await yfsRlHash(env, id.slice(3))); if (!yfsRlReady) { await env.DB.prepare('CREATE TABLE IF NOT EXISTS yfs_rl (k TEXT PRIMARY KEY, n INTEGER NOT NULL, exp INTEGER NOT NULL)').run(); yfsRlReady = true; } const k = id + ':' + hour; const row = await env.DB.prepare('INSERT INTO yfs_rl (k, n, exp) VALUES (?, 1, ?) ON CONFLICT(k) DO UPDATE SET n = n + 1 RETURNING n').bind(k, (hour + 2) * 3600).first(); const n = (row && Number(row.n)) || 1; if (Math.random() < 0.01) { try { await env.DB.prepare('DELETE FROM yfs_rl WHERE exp < ?').bind(Math.floor(Date.now() / 1000)).run(); } catch (_) {} } return { ok: n <= max, count: n, store: 'd1' }; } catch (e) { try { console.error('yfs rate-limit store error', String(e && e.message || e)); } catch (_) {} return { ok: true, count: 0, store: 'error' }; } }
+ 
+ function json(data, status=200, origin='') {
+   return new Response(JSON.stringify(data), {
+@@ -2144,8 +2161,8 @@ async function handleYfsProStripeWebhook(request, env) {
+ // ---- POST /api/pro/restore {email} (P0.9 cross-device restore) ----
+ async function handleProRestore(request, env, origin) {
+   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
+-  const rl = await rateLimit(request);
+-  if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
++  const rl = await yfsRateLimit(request, env);
++  if (!rl.ok) return yfsRateLimited(rl, origin);
+   let email; try { email = String((await request.json()).email || '').trim(); } catch {}
+   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return j({ error: 'bad email' }, 400, origin);
+   const variants = [...new Set([email, email.toLowerCase()])];
+@@ -2196,8 +2213,8 @@ function yfsSubCancelFields(o) {
+ // ---- POST /api/pro/status {token} -> Stripe-confirmed sub state ----
+ async function handleProStatus(request, env, origin) {
+   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
+-  const rl = await rateLimit(request);
+-  if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
++  const rl = await yfsRateLimit(request, env);
++  if (!rl.ok) return yfsRateLimited(rl, origin);
+   let token; try { token = String((await request.json()).token || ''); } catch {}
+   if (!token || !token.includes('.')) return j({ error: 'bad token' }, 400, origin);
+   const [body, sig] = token.split('.');
+@@ -2434,8 +2451,8 @@ async function handleHeardAbout(request, env, origin) {
+ const PRO_REFRESH_GRACE_S = 90 * 86400;
+ async function handleProRefresh(request, env, origin) {
+   if (!requestOriginAllowed(request)) return j({ error: 'Forbidden origin' }, 403, origin);
+-  const rl = await rateLimit(request);
+-  if (!rl.ok) return j({ error: 'Rate limit' }, 429, origin, { 'Retry-After': '3600' });
++  const rl = await yfsRateLimit(request, env);
++  if (!rl.ok) return yfsRateLimited(rl, origin);
+   let token; try { token = String((await request.json()).token || ''); } catch {}
+   if (!token || !token.includes('.')) return j({ error: 'bad token' }, 400, origin);
+   const [body, sig] = token.split('.');
+@@ -2566,6 +2583,18 @@ async function routePro(request, env, path, origin) {
+   return null;
+ }
+ 
++// ── sec-fix 1+2: real file reads only; fixed model; capped max_tokens; body size limits ──
++const AI_MODEL = 'claude-sonnet-4-6', AI_MAX_TOKENS = 3000, AI_DEFAULT_TOKENS = 2800;
++const MAX_BODY_BYTES = 10 * 1024 * 1024;      // 10 MiB: any request carrying a PDF/image file read
++const MAX_TEXT_BODY_BYTES = 256 * 1024;      // 256 KiB: every request without a file block
++const YFS_EXTRACT_PROMPT = { document: 'Extract ALL text from this resume exactly as written. Return only the raw text — every job title, company, date, skill, and bullet point. No commentary, no formatting labels.', image: 'Extract ALL text from this resume image exactly as it appears. Return only the raw text — every job, date, skill, and bullet point. No commentary.' };
++function yfsFileBlocks(body) { const out = []; const m = body && body.messages; if (!Array.isArray(m)) return out; for (const x of m) { if (x && Array.isArray(x.content)) for (const c of x.content) { if (c && (c.type === 'document' || c.type === 'image') && c.source && typeof c.source === 'object') out.push(c); } } return out; }
++function yfsIsFileRead(body) { return yfsFileBlocks(body).length > 0; }
++function yfsClampTokens(v) { const n = Math.floor(Number(v)); if (!Number.isFinite(n) || n <= 0) return AI_DEFAULT_TOKENS; return Math.min(n, AI_MAX_TOKENS); }
++const yfsBodies = new WeakMap();
++async function yfsAiBody(request) { if (yfsBodies.has(request)) return yfsBodies.get(request); let raw = ''; try { raw = await request.clone().text(); } catch (_) { raw = ''; } const bytes = te.encode(raw).length; let json = null; try { json = JSON.parse(raw); } catch (_) { json = null; } const rec = { bytes, json }; yfsBodies.set(request, rec); return rec; }
++async function yfsBodyTooBig(request, origin) { const cl = parseInt(request.headers.get('Content-Length') || '', 10); if (Number.isFinite(cl) && cl > MAX_BODY_BYTES) return j({ error: 'too_large', max_bytes: MAX_BODY_BYTES }, 413, origin); const b = await yfsAiBody(request); const max = yfsIsFileRead(b.json) ? MAX_BODY_BYTES : MAX_TEXT_BODY_BYTES; if (b.bytes > max) return j({ error: 'too_large', max_bytes: max }, 413, origin); return null; }
++async function yfsIsExtract(request) { if (request.headers.get('X-YFS-Kind') !== 'extract') return false; const b = await yfsAiBody(request); return yfsIsFileRead(b.json); }
+ // ---- Optional server-side free limit (insert point D) ----
+ // NOTE: app also POSTs for PDF/image text extraction; those count as calls. Free users
+ // therefore get FREE_PER_DAY *requests*, so set >=2 or have app send X-YFS-Kind: extract.
+@@ -2573,7 +2602,7 @@ async function freeGate(request, env, origin) {
+   if (env.ENFORCE_FREE_LIMIT !== '1' || !env.YFS_KV) return null;
+   const tok = request.headers.get('X-YFS-Pro');
+   if (tok && await verifyProToken(env, tok)) return null;
+-  if (request.headers.get('X-YFS-Kind') === 'extract') return null; // extraction is free
++  if (await yfsIsExtract(request)) return null; // sec-fix 1: only a REAL file read (document/image block) is free extraction
+   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+   const day = new Date().toISOString().slice(0, 10);
+   const key = `free:${ip}:${day}`;
+@@ -2620,7 +2649,7 @@ function yfsFreeSSE(body){const dec=new TextDecoder(),enc=new TextEncoder(),cut=
+     ctl.enqueue(enc.encode(ln+'\n'));};
+   return body.pipeThrough(new TransformStream({transform(ch,ctl){buf+=dec.decode(ch,{stream:true});let i;while((i=buf.indexOf('\n'))>=0){const ln=buf.slice(0,i).replace(/\r$/,'');buf=buf.slice(i+1);handle(ln,ctl);}},
+     flush(ctl){buf+=dec.decode();if(buf)handle(buf,ctl);const f=cut.flush();if(f)ctl.enqueue(enc.encode(ev(f)));}}));}
+-async function handleAnthropicProxy(request, env, origin, ctx) { try { const _tok = request.headers.get('X-YFS-Pro'); const _free = request.headers.get('X-YFS-Kind') !== 'extract' && !(_tok && await verifyProToken(env, _tok)); if (!env.ANTHROPIC_API_KEY) { return json({ error: 'Server misconfigured: missing ANTHROPIC_API_KEY' }, 500, origin); } const body = await request.json(); const payload = { model: body.model || 'claude-sonnet-4-6', max_tokens: body.max_tokens || 2800, messages: body.messages }; if (body.system) payload.system = body.system; if (body.stream === true) payload.stream = true; const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(payload) }); if (payload.stream && res.ok && res.body) { let _out = _free ? yfsFreeSSE(res.body) : res.body; const _run = yfsRunId(request), _dev = yfsDevId(request); if (_run && _dev && ctx && typeof ctx.waitUntil === 'function' && env.YFS_KV) { const _t = _out.tee(); _out = _t[0]; ctx.waitUntil(yfsCacheRun(env, _dev, _run, _t[1], _free)); } return new Response(_out, { status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-YFS-Free-Cut': _free ? '1' : '0', 'Cache-Control': 'no-cache', ...cors(origin) } }); } const data = await res.json(); if (_free && res.ok && data && Array.isArray(data.content)) { try { for (const b of data.content) if (b && typeof b.text === 'string') b.text = yfsCutText(b.text); } catch (_) {} } return new Response(JSON.stringify(data), { status: res.status, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); } catch (err) { return json({ error: 'Server error', detail: String(err && err.message || err) }, 500, origin); } }
++async function handleAnthropicProxy(request, env, origin, ctx) { try { const _tok = request.headers.get('X-YFS-Pro'); if (!env.ANTHROPIC_API_KEY) { return json({ error: 'Server misconfigured: missing ANTHROPIC_API_KEY' }, 500, origin); } const body = await request.json(); if (!body || !Array.isArray(body.messages)) return json({ error: 'bad_request' }, 400, origin); const _files = request.headers.get('X-YFS-Kind') === 'extract' ? yfsFileBlocks(body) : []; const _extract = _files.length > 0; const _free = !_extract && !(_tok && await verifyProToken(env, _tok)); const payload = { model: AI_MODEL, max_tokens: yfsClampTokens(body.max_tokens), messages: body.messages }; if (_extract) { payload.messages = [{ role: 'user', content: [..._files, { type: 'text', text: _files.some(f => f.type === 'document') ? YFS_EXTRACT_PROMPT.document : YFS_EXTRACT_PROMPT.image }] }]; } else if (body.system) payload.system = body.system; if (body.stream === true) payload.stream = true; const res = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify(payload) }); if (payload.stream && res.ok && res.body) { let _out = _free ? yfsFreeSSE(res.body) : res.body; const _run = yfsRunId(request), _dev = yfsDevId(request); if (_run && _dev && ctx && typeof ctx.waitUntil === 'function' && env.YFS_KV) { const _t = _out.tee(); _out = _t[0]; ctx.waitUntil(yfsCacheRun(env, _dev, _run, _t[1], _free)); } return new Response(_out, { status: 200, headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'X-YFS-Free-Cut': _free ? '1' : '0', 'Cache-Control': 'no-cache', ...cors(origin) } }); } const data = await res.json(); if (_free && res.ok && data && Array.isArray(data.content)) { try { for (const b of data.content) if (b && typeof b.text === 'string') b.text = yfsCutText(b.text); } catch (_) {} } return new Response(JSON.stringify(data), { status: res.status, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); } catch (err) { return json({ error: 'Server error', detail: String(err && err.message || err) }, 500, origin); } }
+ export default {
+   async fetch(request, env, ctx) {
+     const url = new URL(request.url);
+@@ -2630,7 +2659,7 @@ export default {
+   const pro = await routePro(request, env, path, origin);
+   if (pro) return pro;
+ if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
+-    if (request.method === 'POST' && (path === '/' || path === '' || path === '/api/claude')) { if (!requestOriginAllowed(request)) return new Response(JSON.stringify({ error: 'Forbidden origin' }), { status: 403, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); const rl = await rateLimit(request); if (!rl.ok) return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '3600', ...cors(origin) } }); }
++    if (request.method === 'POST' && (path === '/' || path === '' || path === '/api/claude')) { if (!requestOriginAllowed(request)) return new Response(JSON.stringify({ error: 'Forbidden origin' }), { status: 403, headers: { 'Content-Type': 'application/json', ...cors(origin) } }); const rl = await yfsRateLimit(request, env); if (!rl.ok) return yfsRateLimited(rl, origin); const big = await yfsBodyTooBig(request, origin); if (big) return big; }
+ 
+     if (request.method === 'OPTIONS')
+       return new Response(null, { headers: cors(origin) });
+@@ -2656,7 +2685,7 @@ if (request.method === 'OPTIONS') return new Response(null, { status: 204, heade
+ 
+     // Claude API
+     if (path === '/api/claude' && request.method === 'POST')
+-      return handleClaude(request, env, origin);
++      return json({ error: 'gone', message: 'This endpoint was retired. Use the app at yourfirstshiftapp.com.' }, 410, origin); // sec-fix: legacy route retired (handleClaude kept, unused)
+ 
+     // Auth
+     if (path === '/auth/google') return handleGoogleLogin(request, env);
+@@ -2683,14 +2712,17 @@ if (request.method === 'OPTIONS') return new Response(null, { status: 204, heade
+ async function handleClaude(request, env, origin) {
+   try {
+     const body = await request.json();
+-    const { tool, messages, model } = body;
++    const { tool, messages } = body;
++    // sec-fix 1: only known tools (FREE_LIMITS keys); unknown names used to get unlimited runs
++    if (typeof tool !== 'string' || !Object.prototype.hasOwnProperty.call(FREE_LIMITS, tool)) return json({ error: 'unknown_tool', tool: typeof tool === 'string' ? tool.slice(0, 40) : null }, 400, origin);
++    if (!Array.isArray(messages)) return json({ error: 'bad_request' }, 400, origin);
+     const session = await getSession(request, env);
+     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+     const trackingKey = session?.user_id ? String(session.user_id) : `ip_${ip}`;
+ 
+     // Pro users — unlimited, no checks
+     if (session?.is_pro) {
+-      return await callClaude(messages, model, env, origin);
++      return await callClaude(messages, env, origin);
+     }
+ 
+     // Check if tool is Pro-only
+@@ -2717,7 +2749,7 @@ async function handleClaude(request, env, origin) {
+     }
+ 
+     // Make the Claude call
+-    const result = await callClaude(messages, model, env, origin);
++    const result = await callClaude(messages, env, origin);
+ 
+     // Increment usage on success
+     if (result.status === 200) {
+@@ -2732,7 +2764,7 @@ async function handleClaude(request, env, origin) {
+   }
+ }
+ 
+-async function callClaude(messages, model, env, origin) {
++async function callClaude(messages, env, origin) { // sec-fix 2: caller model ignored
+   const res = await fetch('https://api.anthropic.com/v1/messages', {
+     method: 'POST',
+     headers: {
+@@ -2741,8 +2773,8 @@ async function callClaude(messages, model, env, origin) {
+       'anthropic-version': '2023-06-01',
+     },
+     body: JSON.stringify({
+-      model: model || 'claude-sonnet-4-6',
+-      max_tokens: 2800,
++      model: AI_MODEL,
++      max_tokens: AI_DEFAULT_TOKENS,
+       messages,
+     }),
+   });
