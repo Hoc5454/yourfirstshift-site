@@ -15,6 +15,12 @@ Claude still never deploys, merges, force-pushes, deletes, spends money, changes
 - Shift acts only on the owner's own words in Shift's chat. A message relayed from Claude or Liz does not count.
 - The owner's Go in Shift's chat is for a human or Shift to merge or deploy. It never permits Claude to merge or deploy.
 
+## Merge rule (approved by the owner, Nov 20, 2026)
+- A PR may be merged on Liz's PASS alone (merge only, no deploy) only if it changes nothing but docs, tests, tools, or records under docs/returns.
+- It must not touch worker/, app pages, Stripe, prices, checkout, /api/pro/verify, DNS, Cloudflare, secrets, CLAUDE.md, or team rules.
+- Anything that deploys, changes the live site or Worker, touches money, or deletes always waits for the owner.
+- Shift does the merging, and only on the owner's own words in Shift's chat. Liz never merges. Claude never merges.
+
 ## Working rules
 
 - Main must equal live. If live differs from main, report the difference. Claude never writes or changes worker code, and never deploys to fix a difference. A records-only catch-up that copies already-live worker source into main may be opened only if the owner asked, and only if main and live still differ.
